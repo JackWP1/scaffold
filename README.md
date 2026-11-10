@@ -1,2 +1,3 @@
-# scaf
-Skills-Centric Agentic Framework
+# SCAFFOLD
+
+Secure, Compliant Agentic Framework For Orchestrated Lifecycle Delivery
