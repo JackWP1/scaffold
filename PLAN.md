@@ -35,7 +35,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot** GitHub Models
 
 ### Labels
 
-`scaffold:triage`, `scaffold:needs-info`, `scaffold:ready`, `scaffold:plan-approved`, `scaffold:proposed`, `scaffold:accepted`, `scaffold:escalate`.
+`scaffold:triage`, `scaffold:needs-info`, `scaffold:ready`, `scaffold:plan-approved`, `scaffold:proposed`, `scaffold:accepted`, `scaffold:escalate`, `scaffold:diagram-unchanged`.
 
 ## 3. Skills
 
@@ -90,7 +90,7 @@ Central repo: `ukncsc/scaffold` (internal), Actions access set to "Accessible fr
 actions/<name>/         composite actions; bundle skills, prompts, schemas and dist/
 skills/                 SKILL.md sources + manifest.yml
 schemas/                output and scaffold.yml JSON schemas
-config/                 labels.yml, recommendations.yml, models.yml
+config/                 labels.yml, recommendations.yml, models.yml, workflow.yml
 policies/CHARTER.md
 templates/              caller workflow, scaffold.yml, Copilot instructions, issue/PR templates, CODEOWNERS snippet
 docs/                   INSTALL.md, ARCHITECTURE.md, CONTRIBUTING-SKILLS.md
@@ -194,15 +194,21 @@ Start with the issue form and Jira keys in PR titles; revisit after the first sl
 Diagrams are both an output (what the repo and workflow are doing) and an input (a way to propose changes). They are kept as code so they can be diffed, reviewed and read by agents.
 
 - **Format:** Mermaid in Markdown, which GitHub renders natively in files, issues and PRs.
-- **Hand-maintained** (`docs/diagrams/`): `workflow.md` (lifecycle and gates) and `architecture.md`. These are the canonical pictures.
-- **Generated:** an Action renders the label state machine from `labels.yml` and the workflow graph from `.github/workflows/*.yml`. A check fails if a generated diagram is stale (as with `dist/`).
+- **`docs/diagrams/workflow.md`** holds two diagrams:
+  - **Proposed:** the target lifecycle, coloured by the slice that delivers each step; delivered steps change from dashed to solid. Hand-maintained. A PR that changes it is a proposal to change the workflow; once merged, the implementing work follows from it.
+  - **Current:** the workflow as implemented. Updated in every slice's PR, so its git history records how the workflow changed. A history table lists each slice's change.
+- **`docs/diagrams/architecture.md`:** components and how they call each other; updated in the same way.
+- **Workflow definition:** `config/workflow.yml` describes the implemented workflow (stages, gates, labels, triggers, skills, required checks). The Current diagram, the label state machine and the Actions workflow graph are generated from it and from `labels.yml` and `.github/workflows/*.yml`.
+- **`scaffold-diagrams` check** (required): fails if the workflow changes without the diagram changing with it.
+  - Generated diagrams differ from the committed ones (as with `dist/`).
+  - `workflow.yml` disagrees with the implementation: labels in `labels.yml`, triggers and skills in `.github/workflows/*.yml`, gate checks in the ruleset template.
+  - **Before code exists:** a PR that changes the workflow in this plan (sections 2, 6 or 8) without changing `docs/diagrams/workflow.md` fails; an approver can pass it by applying `scaffold:diagram-unchanged`.
 - **Per issue:** the status comment (section 6) shows the issue's position in the workflow as a Mermaid diagram.
-- **Diagrams as input:** a PR that changes `docs/diagrams/workflow.md` is a proposal to change the workflow; once merged, the implementing work follows from it.
 - **Later:** a `diagram-to-mermaid` skill turning sketches or whiteboard photos attached to issues into a Mermaid draft for a human to correct. Depends on GitHub Models image input and reading issue attachments with `GITHUB_TOKEN` (confirm in Phase 0).
 
 ## 11. Plan
 
-The workflow is built in **vertical slices**: each slice adds one stage end to end, runs it on real issues, and ends with a retrospective that updates this plan. The workflow is expected to change as we learn how it flows and how people work with it. Each slice also lists what it teaches about GitHub Actions and Issues.
+The workflow is built in **vertical slices**: each slice adds one stage end to end, including its visibility (below), runs it on real issues, and ends with a retrospective that updates this plan. The workflow is expected to change as we learn how it flows and how people work with it. Each slice also lists what it teaches about GitHub Actions and Issues.
 
 ### Phase 0: Scope and governance
 
@@ -211,7 +217,8 @@ The workflow is built in **vertical slices**: each slice adds one stage end to e
 - Agree the data-handling rule with security and data owners (e.g. opt-in per repo, classification limits, logging position).
 - Confirm the source-of-truth split and the Jira route (section 9), including whether "GitHub for Jira" is allowed.
 - Choose the pilot repos and the 6 developers; agree the flow lead rota and work-in-progress limits (section 8).
-- Draw the current workflow and target lifecycle in `docs/diagrams/workflow.md`.
+- Confirm the current workflow and the proposed lifecycle in `docs/diagrams/workflow.md` (first drafts committed).
+- Add the plan-stage `scaffold-diagrams` check (section 10) so changes to this plan's workflow must update the diagram.
 - Confirm the human approval points in section 2.
 
 ### Phase 1: Foundations
@@ -228,13 +235,22 @@ Only what slice 1 needs.
 
 Each slice: build → run in the sandbox → run on the pilot repo → retrospective → PR to this plan.
 
-| Slice | Adds | Learn |
-| --- | --- | --- |
-| 1. Intake | Jira issue form, `triage`, labels, Projects board, status comment | Issue forms, labels, Projects; workflow triggers, `permissions:`, `GITHUB_TOKEN`, job summaries |
-| 2. Plan | `/plan`, `task-decomposer`, protected plan gate | `issue_comment` events, reusable workflows, composite actions, required checks, rulesets |
-| 3. Implement | Copilot assignment, `tdd`/`implement` skills, protected paths, test integrity, circuit breaker, work-in-progress limits | Copilot coding agent, CODEOWNERS, `pull_request` events |
-| 4. Review | `code-review`, `ci-diagnose` | `pull_request` vs `pull_request_target` security, `workflow_run` |
-| 5. Visibility | Generated diagrams, freshness check, weekly usage report | `schedule`, artifacts, `workflow_dispatch` |
+| Slice | Adds | Visibility | Learn |
+| --- | --- | --- | --- |
+| 1. Intake | Jira issue form, `triage`, labels, Projects board | Status comment, audit log and job summary, weekly usage report, `workflow.yml` with generated diagrams and the `scaffold-diagrams` check | Issue forms, labels, Projects; workflow triggers, `permissions:`, `GITHUB_TOKEN`, job summaries, `schedule`, artifacts, `workflow_dispatch` |
+| 2. Plan | `/plan`, `task-decomposer`, protected plan gate | Plan gate in the status comment; gate passes and fails in the audit log; time to approval in the usage report | `issue_comment` events, reusable workflows, composite actions, required checks, rulesets |
+| 3. Implement | Copilot assignment, `tdd`/`implement` skills, protected paths, test integrity, circuit breaker, work-in-progress limits | PR status comment with guard checks and rework count; work in progress per developer in the usage report | Copilot coding agent, CODEOWNERS, `pull_request` events |
+| 4. Review | `code-review`, `ci-diagnose` | Review and diagnosis outcomes and false positives in the usage report | `pull_request` vs `pull_request_target` security, `workflow_run` |
+
+### Visibility in every slice
+
+A slice is not done until, in its own PR:
+
+- the Current diagram matches what was built and its steps in the Proposed diagram are marked done (`scaffold-diagrams` passes);
+- `workflow.yml` and the architecture diagram include the new stage, gates and checks;
+- the status comment shows the new gate;
+- the audit log and usage report include the new skill or gate;
+- the retrospective adds a row to the diagram history and any workflow changes to the Proposed diagram.
 
 - Move to `ukncsc/scaffold` (internal) and set Actions access before the first pilot-repo run.
 - Measure per slice: human time per gate, queue length at each gate, false positives, cost.
@@ -266,4 +282,5 @@ Each slice: build → run in the sandbox → run on the pilot repo → retrospec
 - **Skill drift:** pinned versions, Dependabot, `.scaffold-version`.
 - **Data handling:** unresolved until Phase 0.
 - **Human bottleneck:** review queues grow faster than developers can clear them; work-in-progress limits, one prioritised queue and per-gate metrics (sections 8 and 11).
+- **Diagram drift:** pictures stop matching the workflow; `scaffold-diagrams` is a required check and every slice updates the diagrams (sections 10 and 11).
 - **Two sources of truth:** Jira and `docs/spec/` drift; agreed split and Jira keys on every issue and PR (section 9).
