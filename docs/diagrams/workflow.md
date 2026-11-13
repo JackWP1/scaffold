@@ -7,9 +7,9 @@ Two diagrams, kept as code (PLAN.md section 10):
 
 ## Proposed
 
-Fill colour shows the slice that delivers each step; the border shows whether it is planned or done (see the key at the top). The slice's PR switches its steps from `planned` to `done`.
+Fill colour shows the slice that delivers each step; the border shows whether it is planned or done. The slice's PR switches its steps from `planned` to `done`.
 
-Shapes: `{ }` human decision or gate, `[ ]` step, state or artefact.
+Shape shows who moves the work on: a diamond with 🧑 needs a human to act; a hexagon is an automated check; 🤖 is an AI step; a plain box is a state or artefact. See the key at the top.
 
 ```mermaid
 flowchart TD
@@ -21,45 +21,53 @@ flowchart TD
     k4[4. Review]
     kp[Planned]
     kd[Done]
-    k1 ~~~ k2 ~~~ k3 ~~~ k4 ~~~ kp ~~~ kd
+    kh{"<span style='font-size:2em'>🧑</span><br/>Human<br/>must act"}
+    ka{{Automated<br/>check}}
+    kai["<span style='font-size:2em'>🤖</span> AI step"]
+    k1 ~~~ k2 ~~~ k3 ~~~ k4
+    kp ~~~ kd ~~~ kh ~~~ ka ~~~ kai
   end
   style key fill:#fff,stroke:#000
   key ~~~ jira
 
-  jira[Jira requirement] --> form[Issue opened via Jira issue form]
-  form --> member{Author is a member?}
+  jira[Jira requirement] --> open{"<span style='font-size:2em'>🧑</span><br/>Developer opens issue<br/>via Jira issue form"}
+  open --> member{{Author is a trusted org<br/>member or collaborator?}}
   member -- no --> proposed[scaffold:proposed]
-  proposed -- member applies scaffold:accepted --> triage
-  member -- yes --> triage[triage]
+  proposed --> accept{"<span style='font-size:2em'>🧑</span><br/>Member applies<br/>scaffold:accepted"}
+  accept --> triage
+  member -- yes --> triage["<span style='font-size:2em'>🤖</span> triage"]
   triage --> needsinfo[scaffold:needs-info]
-  needsinfo -- author edits issue --> triage
+  needsinfo --> edit{"<span style='font-size:2em'>🧑</span><br/>Author<br/>edits issue"}
+  edit --> triage
   triage --> ready[scaffold:ready<br/>Projects: Ready]
 
-  ready -- member comments /plan --> decompose[task-decomposer]
+  ready --> plancmd{"<span style='font-size:2em'>🧑</span><br/>Member<br/>comments /plan"}
+  plancmd --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer"]
   decompose --> plancomment[Plan comment]
-  plancomment --> planreview{Approver reviews plan}
-  planreview -- changes needed: /plan again --> decompose
+  plancomment --> planreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews plan"}
+  planreview -- changes needed --> plancmd
   planreview -- approves --> approved[scaffold:plan-approved<br/>gate: listed approver + plan hash]
 
-  approved -- developer assigns issue --> copilot[Copilot coding agent<br/>tdd, implement]
+  approved --> assign{"<span style='font-size:2em'>🧑</span><br/>Developer assigns<br/>issue to Copilot"}
+  assign --> copilot["<span style='font-size:2em'>🤖</span> Copilot coding agent<br/>tdd, implement"]
   copilot --> pr[Copilot PR]
-  pr --> guards{Guard checks<br/>plan gate, protected paths, test integrity}
-  pr --> ci{CI}
-  pr --> review[code-review]
-  ci -- fails --> diagnose[ci-diagnose]
-  diagnose --> rework[Rework round]
-  guards -- fail --> rework
-  rework --> breaker{Circuit breaker<br/>4 consecutive / 6 total}
-  breaker -- under limit --> copilot
-  breaker -- tripped --> escalate[scaffold:escalate]
-  escalate --> flowlead{Flow lead decides}
-  flowlead -- replan --> ready
-
-  guards -- pass --> ownerreview{Code-owner review}
-  ci -- passes --> ownerreview
-  review --> ownerreview
-  ownerreview -- changes requested --> rework
-  ownerreview -- approves --> merge[Human merges]
+  pr --> guards{{Guard checks<br/>plan gate, protected paths, test integrity}}
+  pr --> ci{{CI}}
+  pr --> review["<span style='font-size:2em'>🤖</span> code-review"]
+  ci -- fails --> diagnose["<span style='font-size:2em'>🤖</span> ci-diagnose"]
+  guards --> readygate
+  ci -- passes --> readygate
+  diagnose --> readygate
+  review --> readygate{{Ready for human review?<br/>guard checks pass, CI passes,<br/>all code-review comments resolved}}
+  readygate -- no --> breaker{{Circuit breaker<br/>6 rework rounds used?}}
+  breaker -- no --> rework[Automatic rework round<br/>Actions asks @copilot to fix checks<br/>and resolve comments; no human approval]
+  rework --> copilot
+  breaker -- yes --> escalate[scaffold:escalate]
+  escalate --> ownerreview
+  readygate -- yes --> ownerreview{"<span style='font-size:2em'>🧑</span><br/>Code-owner<br/>review"}
+  ownerreview -- changes requested --> copilot
+  ownerreview -- needs replanning --> ready
+  ownerreview -- approves --> merge{"<span style='font-size:2em'>🧑</span><br/>Developer<br/>merges"}
   merge --> closed[Issue closed<br/>Projects: Done]
 
   linkStyle default stroke-width:3px
@@ -76,19 +84,19 @@ flowchart TD
   class k2 s2
   class k3 s3
   class k4 s4
-  class kp,kd legend
+  class kp,kd,kh,ka,kai legend
   class kp planned
   class kd done
 
-  class jira,form,member,proposed,triage,needsinfo,ready s1
-  class decompose,plancomment,planreview,approved s2
-  class copilot,pr,guards,rework,breaker,escalate,flowlead,ownerreview,merge,closed s3
-  class ci,review,diagnose s4
+  class jira,open,member,proposed,accept,triage,needsinfo,edit,ready s1
+  class plancmd,decompose,plancomment,planreview,approved s2
+  class assign,copilot,pr,guards,rework,breaker,escalate,ownerreview,merge,closed s3
+  class ci,review,diagnose,readygate s4
 
-  class jira,form,member,proposed,triage,needsinfo,ready planned
-  class decompose,plancomment,planreview,approved planned
-  class copilot,pr,guards,rework,breaker,escalate,flowlead,ownerreview,merge,closed planned
-  class ci,review,diagnose planned
+  class jira,open,member,proposed,accept,triage,needsinfo,edit,ready planned
+  class plancmd,decompose,plancomment,planreview,approved planned
+  class assign,copilot,pr,guards,rework,breaker,escalate,ownerreview,merge,closed planned
+  class ci,review,diagnose,readygate planned
 ```
 
 Visibility is part of every slice rather than a stage of its own: each slice adds its steps to the status comment, audit log, usage report and these diagrams (PLAN.md section 11).

@@ -19,7 +19,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot** GitHub Models
 | --- | --- | --- |
 | `issues: opened/edited` | `triage` | Labels, clarifying questions, agent-ready brief |
 | `issue_comment` `/plan` | `task-decomposer` | Plan comment: approach, sub-tasks with blocking edges, acceptance criteria |
-| `pull_request` | `code-review` | Review comment (standards + spec axes); `COMMENT` only, never approves, non-blocking during pilot |
+| `pull_request` | `code-review` | Review comments (standards + spec axes); `COMMENT` only, never approves; human review waits until they are resolved (section 6) |
 | `workflow_run` (failed, workflows listed in `scaffold.yml`) | `ci-diagnose` | Diagnosis comment on the linked PR |
 | Human assigns issue to Copilot | `tdd`, `implement` (via `.github/skills/`) | Copilot PR, reviewed and merged by humans |
 | `schedule` (weekly) | — | Usage report issue (section 7) |
@@ -30,8 +30,8 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot** GitHub Models
 2. Member comments `/plan` → plan comment.
 3. Human reviews plan → applies `scaffold:plan-approved`.
 4. Human assigns issue to Copilot → Copilot opens PR.
-5. Guard checks (section 6) + `code-review` → human review → human merge.
-6. Stuck or circuit breaker tripped → `scaffold:escalate`.
+5. Guard checks (section 6), CI and `code-review` → SCAFFOLD automatically starts a Copilot rework round, with no human approval, until checks pass and all `code-review` comments are resolved → human review → human merge.
+6. 6 rework rounds used → circuit breaker: `scaffold:escalate` and straight to human review.
 
 ### Labels
 
@@ -71,7 +71,7 @@ Concrete models are chosen in Phase 0.
 | Hospital | SCAFFOLD |
 | --- | --- |
 | `hospital:*` state labels | Simplified `scaffold:*` labels (section 2) |
-| `policies/CHARTER.md` | `policies/CHARTER.md`: plan before code, don't improvise, test integrity, protected paths, spec is source of truth, precedent first, untrusted input, structured notes, circuit breaker (4 consecutive / 6 total rework rounds → `scaffold:escalate`) |
+| `policies/CHARTER.md` | `policies/CHARTER.md`: plan before code, don't improvise, test integrity, protected paths, spec is source of truth, precedent first, untrusted input, structured notes, circuit breaker (6 automatic rework rounds → `scaffold:escalate` and human review) |
 | `hospital.config.yml` in a separate config repo + registration check | `.github/scaffold.yml` **in each repo** (a separate config repo can't be read without an App/PAT), protected by CODEOWNERS |
 | `recommendations.yml` + deviations + history | Same: versioned recommendations; each deviation needs a reason; released history immutable |
 | `config-guard` | `scaffold-config-guard` check on PRs touching `scaffold.yml`; runs on `pull_request`, never on `pull_request_target` with PR code |
@@ -123,8 +123,10 @@ All of these are required checks.
 - **Plan gate:** fails if the linked issue lacks `scaffold:plan-approved`.
 - **Protected paths:** fails if the PR touches `.github/**`, `.github/scaffold.yml`, `CODEOWNERS`, `PRECEDENTS.md` or `docs/spec/**`; CODEOWNERS is the second layer.
 - **Test integrity:** flags removed/skipped tests, removed assertions or reduced coverage; needs a human label to pass.
-- **Circuit breaker:** 4 consecutive or 6 total rework rounds → `scaffold:escalate`.
-- Copilot firewall on the default allowlist; human approval required for workflow runs on Copilot PRs.
+- **Review gate:** a human reviewer is requested only when guard checks and CI pass and every `code-review` comment is resolved, or the circuit breaker trips.
+- **Automatic rework:** when the review gate fails, Actions posts one `@copilot` comment listing the failing checks and unresolved `code-review` threads. No human approves the round.
+- **Circuit breaker:** after 6 automatic rework rounds → `scaffold:escalate` and hand to human review.
+- Copilot firewall on the default allowlist. "Require approval for workflow runs" is turned off for the Copilot agent so rework rounds run checks without a human; protected paths, the review gate and code-owner review stay required.
 
 ### Handover gates
 
@@ -136,6 +138,8 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 | Ready → planned | Member comments `/plan` | `author_association` check | Plan comment, audit log |
 | Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (hash) | Timeline event, check run |
 | Approved → implementing | Developer assigns issue to Copilot | Plan gate on the resulting PR | Copilot PR |
+| Review gate fails → rework | Actions, automatically | Round counter in Actions code; stops after 6 | `@copilot` comment, rework count in status comment |
+| Copilot PR → human review | Review gate check | Actions code counts unresolved `code-review` threads and rework rounds; reviewer requested only on pass | Check run, rework count in status comment |
 | PR → mergeable | Required checks + code-owner review | Ruleset, no bypass | Check runs, review |
 
 - Labels alone are not protection: anyone with triage permission can apply them. The check that reads the timeline is the protection.
@@ -220,6 +224,8 @@ The workflow is built in **vertical slices**: each slice adds one stage end to e
 - Confirm the current workflow and the proposed lifecycle in `docs/diagrams/workflow.md` (first drafts committed).
 - Add the plan-stage `scaffold-diagrams` check (section 10) so changes to this plan's workflow must update the diagram.
 - Confirm the human approval points in section 2.
+- Confirm Copilot acts on `@copilot` comments posted by `github-actions[bot]`; GitHub only documents it responding to users with write access. If it doesn't, automatic rework needs an exception to section 1 (a GitHub App or service account), or the assigning developer prompts each round.
+- Confirm Copilot can't change `.github/workflows/` before turning off workflow-run approval for it.
 
 ### Phase 1: Foundations
 
@@ -283,4 +289,5 @@ A slice is not done until, in its own PR:
 - **Data handling:** unresolved until Phase 0.
 - **Human bottleneck:** review queues grow faster than developers can clear them; work-in-progress limits, one prioritised queue and per-gate metrics (sections 8 and 11).
 - **Diagram drift:** pictures stop matching the workflow; `scaffold-diagrams` is a required check and every slice updates the diagrams (sections 10 and 11).
+- **Automatic rework may not be possible:** Copilot may ignore `@copilot` comments from Actions; Phase 0 tests this before slice 3.
 - **Two sources of truth:** Jira and `docs/spec/` drift; agreed split and Jira keys on every issue and PR (section 9).
