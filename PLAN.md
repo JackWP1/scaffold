@@ -8,7 +8,7 @@
 | --- | --- |
 | GitHub automation only: Actions, native features (rulesets, CODEOWNERS, environments, labels, issue forms) and Copilot agents | No external services, gateways or MCP servers; no self-hosted infrastructure |
 | OpenAI models only | Actions call OpenAI models via GitHub Models; the Copilot coding agent is set to an OpenAI model |
-| No GitHub App, no PAT | Jobs use `GITHUB_TOKEN` only: no cross-repo writes, no edits to `.github/workflows/`, no ruleset creation. Installs are self-service (§5) |
+| No GitHub App, no PAT | Jobs use `GITHUB_TOKEN` only: no cross-repo writes, no edits to `.github/workflows/`, no ruleset creation. Installs are self-service (section 5) |
 | Org: `ukncsc` | Hosting (assumed Enterprise Cloud), GitHub Models availability and approved models are confirmed in Phase 0 |
 
 ## 2. What SCAFFOLD does (v1)
@@ -22,15 +22,15 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot** GitHub Models
 | `pull_request` | `code-review` | Review comment (standards + spec axes); `COMMENT` only, never approves, non-blocking during pilot |
 | `workflow_run` (failed, workflows listed in `scaffold.yml`) | `ci-diagnose` | Diagnosis comment on the linked PR |
 | Human assigns issue to Copilot | `tdd`, `implement` (via `.github/skills/`) | Copilot PR, reviewed and merged by humans |
-| `schedule` (weekly) | — | Usage report issue (§7) |
+| `schedule` (weekly) | — | Usage report issue (section 7) |
 
 ### Issue lifecycle
 
-1. Issue opened → `triage` (members only, §6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`.
+1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`.
 2. Member comments `/plan` → plan comment.
 3. Human reviews plan → applies `scaffold:plan-approved`.
 4. Human assigns issue to Copilot → Copilot opens PR.
-5. Guard checks (§6) + `code-review` → human review → human merge.
+5. Guard checks (section 6) + `code-review` → human review → human merge.
 6. Stuck or circuit breaker tripped → `scaffold:escalate`.
 
 ### Labels
@@ -70,7 +70,7 @@ Concrete models are chosen in Phase 0.
 
 | Hospital | SCAFFOLD |
 | --- | --- |
-| `hospital:*` state labels | Simplified `scaffold:*` labels (§2) |
+| `hospital:*` state labels | Simplified `scaffold:*` labels (section 2) |
 | `policies/CHARTER.md` | `policies/CHARTER.md`: plan before code, don't improvise, test integrity, protected paths, spec is source of truth, precedent first, untrusted input, structured notes, circuit breaker (4 consecutive / 6 total rework rounds → `scaffold:escalate`) |
 | `hospital.config.yml` in a separate config repo + registration check | `.github/scaffold.yml` **in each repo** (a separate config repo can't be read without an App/PAT), protected by CODEOWNERS |
 | `recommendations.yml` + deviations + history | Same: versioned recommendations; each deviation needs a reason; released history immutable |
@@ -94,7 +94,7 @@ config/                 labels.yml, recommendations.yml, models.yml
 policies/CHARTER.md
 templates/              caller workflow, scaffold.yml, Copilot instructions, issue/PR templates, CODEOWNERS snippet
 docs/                   INSTALL.md, ARCHITECTURE.md, CONTRIBUTING-SKILLS.md
-docs/diagrams/          Mermaid workflow and architecture diagrams (§10)
+docs/diagrams/          Mermaid workflow and architecture diagrams (section 10)
 src/ tests/ dist/       TypeScript glue, tests, bundled output
 ```
 
@@ -104,7 +104,7 @@ src/ tests/ dist/       TypeScript glue, tests, bundled output
 ### Self-install (no App, no PAT)
 
 1. Repo admin copies the thin caller `.github/workflows/scaffold.yml` and `.github/scaffold.yml` from `templates/` (later: org starter workflow).
-2. Admin follows the `INSTALL.md` checklist: labels (or run the `scaffold-labels` job), ruleset (PRs only, code-owner review, required SCAFFOLD checks, no bypass), CODEOWNERS block, Copilot settings (§6), secret scanning + push protection.
+2. Admin follows the `INSTALL.md` checklist: labels (or run the `scaffold-labels` job), ruleset (PRs only, code-owner review, required SCAFFOLD checks, no bypass), CODEOWNERS block, Copilot settings (section 6), secret scanning + push protection.
 3. A `scaffold-sync` job in the target repo opens a PR (via `GITHUB_TOKEN`) to add/update Copilot instruction files, `.github/skills/`, templates and `.scaffold-version`. Workflow files are never touched by automation.
 4. Requires org setting "Allow GitHub Actions to create and approve pull requests". PRs opened by `GITHUB_TOKEN` don't trigger workflows; a human re-runs checks on them.
 
@@ -139,7 +139,7 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 | PR → mergeable | Required checks + code-owner review | Ruleset, no bypass | Check runs, review |
 
 - Labels alone are not protection: anyone with triage permission can apply them. The check that reads the timeline is the protection.
-- Each issue has one SCAFFOLD **status comment**, updated in place, showing passed and pending gates (as a Mermaid diagram, §10).
+- Each issue has one SCAFFOLD **status comment**, updated in place, showing passed and pending gates (as a Mermaid diagram, section 10).
 
 ## 7. Operations
 
@@ -154,7 +154,7 @@ Humans are the slow part of the workflow; agents are not. SCAFFOLD is designed t
 
 **Assumption (v1):** up to 6 developers per project and no other humans in the loop. Non-developer roles are deferred (below).
 
-- **One prioritised queue:** a GitHub Projects board per project with `Status` (mirrors the gates in §6), `Priority`, `Size` and `Iteration` fields. Developers pull from the top of `Ready`; they don't choose from the full backlog.
+- **One prioritised queue:** a GitHub Projects board per project with `Status` (mirrors the gates in section 6), `Priority`, `Size` and `Iteration` fields. Developers pull from the top of `Ready`; they don't choose from the full backlog.
   - `GITHUB_TOKEN` can't write to Projects, so SCAFFOLD only sets labels; the board uses Projects' built-in workflows (auto-add by label, set status on close/merge).
 - **Flow lead:** a rotating developer (weekly) orders the backlog, runs `/plan` on the next items and watches `scaffold:escalate`.
 - **Work-in-progress limits:** `scaffold.yml` sets a maximum number of open Copilot PRs per developer (default 2). Going over gets a comment, not a block.
@@ -174,12 +174,12 @@ Proposed split, to be confirmed in Phase 0:
 | Content | Source of truth | Changed by |
 | --- | --- | --- |
 | Product requirements (what and why) | Jira | Jira workflow |
-| Agreed specification (how) | `docs/spec/` in the repo | PR with code-owner review (protected path, §6) |
-| Unit of work | GitHub Issue, linked to the Jira key and spec section | SCAFFOLD lifecycle (§2) |
+| Agreed specification (how) | `docs/spec/` in the repo | PR with code-owner review (protected path, section 6) |
+| Unit of work | GitHub Issue, linked to the Jira key and spec section | SCAFFOLD lifecycle (section 2) |
 
 ### Jira ↔ GitHub
 
-The constraints (§1) rule out SCAFFOLD holding Jira credentials, so the options are:
+The constraints (section 1) rule out SCAFFOLD holding Jira credentials, so the options are:
 
 | Option | Direction | Fits constraints? |
 | --- | --- | --- |
@@ -196,7 +196,7 @@ Diagrams are both an output (what the repo and workflow are doing) and an input 
 - **Format:** Mermaid in Markdown, which GitHub renders natively in files, issues and PRs.
 - **Hand-maintained** (`docs/diagrams/`): `workflow.md` (lifecycle and gates) and `architecture.md`. These are the canonical pictures.
 - **Generated:** an Action renders the label state machine from `labels.yml` and the workflow graph from `.github/workflows/*.yml`. A check fails if a generated diagram is stale (as with `dist/`).
-- **Per issue:** the status comment (§6) shows the issue's position in the workflow as a Mermaid diagram.
+- **Per issue:** the status comment (section 6) shows the issue's position in the workflow as a Mermaid diagram.
 - **Diagrams as input:** a PR that changes `docs/diagrams/workflow.md` is a proposal to change the workflow; once merged, the implementing work follows from it.
 - **Later:** a `diagram-to-mermaid` skill turning sketches or whiteboard photos attached to issues into a Mermaid draft for a human to correct. Depends on GitHub Models image input and reading issue attachments with `GITHUB_TOKEN` (confirm in Phase 0).
 
@@ -209,16 +209,16 @@ The workflow is built in **vertical slices**: each slice adds one stage end to e
 - Confirm with `ukncsc` admins: hosting (Enterprise Cloud vs GHE.com vs GHES), GitHub Models enabled (including image input), Copilot coding agent enabled with OpenAI models, org Actions settings.
 - Choose OpenAI model IDs for `fast`, `standard`, `deep`.
 - Agree the data-handling rule with security and data owners (e.g. opt-in per repo, classification limits, logging position).
-- Confirm the source-of-truth split and the Jira route (§9), including whether "GitHub for Jira" is allowed.
-- Choose the pilot repos and the 6 developers; agree the flow lead rota and work-in-progress limits (§8).
+- Confirm the source-of-truth split and the Jira route (section 9), including whether "GitHub for Jira" is allowed.
+- Choose the pilot repos and the 6 developers; agree the flow lead rota and work-in-progress limits (section 8).
 - Draw the current workflow and target lifecycle in `docs/diagrams/workflow.md`.
-- Confirm the human approval points in §2.
+- Confirm the human approval points in section 2.
 
 ### Phase 1: Foundations
 
 Only what slice 1 needs.
 
-- Scaffold the layout (§5); port Hospital's TS libs, tests and self-test workflow.
+- Scaffold the layout (section 5); port Hospital's TS libs, tests and self-test workflow.
 - Write `CHARTER.md`, `labels.yml`, `scaffold.yml` schema and config-guard.
 - Add kill switch, rate guards and audit logging.
 - Add CODEOWNERS, branch and `v*` tag rulesets, semver releases.
@@ -265,5 +265,5 @@ Each slice: build → run in the sandbox → run on the pilot repo → retrospec
 - **`GITHUB_TOKEN` limits:** sync PRs don't trigger workflows; workflow files and rulesets need a human admin.
 - **Skill drift:** pinned versions, Dependabot, `.scaffold-version`.
 - **Data handling:** unresolved until Phase 0.
-- **Human bottleneck:** review queues grow faster than developers can clear them; work-in-progress limits, one prioritised queue and per-gate metrics (§8, §11).
-- **Two sources of truth:** Jira and `docs/spec/` drift; agreed split and Jira keys on every issue and PR (§9).
+- **Human bottleneck:** review queues grow faster than developers can clear them; work-in-progress limits, one prioritised queue and per-gate metrics (sections 8 and 11).
+- **Two sources of truth:** Jira and `docs/spec/` drift; agreed split and Jira keys on every issue and PR (section 9).
