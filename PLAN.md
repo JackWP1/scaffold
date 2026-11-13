@@ -31,7 +31,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot** GitHub Models
 2. Member comments `/plan` → plan comment.
 3. Human reviews plan → applies `scaffold:plan-approved`.
 4. Human assigns issue to Copilot → Copilot opens PR.
-5. Guard checks (section 6), CI and `code-review` → SCAFFOLD automatically starts a Copilot rework round, with no human approval, until checks pass and all `code-review` comments are resolved → human review → human merge.
+5. Guard checks (section 6), CI and `code-review` → SCAFFOLD automatically starts a Copilot rework round, with no human approval, until checks pass and all `code-review` comments are resolved → code-owner review → `conflict-check` 2 → merge order → developer adds the PR to the merge queue when it is next → merged.
 6. 6 rework rounds used → circuit breaker: `scaffold:escalate` and straight to human review.
 7. Throughout, each ticket is checked against other in-flight work and the existing spec; conflicts and regression risks go to the Conflicts queue for human review (section 8).
 
@@ -134,13 +134,14 @@ All of these are required checks.
   | Hard | 30 | 5000 |
 
   - **Exempt files:** a glob list in `scaffold.yml` (default: lock files such as `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, and generated `dist/`). Changes to the list need code-owner review like the rest of `scaffold.yml`.
-  - **Over soft:** the review gate fails and the automatic rework round asks Copilot to split the PR into a stack of PRs (GitHub stacked PRs, each layer checked against the limits), or Actions splits the ticket into sub-tickets.
-  - **Over hard:** a required check fails, so the PR can't merge even after human review.
-  - **Sub-tickets:** at most 5 per ticket, created as GitHub sub-issues under the parent. They inherit the parent's plan approval and each counts towards `max_in_flight`. Needing more than 5 means the ticket is too big: it goes back to the approver to replan or split in Jira.
-  - **Exceptions:** only a listed approver can grant one, by applying `scaffold:size-exception` (timeline check, as for plan approval). Requests are escalated with `scaffold:escalate`: automatically when the circuit breaker trips on an oversized PR, or by a developer commenting `/size-exception <reason>`.
+  - **At plan:** `task-decomposer` estimates the size; work over the soft limit is planned as a stack of PRs or up to 5 sub-tickets, and the approver confirms the split with the plan.
+  - **Over soft:** the review gate fails and the automatic rework round asks Copilot to split the PR into a stack of PRs (GitHub stacked PRs, each layer checked against the limits). Splitting into sub-tickets instead is a replan: it goes back to the approver and the ticket returns to `Ready`.
+  - **Over hard:** a required check fails, so the PR can't merge even after human review or with a size exception; it must be split.
+  - **Sub-tickets:** at most 5 per ticket, created as GitHub sub-issues under the parent, and only from an approved plan. The plan gate passes a sub-ticket when its parent's approval is valid (read via the sub-issue's parent); editing the parent's plan fails all its open sub-tickets until it is re-approved. Replanning any sub-ticket replans the parent: the parent goes back to `Ready` and merged sub-tickets stay merged. Needing more than 5 means the ticket is too big: it goes back to the approver to replan or split in Jira.
+  - **Exceptions:** lift the soft limit only. Only a listed approver can grant one, by applying `scaffold:size-exception` (timeline check, as for plan approval). Requested by a developer commenting `/size-exception <reason>`, or automatically with `scaffold:escalate` when the circuit breaker trips on an oversized PR.
 - **Review gate:** a human reviewer is requested only when guard checks and CI pass, every `code-review` comment is resolved and the PR is within the soft size limit (or has an exception), or the circuit breaker trips.
 - **Automatic rework:** when the review gate fails, Actions posts one `@copilot` comment listing the failing checks and unresolved `code-review` threads. No human approves the round.
-- **Circuit breaker:** after 6 automatic rework rounds → `scaffold:escalate` and hand to human review.
+- **Circuit breaker:** after 6 automatic rework rounds, counted across the PR's whole life (including rounds after a merge queue failure or re-review) → `scaffold:escalate` and hand to human review.
 - Copilot firewall on the default allowlist. "Require approval for workflow runs" is turned off for the Copilot agent so rework rounds run checks without a human; protected paths, the review gate and code-owner review stay required.
 
 ### Handover gates
@@ -151,12 +152,12 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 | --- | --- | --- | --- |
 | Triaged → ready | `triage` Action applies `scaffold:ready` | Members-only trigger; schema-validated output | Audit log, issue label |
 | Ready → planned | Member comments `/plan` | `author_association` check; in-flight count below `max_in_flight` | Plan comment, audit log |
-| Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (hash) | Timeline event, check run |
+| Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (hash); sub-tickets use the parent's approval | Timeline event, check run |
 | Approved → implementing | Developer assigns issue to Copilot | Plan gate on the resulting PR | Copilot PR |
-| Oversized PR → exception | Listed approver applies `scaffold:size-exception` | Timeline check; requested only via `scaffold:escalate` | Escalation, timeline event, reason in status comment |
+| Oversized PR → exception | Listed approver applies `scaffold:size-exception` | Timeline check; lifts the soft limit only; requested via `/size-exception <reason>` or automatic `scaffold:escalate` | Escalation, timeline event, reason in status comment |
 | Review gate fails → rework | Actions, automatically | Round counter in Actions code; stops after 6 | `@copilot` comment, rework count in status comment |
 | Copilot PR → human review | Review gate check | Actions code counts unresolved `code-review` threads and rework rounds; reviewer requested only on pass | Check run, rework count in status comment |
-| Conflict flagged → cleared | Listed approver applies `scaffold:conflict-resolved`, or the blocking ticket merges | Plan gate and review gate fail while `scaffold:conflict` is open; timeline check as for plan approval | Conflict comment, timeline event |
+| Conflict flagged → cleared | Listed approver applies `scaffold:conflict-resolved`, or the blocking ticket merges | Plan gate and `merge-order` check fail while `scaffold:conflict` is open; timeline check: label applied by a listed approver after the latest flag | Conflict comment, timeline event |
 | PR → mergeable | Required checks + code-owner review + second `conflict-check` + merge queue | Ruleset, no bypass; `merge-order` check | Check runs, review, merge position, merge queue run |
 
 - Labels alone are not protection: anyone with triage permission can apply them. The check that reads the timeline is the protection.
@@ -175,12 +176,12 @@ Humans are the slow part of the workflow; agents are not. SCAFFOLD is designed t
 
 **Assumption (v1):** up to 6 developers per project and no other humans in the loop. Non-developer roles are deferred (below).
 
-- **One prioritised queue:** a GitHub Projects board per project with `Status` (mirrors the gates in section 6), `Priority`, `Size` and `Iteration` fields. Developers pull from the top of `Ready`; they don't choose from the full backlog. Priority is set with a `priority:*` label so Actions can read it (merge order, section 8).
+- **One prioritised queue:** a GitHub Projects board per project with `Status` (mirrors the gates in section 6), `Priority`, `Size` and `Iteration` fields. Developers pull from the top of `Ready`; they don't choose from the full backlog. Priority is set with a `priority:*` label so Actions can read it (merge order, below).
   - `GITHUB_TOKEN` can't write to Projects, so SCAFFOLD only sets labels; the board uses Projects' built-in workflows (auto-add by label, set status on close/merge).
 - **Flow lead:** a rotating developer (weekly) orders the backlog, runs `/plan` on the next items and watches `scaffold:escalate` and the Conflicts queue.
 - **Work-in-progress limits:**
   - **Per developer:** `scaffold.yml` sets a maximum number of open Copilot PRs per developer (default 2). Going over gets a comment, not a block.
-  - **Total in flight:** `scaffold.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (assume 20; to be agreed). A ticket is in flight from its `/plan` until its PR merges or it closes. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`. This is a block, and it also bounds the work `conflict-check` compares against.
+  - **Total in flight:** `scaffold.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (assume 20; to be agreed). A ticket is in flight from its `/plan` until its PR merges, it closes or it goes back to `Ready` (it then needs `/plan` again). A split ticket counts as 1 and stays in flight until all its sub-tickets have merged or closed; the parent then closes automatically. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`; when a slot frees up, Actions @-mentions the flow lead on the top waiting ticket (Actions never runs `/plan` itself). This is a block, and it also bounds the work `conflict-check` compares against.
 - **Review routing:** CODEOWNERS plus team auto-assignment (round robin) so no PR waits without a reviewer.
 - **Low-noise output:** SCAFFOLD updates one status comment per issue or PR rather than posting new comments, and only @-mentions a human when a gate needs them.
 
@@ -191,11 +192,12 @@ Several tickets are in development at once. SCAFFOLD checks each one against the
 - **When:** twice per ticket. Once after plan approval, before implementation starts (requirements and plan). Once after code-owner approval, before the PR gets a merge position (approved code).
 - **Find (deterministic):** Actions code shortlists candidates: other in-flight tickets with the same spec section, Jira epic or affected paths; for the second check, other approved PRs and changes merged since the first check. This keeps model input small.
 - **Judge (AI):** `conflict-check` compares the ticket with the shortlist and with `docs/spec/` and `PRECEDENTS.md`, and reports each conflict or regression risk with the tickets and spec sections involved.
-- **Regression in code:** the full test suite and test integrity check run on every PR; a **merge queue** tests each PR together with main and the PRs ahead of it before it merges.
-- **Flag:** Actions applies `scaffold:conflict` and keeps one conflict comment, linking every ticket involved, up to date. The plan gate and the merge-order check fail while the flag is open, so the ticket can't be implemented or merged.
+- **Regression in code:** the full test suite and test integrity check run on every PR; a **merge queue** tests each PR together with main and the PRs ahead of it before it merges. If a PR fails in the queue, Actions re-runs its tests with just main: a pass means the failure comes from the PRs ahead and is flagged as a conflict; a fail sends the PR to automatic rework.
+- **Merge queue checks:** every required SCAFFOLD check also runs on `merge_group`; checks that only apply to PRs (plan gate, PR size, review gate) pass straight away there.
+- **Flag:** Actions applies `scaffold:conflict`, removes any `scaffold:conflict-resolved`, and keeps one conflict comment, linking every ticket involved, up to date. The plan gate and the `merge-order` check fail while the flag is open, so the ticket can't be implemented or merged, and a flagged PR leaves the merge order.
 - **Queue:** a Projects "Conflicts" view lists flagged tickets by priority. The flow lead watches it with the owners of the tickets involved.
-- **Resolve:** a human chooses one of: no real conflict (`scaffold:conflict-resolved`), sequence (mark as blocked by the other ticket; resumes when it merges), replan, change the requirement, or drop or merge tickets.
-- **Merge order:** after the second check passes, Actions gives each approved PR a position, shown in its status comment:
+- **Resolve:** a human chooses one of: no real conflict (a listed approver applies `scaffold:conflict-resolved`; it counts only if applied after the latest flag), sequence (mark as blocked by the other ticket; resumes when it merges), replan, change the requirement, or drop or merge tickets.
+- **Merge order:** after the second check passes, Actions gives each approved PR without an open conflict a position (a flagged PR gets a new one when its conflict is cleared), shown in its status comment:
   1. PRs that block other tickets first;
   2. stacked PRs bottom-up;
   3. higher priority (`priority:*` label);
@@ -260,14 +262,14 @@ The workflow is built in **vertical slices**: each slice adds one stage end to e
 - Agree the data-handling rule with security and data owners (e.g. opt-in per repo, classification limits, logging position).
 - Confirm the source-of-truth split and the Jira route (section 9), including whether "GitHub for Jira" is allowed.
 - Choose the pilot repos and the 6 developers; agree the flow lead rota and work-in-progress limits, including `max_in_flight` (assumed 20) (section 8).
-- Confirm the current workflow and the proposed lifecycle in `docs/diagrams/workflow.md` (first drafts committed).
+- Confirm the current workflow and the proposed lifecycle in `docs/diagrams/workflow.md` and `docs/diagrams/collaboration.md` (first drafts committed).
 - Add the plan-stage `scaffold-diagrams` check (section 10) so changes to this plan's workflow must update the diagram.
 - Confirm the human approval points in section 2.
 - Confirm Copilot acts on `@copilot` comments posted by `github-actions[bot]`; GitHub only documents it responding to users with write access. If it doesn't, automatic rework needs an exception to section 1 (a GitHub App or service account), or the assigning developer prompts each round.
 - Confirm Copilot can't change `.github/workflows/` before turning off workflow-run approval for it.
 - Confirm the Copilot coding agent can create stacked PRs (the `gh-stack` skill in its setup steps); otherwise oversized work is always split into sub-tickets. Confirm `GITHUB_TOKEN` can create sub-issues.
 - Agree the PR size limits and exempt file list (section 6).
-- Confirm merge queue is available on the pilot repos and whether `GITHUB_TOKEN` can set "blocked by" issue relationships (otherwise a human sets them).
+- Confirm merge queue is available on the pilot repos and whether `GITHUB_TOKEN` can set "blocked by" issue relationships (otherwise a human sets them); agree the merge queue status check timeout.
 
 ### Phase 1: Foundations
 
@@ -289,7 +291,7 @@ Each slice: build → run in the sandbox → run on the pilot repo → retrospec
 | 2. Plan | `/plan`, `task-decomposer`, protected plan gate, size estimate and split into sub-tickets | Plan gate in the status comment; gate passes and fails in the audit log; time to approval in the usage report | `issue_comment` events, reusable workflows, composite actions, required checks, rulesets |
 | 3. Implement | Copilot assignment, `tdd`/`implement` skills, protected paths, test integrity, PR size limits and exceptions, stacked PRs, circuit breaker, work-in-progress limits | PR status comment with guard checks, size and rework count; size exceptions in the usage report; work in progress per developer in the usage report | Copilot coding agent, CODEOWNERS, `pull_request` events, stacked PRs, sub-issues |
 | 4. Review | `code-review`, `ci-diagnose` | Review and diagnosis outcomes and false positives in the usage report | `pull_request` vs `pull_request_target` security, `workflow_run` |
-| 5. Collaboration | `conflict-check`, conflict flag and gate, Conflicts queue, merge order, merge queue | Conflicts in the status comment; Conflicts queue length and time to resolve, and false positives, in the usage report | Merge queue, `merge_group` events, `push` events, issue relationships (blocked by) |
+| 5. Collaboration | `conflict-check`, conflict flag and gate, Conflicts queue, merge order, merge queue | Conflicts in the status comment; Conflicts queue length and time to resolve, repeat flags per ticket, and false positives, in the usage report | Merge queue, `merge_group` events, `push` events, issue relationships (blocked by) |
 
 ### Visibility in every slice
 

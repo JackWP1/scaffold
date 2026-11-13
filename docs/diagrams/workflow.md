@@ -63,6 +63,8 @@ flowchart TD
   pr --> guards{{Guard checks<br/>plan gate, protected paths, test integrity}}
   pr --> prsize{{PR size check<br/>soft: 10 files / 1000 lines<br/>hard: 30 files / 5000 lines<br/>exempt files excluded}}
   prsize --> readygate
+  prsize -- over soft limit --> sizecmd{"<span style='font-size:2em'>🧑</span><br/>Developer may comment<br/>/size-exception reason"}
+  sizecmd --> sizeexc
   pr --> ci{{CI}}
   pr --> review["<span style='font-size:2em'>🤖</span> code-review"]
   ci -- fails --> diagnose["<span style='font-size:2em'>🤖</span> ci-diagnose"]
@@ -76,7 +78,8 @@ flowchart TD
   breaker -- yes --> escalate[scaffold:escalate]
   escalate -- still oversized --> sizeexc{"<span style='font-size:2em'>🧑</span><br/>Approver decides<br/>size exception"}
   sizeexc -- grants: scaffold:size-exception --> ownerreview
-  sizeexc -- refuses --> ready
+  sizeexc -- refuses, rounds left --> rework
+  sizeexc -- refuses, breaker tripped --> ready
   escalate -- other reasons --> ownerreview
   readygate -- yes --> ownerreview{"<span style='font-size:2em'>🧑</span><br/>Code-owner<br/>review"}
   ownerreview -- changes requested --> copilot
@@ -86,7 +89,9 @@ flowchart TD
   check2 -- no conflict --> order{{Assign merge order<br/>blockers, stacks, priority,<br/>approval time}}
   order --> merge{"<span style='font-size:2em'>🧑</span><br/>Developer adds PR<br/>to merge queue<br/>when next in order"}
   merge --> mq{{Merge queue<br/>merge-order check, then tests<br/>with main and PRs ahead}}
-  mq -- fails --> conflicts2
+  mq -- fails --> mainonly{{Fails with just main?}}
+  mainonly -- yes: automatic rework --> breaker
+  mainonly -- no --> conflicts2
   mq -- passes --> closed[Merged, issue closed<br/>Projects: Done]
 
 
@@ -112,15 +117,15 @@ flowchart TD
 
   class jira,open,member,proposed,accept,triage,needsinfo,edit,ready s1
   class plancmd,limit,decompose,plansize,split,plancomment,planreview,approved s2
-  class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,prsize,ownerreview,closed s3
+  class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize,ownerreview,closed s3
   class ci,review,diagnose,readygate s4
-  class check1,check2,conflicts1,conflicts2,order,merge,mq s5
+  class check1,check2,conflicts1,conflicts2,order,merge,mq,mainonly s5
 
   class jira,open,member,proposed,accept,triage,needsinfo,edit,ready planned
   class plancmd,limit,decompose,plansize,split,plancomment,planreview,approved planned
-  class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,prsize,ownerreview,closed planned
+  class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize,ownerreview,closed planned
   class ci,review,diagnose,readygate planned
-  class check1,check2,conflicts1,conflicts2,order,merge,mq planned
+  class check1,check2,conflicts1,conflicts2,order,merge,mq,mainonly planned
 ```
 
 Visibility is part of every slice rather than a stage of its own: each slice adds its steps to the status comment, audit log, usage report and these diagrams (PLAN.md section 11).
