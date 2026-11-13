@@ -1,6 +1,6 @@
 # SCAFFOLD workflow
 
-Two diagrams, kept as code (PLAN.md section 10):
+Two diagrams, kept as code (PLAN.md section 10). How concurrent tickets are checked for conflicts is in `collaboration.md`.
 
 - **Proposed:** the target lifecycle. Hand-maintained; a PR that changes it is a proposal to change the workflow.
 - **Current:** the workflow as implemented. Updated at the end of every slice; from slice 1 it is generated from `config/workflow.yml` and the `scaffold-diagrams` check fails if it is stale.
@@ -19,12 +19,13 @@ flowchart TD
     k2[2. Plan]
     k3[3. Implement]
     k4[4. Review]
+    k5[5. Collaboration]
     kp[Planned]
     kd[Done]
     kh{"<span style='font-size:2em'>🧑</span><br/>Human<br/>must act"}
     ka{{Automated<br/>check}}
     kai["<span style='font-size:2em'>🤖</span> AI step"]
-    k1 ~~~ k2 ~~~ k3 ~~~ k4
+    k1 ~~~ k2 ~~~ k3 ~~~ k4 ~~~ k5
     kp ~~~ kd ~~~ kh ~~~ ka ~~~ kai
   end
   style key fill:#fff,stroke:#000
@@ -42,33 +43,52 @@ flowchart TD
   triage --> ready[scaffold:ready<br/>Projects: Ready]
 
   ready --> plancmd{"<span style='font-size:2em'>🧑</span><br/>Member<br/>comments /plan"}
-  plancmd --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer"]
-  decompose --> plancomment[Plan comment]
+  plancmd --> limit{{In-flight limit reached?<br/>max_in_flight, default 20}}
+  limit -- yes: waits in Ready --> ready
+  limit -- no --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer"]
+  decompose --> plansize{{Estimated size over soft limit?<br/>10 files or 1000 lines}}
+  plansize -- no --> plancomment[Plan comment]
+  plansize -- yes --> split["<span style='font-size:2em'>🤖</span> task-decomposer splits work<br/>into a stack of PRs or up to 5 sub-tickets"]
+  split --> plancomment
+  split -- needs more than 5 sub-tickets --> planreview
   plancomment --> planreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews plan"}
   planreview -- changes needed --> plancmd
   planreview -- approves --> approved[scaffold:plan-approved<br/>gate: listed approver + plan hash]
 
-  approved --> assign{"<span style='font-size:2em'>🧑</span><br/>Developer assigns<br/>issue to Copilot"}
+  approved --> check1["<span style='font-size:2em'>🤖</span> conflict-check 1<br/>before implementation:<br/>vs spec and in-flight work"]
+  check1 -- conflict --> conflicts1[scaffold:conflict<br/>Conflicts queue for human review<br/>see collaboration.md]
+  check1 -- no conflict --> assign{"<span style='font-size:2em'>🧑</span><br/>Developer assigns<br/>issue to Copilot"}
   assign --> copilot["<span style='font-size:2em'>🤖</span> Copilot coding agent<br/>tdd, implement"]
   copilot --> pr[Copilot PR]
   pr --> guards{{Guard checks<br/>plan gate, protected paths, test integrity}}
+  pr --> prsize{{PR size check<br/>soft: 10 files / 1000 lines<br/>hard: 30 files / 5000 lines<br/>exempt files excluded}}
+  prsize --> readygate
   pr --> ci{{CI}}
   pr --> review["<span style='font-size:2em'>🤖</span> code-review"]
   ci -- fails --> diagnose["<span style='font-size:2em'>🤖</span> ci-diagnose"]
   guards --> readygate
   ci -- passes --> readygate
   diagnose --> readygate
-  review --> readygate{{Ready for human review?<br/>guard checks pass, CI passes,<br/>all code-review comments resolved}}
+  review --> readygate{{Ready for human review?<br/>guard checks pass, CI passes,<br/>all code-review comments resolved,<br/>within soft size limit or exception}}
   readygate -- no --> breaker{{Circuit breaker<br/>6 rework rounds used?}}
-  breaker -- no --> rework[Automatic rework round<br/>Actions asks @copilot to fix checks<br/>and resolve comments; no human approval]
+  breaker -- no --> rework[Automatic rework round<br/>Actions asks @copilot to fix checks, resolve comments<br/>and split oversized work into stacked PRs;<br/>no human approval]
   rework --> copilot
   breaker -- yes --> escalate[scaffold:escalate]
-  escalate --> ownerreview
+  escalate -- still oversized --> sizeexc{"<span style='font-size:2em'>🧑</span><br/>Approver decides<br/>size exception"}
+  sizeexc -- grants: scaffold:size-exception --> ownerreview
+  sizeexc -- refuses --> ready
+  escalate -- other reasons --> ownerreview
   readygate -- yes --> ownerreview{"<span style='font-size:2em'>🧑</span><br/>Code-owner<br/>review"}
   ownerreview -- changes requested --> copilot
   ownerreview -- needs replanning --> ready
-  ownerreview -- approves --> merge{"<span style='font-size:2em'>🧑</span><br/>Developer<br/>merges"}
-  merge --> closed[Issue closed<br/>Projects: Done]
+  ownerreview -- approves --> check2["<span style='font-size:2em'>🤖</span> conflict-check 2<br/>before merge order:<br/>vs main and approved PRs"]
+  check2 -- conflict --> conflicts2[scaffold:conflict<br/>Conflicts queue for human review<br/>see collaboration.md]
+  check2 -- no conflict --> order{{Assign merge order<br/>blockers, stacks, priority,<br/>approval time}}
+  order --> merge{"<span style='font-size:2em'>🧑</span><br/>Developer adds PR<br/>to merge queue<br/>when next in order"}
+  merge --> mq{{Merge queue<br/>merge-order check, then tests<br/>with main and PRs ahead}}
+  mq -- fails --> conflicts2
+  mq -- passes --> closed[Merged, issue closed<br/>Projects: Done]
+
 
   linkStyle default stroke-width:3px
 
@@ -76,6 +96,7 @@ flowchart TD
   classDef s2 fill:#166534,color:#fff
   classDef s3 fill:#a16207,color:#fff
   classDef s4 fill:#9d174d,color:#fff
+  classDef s5 fill:#0f766e,color:#fff
   classDef planned stroke:#dc2626,stroke-width:4px
   classDef done stroke:#3b82f6,stroke-width:4px
   classDef legend fill:#e5e7eb,color:#000
@@ -84,19 +105,22 @@ flowchart TD
   class k2 s2
   class k3 s3
   class k4 s4
+  class k5 s5
   class kp,kd,kh,ka,kai legend
   class kp planned
   class kd done
 
   class jira,open,member,proposed,accept,triage,needsinfo,edit,ready s1
-  class plancmd,decompose,plancomment,planreview,approved s2
-  class assign,copilot,pr,guards,rework,breaker,escalate,ownerreview,merge,closed s3
+  class plancmd,limit,decompose,plansize,split,plancomment,planreview,approved s2
+  class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,prsize,ownerreview,closed s3
   class ci,review,diagnose,readygate s4
+  class check1,check2,conflicts1,conflicts2,order,merge,mq s5
 
   class jira,open,member,proposed,accept,triage,needsinfo,edit,ready planned
-  class plancmd,decompose,plancomment,planreview,approved planned
-  class assign,copilot,pr,guards,rework,breaker,escalate,ownerreview,merge,closed planned
+  class plancmd,limit,decompose,plansize,split,plancomment,planreview,approved planned
+  class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,prsize,ownerreview,closed planned
   class ci,review,diagnose,readygate planned
+  class check1,check2,conflicts1,conflicts2,order,merge,mq planned
 ```
 
 Visibility is part of every slice rather than a stage of its own: each slice adds its steps to the status comment, audit log, usage report and these diagrams (PLAN.md section 11).
