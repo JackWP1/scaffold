@@ -65,7 +65,7 @@ flowchart TD
   prsize -- within soft limit --> readygate
   prsize -- over soft, within hard --> sizecmd{"<span style='font-size:2em'>🧑</span><br/>Developer may comment<br/>/size-exception reason"}
   prsize -- over hard --> breaker{{Circuit breaker<br/>6 rework rounds used?}}
-  sizecmd --> sizeexc
+  sizecmd --> sizeexc{"<span style='font-size:2em'>🧑</span><br/>Listed approver decides<br/>scaffold:size-exception"}
   sizeexc -- accepted --> readygate
   pr --> ci{{CI}}
   pr --> review["<span style='font-size:2em'>🤖</span> code-review"]
@@ -77,7 +77,8 @@ flowchart TD
   readygate -- no --> breaker{{Circuit breaker<br/>6 rework rounds used?}}
   breaker -- no --> rework[Automatic rework round<br/>Actions asks @copilot to fix checks, resolve comments<br/>and split oversized work into stacked PRs;<br/>no human approval]
   rework --> copilot
-sizeexc -- refuses, breaker tripped --> ownerreview
+  breaker -- yes --> escalate[scaffold:escalate<br/>circuit breaker tripped;<br/>size exception requested if oversized]
+  escalate --> ownerreview
   readygate -- yes --> ownerreview{"<span style='font-size:2em'>🧑</span><br/>Code-owner<br/>review"}
   ownerreview -- changes requested --> copilot
   ownerreview -- needs replanning --> ready
@@ -90,6 +91,7 @@ sizeexc -- refuses, breaker tripped --> ownerreview
   mainonly -- yes: automatic rework --> breaker
   mainonly -- no --> conflicts2
   mq -- passes --> closed[Merged, issue closed<br/>Projects: Done]
+  conflicts2 ~~~ closed
 
 
   linkStyle default stroke-width:3px
