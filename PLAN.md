@@ -37,7 +37,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot** GitHub Models
 
 ### Labels
 
-`scaffold:triage`, `scaffold:needs-info`, `scaffold:ready`, `scaffold:plan-approved`, `scaffold:proposed`, `scaffold:accepted`, `scaffold:escalate`, `scaffold:conflict`, `scaffold:conflict-resolved`, `scaffold:size-exception`, `scaffold:diagram-unchanged`, `priority:high`, `priority:medium`, `priority:low`.
+`scaffold:triage`, `scaffold:needs-info`, `scaffold:ready`, `scaffold:plan-approved`, `scaffold:proposed`, `scaffold:accepted`, `scaffold:escalate`, `scaffold:conflict`, `scaffold:conflict-resolved`, `scaffold:size-exception`, `scaffold:order-override`, `scaffold:diagram-unchanged`, `priority:high`, `priority:medium`, `priority:low`.
 
 ## 3. Skills
 
@@ -157,6 +157,7 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 | Oversized PR → exception | Listed approver applies `scaffold:size-exception` | Timeline check; lifts the soft limit only; requested via `/size-exception <reason>` or automatic `scaffold:escalate` | Escalation, timeline event, reason in status comment |
 | Review gate fails → rework | Actions, automatically | Round counter in Actions code; stops after 6 | `@copilot` comment, rework count in status comment |
 | Copilot PR → human review | Review gate check | Actions code counts unresolved `code-review` threads and rework rounds; reviewer requested only on pass | Check run, rework count in status comment |
+| Merge order → override | Flow lead applies `scaffold:order-override` | Timeline check: label applied by the `flow_lead` in `scaffold.yml` after the PR's current merge position and latest push, with a `/order-override <reason>` comment by the flow lead; never lifts an open conflict | Timeline event, reason in status comment and audit log |
 | Conflict flagged → cleared | Listed approver applies `scaffold:conflict-resolved`, or the blocking ticket merges | Plan gate and `merge-order` check fail while `scaffold:conflict` is open; timeline check: label applied by a listed approver after the latest flag | Conflict comment, timeline event |
 | PR → mergeable | Required checks + code-owner review + second `conflict-check` + merge queue | Ruleset, no bypass; `merge-order` check | Check runs, review, merge position, merge queue run |
 
@@ -178,7 +179,7 @@ Humans are the slow part of the workflow; agents are not. SCAFFOLD is designed t
 
 - **One prioritised queue:** a GitHub Projects board per project with `Status` (mirrors the gates in section 6), `Priority`, `Size` and `Iteration` fields. Developers pull from the top of `Ready`; they don't choose from the full backlog. Priority is set with a `priority:*` label so Actions can read it (merge order, below).
   - `GITHUB_TOKEN` can't write to Projects, so SCAFFOLD only sets labels; the board uses Projects' built-in workflows (auto-add by label, set status on close/merge).
-- **Flow lead:** a rotating developer (weekly) orders the backlog, runs `/plan` on the next items and watches `scaffold:escalate` and the Conflicts queue.
+- **Flow lead:** a rotating developer (weekly), named in `scaffold.yml` (`flow_lead`, changed by PR at each rotation so code-owner review protects it), orders the backlog, runs `/plan` on the next items and watches `scaffold:escalate` and the Conflicts queue.
 - **Work-in-progress limits:**
   - **Per developer:** `scaffold.yml` sets a maximum number of open Copilot PRs per developer (default 2). Going over gets a comment, not a block.
   - **Total in flight:** `scaffold.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (assume 20; to be agreed). A ticket is in flight from its `/plan` until its PR merges, it closes or it goes back to `Ready` (it then needs `/plan` again). A split ticket counts as 1 and stays in flight until all its sub-tickets have merged or closed; the parent then closes automatically. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`; when a slot frees up, Actions @-mentions the flow lead on the top waiting ticket (Actions never runs `/plan` itself). This is a block, and it also bounds the work `conflict-check` compares against.
@@ -203,7 +204,8 @@ Several tickets are in development at once. SCAFFOLD checks each one against the
   3. higher priority (`priority:*` label);
   4. earliest code-owner approval.
 
-  The developer adds the PR to the merge queue when it is next. A `merge-order` check in the merge queue fails if a PR jumps the order or has an open conflict; the flow lead can override the order with a comment.
+  The developer adds the PR to the merge queue when it is next. A `merge-order` check in the merge queue fails if a PR jumps the order or has an open conflict.
+  - **Override:** the flow lead can let a PR go out of order. They comment `/order-override <reason>` and apply `scaffold:order-override`. The `merge-order` check reads the timeline and accepts the override only if both were made by the `flow_lead` in `scaffold.yml` after the PR's current merge position and latest push; otherwise it fails. A new position or push makes the override stale. The override never lifts an open conflict. The reason is recorded in the status comment and the audit log.
 
 ### Deferred (later iteration)
 
