@@ -27,7 +27,7 @@ export function issueSteps(gh, repo, number, labels) {
   }
 
   // True only if a user with write access applied scaffold:accepted. `sender` is
-  // the actor of a `labeled` event; otherwise the latest labeled event is used.
+  // the actor of a `scaffold:accepted` labeled event; otherwise the latest such event is used.
   async function acceptedByMember(sender) {
     let actor = sender;
     if (!actor) {

@@ -36,7 +36,7 @@ async function main() {
   if (event.action === 'labeled' && !['scaffold:accepted', 'scaffold:triage'].includes(event.label?.name)) return skip('label is not scaffold:accepted or scaffold:triage');
 
   const trusted = TRUSTED.includes(issue.author_association)
-    || (labels.includes('scaffold:accepted') && await acceptedByMember(event.action === 'labeled' ? event.sender : undefined));
+    || (labels.includes('scaffold:accepted') && await acceptedByMember(event.action === 'labeled' && event.label.name === 'scaffold:accepted' ? event.sender : undefined));
   if (!trusted) {
     const notice = labels.includes('scaffold:accepted')
       ? '🔒 Opened by someone outside the team, and `scaffold:accepted` was not applied by a member with write access. A member must re-apply it before SCAFFOLD triages this issue.'
@@ -66,7 +66,7 @@ async function main() {
     const why = err instanceof RateLimited ? 'Copilot is rate limiting' : 'the model call failed';
     console.warn(err.message);
     await setLabels([], ['scaffold:triage']);
-    await upsertStatus(renderNotice(`⚠️ Triage skipped: ${why}. Add the `scaffold:triage` label or re-run the workflow to try again.`));
+    await upsertStatus(renderNotice(`⚠️ Triage skipped: ${why}. Add the \`scaffold:triage\` label or re-run the workflow to try again.`));
     return summary(`### SCAFFOLD triage\nSkipped: ${why}\n\n\`${err.message.slice(0, 500)}\``);
   }
 

@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { validate } from '../actions/lib/validate.mjs';
 import { wrapUntrusted, escapeForComment, skillBody } from '../actions/lib/text.mjs';
 import { parseLabels } from '../actions/lib/labels.mjs';
@@ -97,4 +99,8 @@ test('template check headings are all in the Request form', async () => {
   const form = await readFile(new URL('../templates/caller/.github/ISSUE_TEMPLATE/request.yml', import.meta.url), 'utf8');
   const body = [...form.matchAll(/^\s+label: (.+)$/gm)].map((m) => `### ${m[1]}\n\nx`).join('\n\n');
   assert.ok(usesTemplate(body));
+});
+
+test('triage entry point parses', () => {
+  execFileSync(process.execPath, ['--check', fileURLToPath(new URL('../actions/triage/triage.mjs', import.meta.url))]);
 });

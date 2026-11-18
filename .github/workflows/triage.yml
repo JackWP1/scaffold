@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   triage:
-    if: vars.SCAFFOLD_ENABLED != 'false' && !github.event.issue.pull_request && (github.event.action != 'labeled' || github.event.label.name == 'scaffold:accepted')
+    if: vars.SCAFFOLD_ENABLED != 'false' && !github.event.issue.pull_request && (github.event.action != 'labeled' || contains(fromJSON('["scaffold:accepted","scaffold:triage"]'), github.event.label.name))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
