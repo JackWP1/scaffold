@@ -15,7 +15,8 @@ export function escapeForComment(text) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replace(/@(?=[A-Za-z0-9-_/])/g, '@​')
-    .replace(/!?\[([^\]]*)\]\(([^)]*)\)/g, '$1 ($2)');
+    .replace(/!?\[([^\]]*)\]\(([^)]*)\)/g, '$1 ($2)')
+    .replace(/(https?):\/\//gi, '$1​://')
 }
 
 // Strip YAML frontmatter from a SKILL.md.
