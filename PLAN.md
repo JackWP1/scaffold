@@ -107,7 +107,7 @@ src/ tests/ dist/       TypeScript glue, tests, bundled output
 ### Self-install (no App, no PAT)
 
 1. Repo admin copies the thin caller `.github/workflows/scaffold.yml` and `.github/scaffold.yml` from `templates/` (later: org starter workflow).
-2. Admin follows the `INSTALL.md` checklist: labels (or run the `scaffold-labels` job), ruleset (PRs only, code-owner review, required SCAFFOLD checks, no bypass), CODEOWNERS block, Copilot settings (section 6), secret scanning + push protection.
+2. Admin follows the `INSTALL.md` checklist: labels (or run the `scaffold-labels` job), ruleset (PRs only, code-owner review, dismiss stale approvals on push, required SCAFFOLD checks, no bypass), CODEOWNERS block, Copilot settings (section 6), secret scanning + push protection.
 3. A `scaffold-sync` job in the target repo opens a PR (via `GITHUB_TOKEN`) to add/update Copilot instruction files, `.github/skills/`, templates and `.scaffold-version`. Workflow files are never touched by automation.
 4. Requires org setting "Allow GitHub Actions to create and approve pull requests". PRs opened by `GITHUB_TOKEN` don't trigger workflows; a human re-runs checks on them.
 
@@ -193,7 +193,7 @@ Several tickets are in development at once. SCAFFOLD checks each one against the
 - **When:** twice per ticket. Once after plan approval, before implementation starts (requirements and plan). Once after code-owner approval, before the PR gets a merge position (approved code).
 - **Find (deterministic):** Actions code shortlists candidates: other in-flight tickets with the same spec section, Jira epic or affected paths; for the second check, other approved PRs and changes merged since the first check. This keeps model input small.
 - **Judge (AI):** `conflict-check` compares the ticket with the shortlist and with `docs/spec/` and `PRECEDENTS.md`, and reports each conflict or regression risk with the tickets and spec sections involved.
-- **Regression in code:** the full test suite and test integrity check run on every PR; a **merge queue** tests each PR together with main and the PRs ahead of it before it merges. If a PR fails in the queue, Actions re-runs its tests with just main: a pass means the failure comes from the PRs ahead and is flagged as a conflict; a fail sends the PR to automatic rework.
+- **Regression in code:** the full test suite and test integrity check run on every PR; a **merge queue** tests each PR together with main and the PRs ahead of it before it merges. If a PR fails in the queue, Actions re-runs its tests with just main: a pass means the failure comes from the PRs ahead and is flagged as a conflict; a fail sends the PR to automatic rework. A reworked PR leaves the merge order and goes round again: guard checks, CI and the review gate re-run, the new push dismisses the code-owner approval so it must be re-approved, and `conflict-check` 2 runs again before it gets a new position.
 - **Merge queue checks:** every required SCAFFOLD check also runs on `merge_group`; checks that only apply to PRs (plan gate, PR size, review gate) pass straight away there.
 - **Flag:** Actions applies `scaffold:conflict`, removes any `scaffold:conflict-resolved`, and keeps one conflict comment, linking every ticket involved, up to date. The plan gate and the `merge-order` check fail while the flag is open, so the ticket can't be implemented or merged, and a flagged PR leaves the merge order.
 - **Queue:** a Projects "Conflicts" view lists flagged tickets by priority. The flow lead watches it with the owners of the tickets involved.

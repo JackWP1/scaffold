@@ -5,7 +5,7 @@ How SCAFFOLD keeps several tickets in development at once from conflicting with 
 - **Check twice:** `conflict-check` runs once before implementation starts (requirements and plan) and once after code-owner approval, before the PR is given a merge position.
 - **Find:** before each check, Actions code shortlists overlapping work deterministically: same spec section, Jira epic or affected paths as other in-flight tickets, approved PRs and changes merged since the first check.
 - **Judge:** the `conflict-check` skill decides whether each overlap is a real conflict or regression risk, and explains why.
-- **Flag:** Actions applies `scaffold:conflict` and posts one conflict comment linking every ticket involved. Implementation and merging are blocked while the flag is open, and a flagged PR leaves the merge order. A merge queue failure is only flagged if the PR passes with just main.
+- **Flag:** Actions applies `scaffold:conflict` and posts one conflict comment linking every ticket involved. Implementation and merging are blocked while the flag is open, and a flagged PR leaves the merge order. A merge queue failure is only flagged if the PR passes with just main; if it fails with just main, the PR leaves the merge order for automatic rework, then needs passing PR checks, code-owner re-approval and `conflict-check` 2 again.
 - **Queue:** the Projects "Conflicts" view lists flagged tickets by priority. The flow lead and the owners of the tickets involved resolve them.
 - **Merge order:** Actions orders approved PRs: blockers first, stacked PRs bottom-up, then priority, then earliest approval. Developers add PRs to the merge queue in that order; a check fails if a PR jumps the order.
 
@@ -54,7 +54,9 @@ flowchart TD
   ok1 -- yes --> flag
   ok2 -- yes --> flag
   mq -- fails --> mainonly{{Fails with just main?}}
-  mainonly -- yes: automatic rework --> impl
+  mainonly -- yes --> rework[Automatic rework<br/>PR leaves merge order<br/>guard checks, CI and review gate re-run<br/>push dismisses code-owner approval]
+  rework --> reapprove{"<span style='font-size:2em'>🧑</span><br/>Code owner<br/>re-approves"}
+  reapprove --> find2
   mainonly -- no --> flag
   flag[scaffold:conflict<br/>conflict comment links every ticket involved<br/>implementation and merging blocked<br/>PR leaves merge order] --> queue[Projects view: Conflicts queue<br/>ordered by priority]
   queue --> resolve{"<span style='font-size:2em'>🧑</span><br/>Flow lead and<br/>ticket owners resolve"}
@@ -83,10 +85,10 @@ flowchart TD
   class kd done
 
   class ticket,intake,ready,limit,plan,impl,merged existing
-  class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,mainonly,flag,queue,resolve,resolved,resume,blocked,closed s5
+  class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,mainonly,rework,reapprove,flag,queue,resolve,resolved,resume,blocked,closed s5
 
   class ticket,intake,ready,limit,plan,impl,merged planned
-  class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,mainonly,flag,queue,resolve,resolved,resume,blocked,closed planned
+  class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,mainonly,rework,reapprove,flag,queue,resolve,resolved,resume,blocked,closed planned
 ```
 
 ## History
