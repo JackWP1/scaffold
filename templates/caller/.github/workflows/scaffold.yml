@@ -1,4 +1,5 @@
 # Thin SCAFFOLD caller. Copy to .github/workflows/scaffold.yml in your repo.
+# Refs are pinned to a release SHA by scripts/release.sh; keep them pinned.
 name: SCAFFOLD
 on:
   issues:

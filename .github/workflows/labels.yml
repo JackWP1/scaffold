@@ -12,4 +12,5 @@ jobs:
     permissions:
       issues: write
     steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - uses: JackWP1/scaffold/actions/labels@main

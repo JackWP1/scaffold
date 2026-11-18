@@ -6,7 +6,8 @@ import { github } from '../lib/github.mjs';
 import { callModel, RateLimited } from '../lib/models.mjs';
 import { validate } from '../lib/validate.mjs';
 import { wrapUntrusted, skillBody } from '../lib/text.mjs';
-import { MARKER, renderTriage, renderNotice } from './render.mjs';
+import { renderTriage, renderNotice } from './render.mjs';
+import { issueSteps } from './steps.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:ready', 'scaffold:proposed'];
@@ -20,36 +21,27 @@ const summary = (md) => appendFile(process.env.GITHUB_STEP_SUMMARY ?? '/dev/null
 
 const issue = event.issue;
 const labels = issue.labels.map((l) => l.name);
-const base = `/repos/${repo}/issues/${issue.number}`;
 
 function skip(reason) {
   console.log(`Skipping: ${reason}`);
   return summary(`### SCAFFOLD triage\nSkipped: ${reason}`);
 }
 
-async function setLabels(add, remove) {
-  for (const name of remove.filter((l) => labels.includes(l) && !add.includes(l))) {
-    await gh.delete(`${base}/labels/${encodeURIComponent(name)}`);
-  }
-  if (add.length) await gh.post(`${base}/labels`, { labels: add });
-}
-
-async function upsertStatus(body) {
-  const comments = await gh.get(`${base}/comments?per_page=100`);
-  const mine = comments.find((c) => c.user?.login === 'github-actions[bot]' && c.body?.startsWith(MARKER));
-  if (mine) await gh.patch(`/repos/${repo}/issues/comments/${mine.id}`, { body });
-  else await gh.post(`${base}/comments`, { body });
-}
+const { setLabels, upsertStatus, acceptedByMember } = issueSteps(gh, repo, issue.number, labels);
 
 async function main() {
   if (issue.pull_request) return skip('pull request');
   if (event.action === 'labeled' && event.label?.name !== 'scaffold:accepted') return skip('label is not scaffold:accepted');
   if (event.action === 'edited' && !labels.includes('scaffold:needs-info')) return skip('edited but not waiting for info');
 
-  const trusted = TRUSTED.includes(issue.author_association) || labels.includes('scaffold:accepted');
+  const trusted = TRUSTED.includes(issue.author_association)
+    || (labels.includes('scaffold:accepted') && await acceptedByMember(event.action === 'labeled' ? event.sender : undefined));
   if (!trusted) {
+    const notice = labels.includes('scaffold:accepted')
+      ? '🔒 Opened by someone outside the team, and `scaffold:accepted` was not applied by a member with write access. A member must re-apply it before SCAFFOLD triages this issue.'
+      : '🔒 Opened by someone outside the team. A member must apply `scaffold:accepted` before SCAFFOLD triages it.';
     await setLabels(['scaffold:proposed'], STATE_LABELS);
-    await upsertStatus(renderNotice('🔒 Opened by someone outside the team. A member must apply `scaffold:accepted` before SCAFFOLD triages it.'));
+    await upsertStatus(renderNotice(notice));
     return summary(`### SCAFFOLD triage\nNot trusted (${issue.author_association}): labelled scaffold:proposed`);
   }
 

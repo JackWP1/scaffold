@@ -4,10 +4,14 @@ What runs: an issue opened in a repo with the SCAFFOLD caller → one GitHub Mod
 
 ## Setup
 
-1. Merge this branch to `main` in `JackWP1/scaffold`. The caller and reusable workflows reference `@main`.
+1. Merge this branch to `main` in `JackWP1/scaffold` with a merge commit (not squash or rebase), and push the release tag. The caller and reusable workflows are pinned to release SHAs on this branch, which must stay reachable.
 2. If `JackWP1/scaffold` is private: Settings → Actions → General → Access → "Accessible from repositories owned by 'JackWP1'".
 3. Create `JackWP1/scaffold-sandbox`. Copy `templates/caller/.github/` into it and push to its default branch.
 4. In the sandbox: Actions → SCAFFOLD → Run workflow. This creates the labels.
+
+## Cutting a release
+
+Run `scripts/release.sh vX.Y.Z` on a clean tree. It pins the reusable workflows to the current commit, tags that, then pins the caller template to the tag. Re-copy the template into the sandbox afterwards.
 
 ## Demo script
 
@@ -24,4 +28,4 @@ What runs: an issue opened in a repo with the SCAFFOLD caller → one GitHub Mod
 
 ## Not in the demo yet
 
-Pinned `@v1` tags, ajv, audit artifact, weekly usage report, Projects board automation, `workflow.yml` diagram generation, Jira form validation. These are the rest of slice 1 (PLAN.md section 11).
+Dependabot bumps for the caller pin, ajv, audit artifact, weekly usage report, Projects board automation, `workflow.yml` diagram generation, Jira form validation. These are the rest of slice 1 (PLAN.md section 11).

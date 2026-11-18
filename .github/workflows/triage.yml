@@ -22,7 +22,7 @@ jobs:
       issues: write
       models: read
     steps:
-      # Pin to a tag or SHA once v1 is released (PLAN.md section 5).
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - uses: JackWP1/scaffold/actions/triage@main
         with:
           model: ${{ inputs.model }}
