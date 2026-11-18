@@ -66,6 +66,7 @@ flowchart TD
   prsize -- over soft, within hard --> sizecmd{"<span style='font-size:2em'>🧑</span><br/>Developer may comment<br/>/size-exception reason"}
   prsize -- over hard --> breaker{{Circuit breaker<br/>6 rework rounds used?}}
   sizecmd --> sizeexc
+  sizeexc -- accepted --> readygate
   pr --> ci{{CI}}
   pr --> review["<span style='font-size:2em'>🤖</span> code-review"]
   ci -- fails --> diagnose["<span style='font-size:2em'>🤖</span> ci-diagnose"]
