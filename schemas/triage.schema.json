@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "triage output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "type", "priority", "summary", "questions", "brief"],
+  "properties": {
+    "decision": { "type": "string", "enum": ["ready", "needs-info"] },
+    "type": { "type": "string", "enum": ["bug", "feature", "chore", "question"] },
+    "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+    "summary": { "type": "string", "maxLength": 300 },
+    "questions": { "type": "array", "maxItems": 5, "items": { "type": "string", "maxLength": 300 } },
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goal", "acceptance_criteria", "affected_areas", "out_of_scope"],
+      "properties": {
+        "goal": { "type": "string", "maxLength": 500 },
+        "acceptance_criteria": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 300 } },
+        "affected_areas": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 200 } },
+        "out_of_scope": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 300 } }
+      }
+    }
+  }
+}

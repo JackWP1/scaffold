@@ -1,0 +1,28 @@
+# Reusable triage workflow (slice 1). Called from a repo's thin caller workflow.
+name: SCAFFOLD triage
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Override the fast-tier model
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  triage:
+    if: vars.SCAFFOLD_ENABLED != 'false' && !github.event.issue.pull_request && (github.event.action != 'labeled' || github.event.label.name == 'scaffold:accepted')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-triage-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    permissions:
+      issues: write
+      models: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/actions/triage@2cdc6ded591025cf7388d5d1174d7c8f271fbba0 # v0.1.0
+        with:
+          model: ${{ inputs.model }}

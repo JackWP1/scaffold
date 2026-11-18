@@ -1,0 +1,24 @@
+# Thin SCAFFOLD caller. Copy to .github/workflows/scaffold.yml in your repo.
+# Refs are pinned to a release SHA by scripts/release.sh; keep them pinned.
+name: SCAFFOLD
+on:
+  issues:
+    types: [opened, edited, reopened, labeled]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  triage:
+    if: github.event_name == 'issues'
+    permissions:
+      issues: write
+      models: read
+    uses: JackWP1/scaffold/.github/workflows/triage.yml@1cacfc6259fdc978c728bcebe606f05f01b8d2d7 # v0.1.0
+
+  # Run manually (Actions → SCAFFOLD → Run workflow) to create the labels.
+  labels:
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      issues: write
+    uses: JackWP1/scaffold/.github/workflows/labels.yml@1cacfc6259fdc978c728bcebe606f05f01b8d2d7 # v0.1.0
