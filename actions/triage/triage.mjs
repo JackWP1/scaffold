@@ -64,7 +64,7 @@ async function main() {
     out = await callModel({ token, model, endpoint, system: skillBody(skillMd), user, schemaName: 'triage', schema });
   } catch (err) {
     const why = err instanceof RateLimited ? 'GitHub Models is rate limiting' : 'the model call failed';
-    console.log(`::warning::${err.message}`);
+    console.warn(err.message);
     await setLabels([], ['scaffold:triage']);
     await upsertStatus(renderNotice(`⚠️ Triage skipped: ${why}. Edit the issue or re-run the workflow to try again.`));
     return summary(`### SCAFFOLD triage\nSkipped: ${why}\n\n\`${err.message.slice(0, 500)}\``);
