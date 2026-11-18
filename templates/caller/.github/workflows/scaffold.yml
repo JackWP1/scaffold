@@ -14,11 +14,11 @@ jobs:
     permissions:
       issues: write
       models: read
-    uses: JackWP1/scaffold/.github/workflows/triage.yml@1cacfc6259fdc978c728bcebe606f05f01b8d2d7 # v0.1.0
+    uses: JackWP1/scaffold/.github/workflows/triage.yml@fc830bf7e4257cdbcee67e4fd01e33be929c354c # v0.1.1
 
   # Run manually (Actions → SCAFFOLD → Run workflow) to create the labels.
   labels:
     if: github.event_name == 'workflow_dispatch'
     permissions:
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/labels.yml@1cacfc6259fdc978c728bcebe606f05f01b8d2d7 # v0.1.0
+    uses: JackWP1/scaffold/.github/workflows/labels.yml@fc830bf7e4257cdbcee67e4fd01e33be929c354c # v0.1.1
