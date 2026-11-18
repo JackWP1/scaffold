@@ -10,7 +10,7 @@ What runs, slice 2: a member comments `/plan` → one Copilot CLI call (`task-de
 2. If `JackWP1/scaffold` is private: Settings → Actions → General → Access → "Accessible from repositories owned by 'JackWP1'".
 3. Create `JackWP1/scaffold-sandbox`. Copy `templates/caller/.github/` into it and push to its default branch.
 4. In the sandbox: Actions → SCAFFOLD → Run workflow. This creates the labels.
-5. Copy `templates/caller/.github/scaffold.yml` into the sandbox and set `approvers` to your login and a second account's.
+5. Copy `templates/caller/.github/scaffold-config.yml` into the sandbox and set `approvers` to your login and a second account's.
 
 ## Cutting a release
 

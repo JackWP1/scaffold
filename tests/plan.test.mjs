@@ -25,7 +25,7 @@ const plan = (split, subtasks, estimate = { files: 4, lines: 200 }) => ({
 });
 const small = plan('none', [task('1', 2, 100), task('2', 2, 100, ['1'])]);
 
-test('scaffold.yml subset parses nested maps and lists', () => {
+test('scaffold-config.yml subset parses nested maps and lists', () => {
   const yaml = '# c\napprovers:\n  - Alice\n  - bob # lead\nflow_lead: bob\nmax_in_flight: 12\npr_size:\n  soft:\n    files: 5\n  exempt: [a.lock, "dist/**"]\n';
   assert.deepEqual(parseYaml(yaml), {
     approvers: ['Alice', 'bob'], flow_lead: 'bob', max_in_flight: 12, pr_size: { soft: { files: 5 }, exempt: ['a.lock', 'dist/**'] },
@@ -36,13 +36,13 @@ test('scaffold.yml subset parses nested maps and lists', () => {
   assert.deepEqual(config.pr_size.hard, DEFAULTS.pr_size.hard);
 });
 
-test('a missing scaffold.yml lists no approvers', () => {
+test('a missing scaffold-config.yml lists no approvers', () => {
   assert.deepEqual(configFrom('').approvers, []);
   assert.equal(configFrom('').max_in_flight, 20);
 });
 
-test('the scaffold.yml template parses', async () => {
-  const config = configFrom(await readFile(new URL('../templates/caller/.github/scaffold.yml', import.meta.url), 'utf8'));
+test('the scaffold-config.yml template parses', async () => {
+  const config = configFrom(await readFile(new URL('../templates/caller/.github/scaffold-config.yml', import.meta.url), 'utf8'));
   assert.deepEqual(config.pr_size, DEFAULTS.pr_size);
   assert.equal(config.max_in_flight, 20);
 });

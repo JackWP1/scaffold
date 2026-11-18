@@ -62,7 +62,7 @@ export function evaluateApproval({ events, author, approvers, planComment, plan,
   const fail = (reason) => ({ ok: false, reason, approver: actor.login, at: applied.created_at });
   if (actor.type !== 'User') return fail('applied by a bot, not a person');
   if (actor.login?.toLowerCase() === author?.toLowerCase()) return fail('the issue author can\'t approve their own issue');
-  if (!approvers.includes(actor.login?.toLowerCase())) return fail(`\`${actor.login}\` is not a listed approver in \`.github/scaffold.yml\``);
+  if (!approvers.includes(actor.login?.toLowerCase())) return fail(`\`${actor.login}\` is not a listed approver in \`.github/scaffold-config.yml\``);
   if (!planComment) return fail('there is no plan: comment `/plan` first');
   if (Date.parse(planComment.updated_at) > Date.parse(applied.created_at)) return fail('the plan changed after it was approved: review it and apply the label again');
   if (!plan) return fail('the plan comment\'s data is missing or invalid: comment `/plan` again');

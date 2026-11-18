@@ -2,7 +2,7 @@
 
 Components and how they call each other (PLAN.md section 10). Updated in every slice's PR; hand-drawn until the `scaffold-diagrams` check generates it.
 
-- **Calling repo:** a thin caller workflow and `.github/scaffold.yml`. The Request issue form comes from the `.github` repo.
+- **Calling repo:** a thin caller workflow and `.github/scaffold-config.yml`. The Request issue form comes from the `.github` repo.
 - **SCAFFOLD repo:** reusable workflows call composite actions pinned to a release SHA; the actions bundle skills, schemas and config, so no cross-repo checkout is needed.
 - **Model calls:** one tool-less Copilot CLI call per AI step. Actions code validates the JSON and makes every write with `GITHUB_TOKEN`.
 
@@ -14,7 +14,7 @@ flowchart LR
     direction TB
     events([issues, issue_comment,<br/>workflow_dispatch])
     callerwf[".github/workflows/scaffold.yml<br/>thin caller"]
-    cfg[".github/scaffold.yml<br/>approvers, max_in_flight, pr_size"]
+    cfg[".github/scaffold-config.yml<br/>approvers, max_in_flight, pr_size"]
     events --> callerwf
   end
 
@@ -39,7 +39,7 @@ flowchart LR
       validate[validate.mjs]
       issue[issue.mjs<br/>labels, comments, timeline]
       status[status.mjs<br/>status comment gates]
-      config[config.mjs<br/>scaffold.yml]
+      config[config.mjs<br/>scaffold-config.yml]
       skills[skills.mjs]
     end
     subgraph data[Bundled data]
@@ -90,4 +90,4 @@ Fill shows the slice that added each component (blue: slice 1, green: slice 2; c
 
 | Slice | Date | Change |
 | --- | --- | --- |
-| 2 | 2026-11-18 | Drawn: slice 1 triage and labels; slice 2 plan, plan gate, `scaffold.yml` config and status gates |
+| 2 | 2026-11-18 | Drawn: slice 1 triage and labels; slice 2 plan, plan gate, `scaffold-config.yml` config and status gates |

@@ -1,4 +1,4 @@
-// Reads the calling repo's .github/scaffold.yml (PLAN.md section 4) from its default branch.
+// Reads the calling repo's .github/scaffold-config.yml (PLAN.md section 4) from its default branch.
 // A missing file gives the defaults, which list no approvers, so nothing can be approved.
 
 export const DEFAULTS = {
@@ -12,7 +12,7 @@ export const DEFAULTS = {
   },
 };
 
-// Parses the YAML subset scaffold.yml uses: nested maps, `- item` lists, `[a, b]` lists,
+// Parses the YAML subset scaffold-config.yml uses: nested maps, `- item` lists, `[a, b]` lists,
 // scalars and comments. Not a general YAML parser.
 export function parseYaml(text) {
   const lines = text.split('\n')
@@ -36,7 +36,7 @@ export function parseYaml(text) {
     const map = {};
     while (i < lines.length && lines[i].indent === indent) {
       const [, key, value] = lines[i++].text.match(/^([\w-]+):\s*(.*)$/) ?? [];
-      if (!key) throw new Error(`scaffold.yml: can't parse line ${i}`);
+      if (!key) throw new Error(`scaffold-config.yml: can't parse line ${i}`);
       map[key] = value !== '' ? scalar(value) : i < lines.length && lines[i].indent > indent ? block(lines[i].indent) : null;
     }
     return map;
@@ -69,5 +69,5 @@ export async function readRepoFile(gh, repo, path) {
 }
 
 export async function loadConfig(gh, repo) {
-  return configFrom((await readRepoFile(gh, repo, '.github/scaffold.yml')) ?? '');
+  return configFrom((await readRepoFile(gh, repo, '.github/scaffold-config.yml')) ?? '');
 }

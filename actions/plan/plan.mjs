@@ -142,7 +142,7 @@ async function main() {
       ? 'comment `/plan` with guidance to replan, or split the work into separate issues.'
       : approvers
         ? `a listed approver (${approvers}) reviews the plan and applies \`scaffold:plan-approved\`.`
-        : 'no approvers are listed: add them to `.github/scaffold.yml`.',
+        : 'no approvers are listed: add them to `.github/scaffold-config.yml`.',
   );
 
   await summary([

@@ -161,7 +161,7 @@ flowchart TD
   triage --> ready[scaffold:ready]
 
   ready --> plancmd{"<span style='font-size:2em'>🧑</span><br/>Member<br/>comments /plan"}
-  plancmd --> limit{{In-flight limit reached?<br/>max_in_flight in scaffold.yml}}
+  plancmd --> limit{{In-flight limit reached?<br/>max_in_flight in scaffold-config.yml}}
   limit -- yes: waits --> ready
   limit -- no --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer<br/>estimate, split into stack<br/>or up to 5 sub-tickets"]
   decompose --> plansize{{Plan breaks size rules?}}
