@@ -23,6 +23,6 @@ jobs:
       models: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/actions/triage@2cdc6ded591025cf7388d5d1174d7c8f271fbba0 # v0.1.0
+      - uses: JackWP1/scaffold/actions/triage@bf1844a507c32fdc2ce01ba85decc4812b80330c # v0.1.1
         with:
           model: ${{ inputs.model }}
