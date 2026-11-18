@@ -20,9 +20,9 @@ jobs:
       cancel-in-progress: true
     permissions:
       issues: write
-      models: read
+      copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/actions/triage@bf1844a507c32fdc2ce01ba85decc4812b80330c # v0.1.1
+      - uses: JackWP1/scaffold/actions/triage@53d60216589530e15f2c331535ba04ec67e2c247 # v0.2.0
         with:
           model: ${{ inputs.model }}

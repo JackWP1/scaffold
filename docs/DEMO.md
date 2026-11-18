@@ -1,6 +1,6 @@
 # Slice 1 demo: triage
 
-What runs: an issue opened in a repo with the SCAFFOLD caller → one GitHub Models call (`triage` skill, `fast` tier) → schema-validated JSON → Actions code applies `scaffold:*` and `priority:*` labels and one status comment.
+What runs: an issue opened in a repo with the SCAFFOLD caller → one Copilot CLI call with no tools (`triage` skill, `fast` tier) → schema-validated JSON → Actions code applies `scaffold:*` and `priority:*` labels and one status comment.
 
 ## Setup
 

@@ -13,12 +13,12 @@ jobs:
     if: github.event_name == 'issues'
     permissions:
       issues: write
-      models: read
-    uses: JackWP1/scaffold/.github/workflows/triage.yml@fc830bf7e4257cdbcee67e4fd01e33be929c354c # v0.1.1
+      copilot-requests: write
+    uses: JackWP1/scaffold/.github/workflows/triage.yml@e154f2dbcefff7966a830a0362a1c320059ef4f6 # v0.2.0
 
   # Run manually (Actions → SCAFFOLD → Run workflow) to create the labels.
   labels:
     if: github.event_name == 'workflow_dispatch'
     permissions:
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/labels.yml@fc830bf7e4257cdbcee67e4fd01e33be929c354c # v0.1.1
+    uses: JackWP1/scaffold/.github/workflows/labels.yml@e154f2dbcefff7966a830a0362a1c320059ef4f6 # v0.2.0

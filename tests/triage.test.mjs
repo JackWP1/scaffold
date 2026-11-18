@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { validate, toStrictSchema } from '../actions/lib/validate.mjs';
+import { validate } from '../actions/lib/validate.mjs';
 import { wrapUntrusted, escapeForComment, skillBody } from '../actions/lib/text.mjs';
 import { parseLabels } from '../actions/lib/labels.mjs';
 import { renderTriage, MARKER } from '../actions/triage/render.mjs';
@@ -29,14 +29,6 @@ test('invalid triage output is rejected', () => {
   assert.ok(errors.some((e) => e.includes('$.extra: not allowed')));
   assert.ok(errors.some((e) => e.includes('$.summary: required')));
   assert.ok(errors.some((e) => e.includes('more than 5 items')));
-});
-
-test('strict schema drops unsupported keywords but keeps structure', () => {
-  const strict = toStrictSchema(schema);
-  assert.equal(strict.$schema, undefined);
-  assert.equal(strict.properties.summary.maxLength, undefined);
-  assert.equal(strict.additionalProperties, false);
-  assert.deepEqual(strict.required, schema.required);
 });
 
 test('untrusted text cannot close its delimiter', () => {
