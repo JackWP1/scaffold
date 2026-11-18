@@ -75,12 +75,7 @@ flowchart TD
   readygate -- no --> breaker{{Circuit breaker<br/>6 rework rounds used?}}
   breaker -- no --> rework[Automatic rework round<br/>Actions asks @copilot to fix checks, resolve comments<br/>and split oversized work into stacked PRs;<br/>no human approval]
   rework --> copilot
-  breaker -- yes --> escalate[scaffold:escalate]
-  escalate -- still oversized --> sizeexc{"<span style='font-size:2em'>🧑</span><br/>Approver decides<br/>size exception"}
-  sizeexc -- grants: scaffold:size-exception --> ownerreview
-  sizeexc -- refuses, rounds left --> rework
-  sizeexc -- refuses, breaker tripped --> ready
-  escalate -- other reasons --> ownerreview
+sizeexc -- refuses, breaker tripped --> ownerreview
   readygate -- yes --> ownerreview{"<span style='font-size:2em'>🧑</span><br/>Code-owner<br/>review"}
   ownerreview -- changes requested --> copilot
   ownerreview -- needs replanning --> ready
