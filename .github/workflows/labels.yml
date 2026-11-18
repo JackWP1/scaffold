@@ -1,0 +1,15 @@
+# Reusable workflow that syncs SCAFFOLD labels into the calling repo.
+name: SCAFFOLD labels
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - uses: JackWP1/scaffold/actions/labels@main

@@ -1,0 +1,5 @@
+# Tier -> OpenAI model ID on GitHub Models (PLAN.md section 3).
+# Placeholder choices until Phase 0 confirms the approved models.
+fast: openai/gpt-4.1-mini
+standard: openai/gpt-4.1
+deep: openai/gpt-4.1
