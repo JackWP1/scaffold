@@ -1,7 +1,7 @@
 // GitHub side effects for triage, with the client injected so tests can fake it.
 import { MARKER } from './render.mjs';
 
-const WRITERS = ['admin', 'maintain', 'write'];
+const WRITERS = ['admin', 'maintain', 'push', 'write'];
 
 export function issueSteps(gh, repo, number, labels) {
   const base = `/repos/${repo}/issues/${number}`;
