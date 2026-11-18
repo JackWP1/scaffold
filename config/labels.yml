@@ -12,10 +12,10 @@
   color: "1d76db"
   description: Plan approved by a listed approver
 - name: scaffold:proposed
-  color: "c5def5"
+  color: "fef2c0"
   description: Opened by a non-member; a member must apply scaffold:accepted
 - name: scaffold:accepted
-  color: "bfdadc"
+  color: "d4c5f9"
   description: A member accepted this issue for triage
 - name: scaffold:escalate
   color: "b60205"
@@ -23,21 +23,27 @@
 - name: scaffold:conflict
   color: "d93f0b"
   description: Conflicts with in-flight work or the spec
+- name: scaffold:no-template
+  color: "f9d0c4"
+  description: Not created from the SCAFFOLD Request template
 - name: scaffold:conflict-resolved
-  color: "c2e0c6"
+  color: "d4c5f9"
   description: Conflict cleared by a listed approver
 - name: scaffold:size-exception
-  color: "f9d0c4"
+  color: "d4c5f9"
   description: Soft PR size limit lifted by a listed approver
+- name: scaffold:order-override
+  color: "d4c5f9"
+  description: Merge order overridden by the flow lead
 - name: scaffold:diagram-unchanged
-  color: "ededed"
+  color: "d4c5f9"
   description: Workflow change needs no diagram update
 - name: priority:high
-  color: "b60205"
+  color: "5319e7"
   description: High priority
 - name: priority:medium
-  color: "fbca04"
+  color: "8a63d2"
   description: Medium priority
 - name: priority:low
-  color: "0e8a16"
+  color: "c9b8f0"
   description: Low priority

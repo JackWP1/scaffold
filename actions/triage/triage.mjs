@@ -8,6 +8,7 @@ import { validate } from '../lib/validate.mjs';
 import { wrapUntrusted, skillBody } from '../lib/text.mjs';
 import { renderTriage, renderNotice } from './render.mjs';
 import { issueSteps } from './steps.mjs';
+import { usesTemplate } from './template.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:ready', 'scaffold:proposed'];
@@ -31,11 +32,11 @@ const { setLabels, upsertStatus, acceptedByMember } = issueSteps(gh, repo, issue
 
 async function main() {
   if (issue.pull_request) return skip('pull request');
-  if (event.action === 'labeled' && event.label?.name !== 'scaffold:accepted') return skip('label is not scaffold:accepted');
-  if (event.action === 'edited' && !labels.includes('scaffold:needs-info')) return skip('edited but not waiting for info');
+  if (event.action === 'edited') return skip('edits do not re-run triage; add scaffold:triage instead');
+  if (event.action === 'labeled' && !['scaffold:accepted', 'scaffold:triage'].includes(event.label?.name)) return skip('label is not scaffold:accepted or scaffold:triage');
 
   const trusted = TRUSTED.includes(issue.author_association)
-    || (labels.includes('scaffold:accepted') && await acceptedByMember(event.action === 'labeled' ? event.sender : undefined));
+    || (labels.includes('scaffold:accepted') && await acceptedByMember(event.action === 'labeled' && event.label.name === 'scaffold:accepted' ? event.sender : undefined));
   if (!trusted) {
     const notice = labels.includes('scaffold:accepted')
       ? '🔒 Opened by someone outside the team, and `scaffold:accepted` was not applied by a member with write access. A member must re-apply it before SCAFFOLD triages this issue.'
@@ -65,7 +66,7 @@ async function main() {
     const why = err instanceof RateLimited ? 'Copilot is rate limiting' : 'the model call failed';
     console.warn(err.message);
     await setLabels([], ['scaffold:triage']);
-    await upsertStatus(renderNotice(`⚠️ Triage skipped: ${why}. Edit the issue or re-run the workflow to try again.`));
+    await upsertStatus(renderNotice(`⚠️ Triage skipped: ${why}. Add the \`scaffold:triage\` label or re-run the workflow to try again.`));
     return summary(`### SCAFFOLD triage\nSkipped: ${why}\n\n\`${err.message.slice(0, 500)}\``);
   }
 
@@ -80,7 +81,8 @@ async function main() {
 
   const add = [`scaffold:${out.decision}`];
   if (!labels.some((l) => l.startsWith('priority:'))) add.push(`priority:${out.priority}`);
-  await setLabels(add, STATE_LABELS);
+  if (!usesTemplate(issue.body)) add.push('scaffold:no-template');
+  await setLabels(add, [...STATE_LABELS, 'scaffold:no-template']);
   await upsertStatus(renderTriage(out, { skillVersion, model }));
 
   await summary([

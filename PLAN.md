@@ -17,7 +17,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 
 | Trigger | Skill | Output |
 | --- | --- | --- |
-| `issues: opened/edited` | `triage` | Labels, clarifying questions, agent-ready brief |
+| `issues: opened`, `scaffold:triage` applied | `triage` | Labels, clarifying questions, agent-ready brief |
 | `issue_comment` `/plan` | `task-decomposer` | Plan comment: approach, sub-tasks with blocking edges, acceptance criteria, affected paths, estimated size; work over the soft size limit is split into a stack of PRs or up to 5 sub-tickets (section 6) |
 | After plan approval (before implementation); after code-owner approval (before merge order) | `conflict-check` | `scaffold:conflict` and one conflict comment linking every ticket involved (section 8) |
 | `pull_request` | `code-review` | Review comments (standards + spec axes); `COMMENT` only, never approves; human review waits until they are resolved (section 6) |
@@ -27,7 +27,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 
 ### Issue lifecycle
 
-1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`.
+1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`. Triage adds `scaffold:no-template` if the issue wasn't created from the Request template, and removes it once the template's headings are there. On `needs-info`, the author answers the questions in the issue description, then applies `scaffold:triage` to re-run triage.
 2. Member comments `/plan` → plan comment.
 3. Human reviews plan → applies `scaffold:plan-approved`.
 4. Human assigns issue to Copilot → Copilot opens PR.
@@ -37,7 +37,26 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 
 ### Labels
 
-`scaffold:triage`, `scaffold:needs-info`, `scaffold:ready`, `scaffold:plan-approved`, `scaffold:proposed`, `scaffold:accepted`, `scaffold:escalate`, `scaffold:conflict`, `scaffold:conflict-resolved`, `scaffold:size-exception`, `scaffold:order-override`, `scaffold:diagram-unchanged`, `priority:high`, `priority:medium`, `priority:low`.
+Colour shows what kind of label it is, so a glance at an issue says whether it needs a human. Synced from `config/labels.yml`; `tests/triage.test.mjs` fails if the two drift apart. Add or change labels in both places.
+
+| Group | Meaning | Labels | Colour |
+| --- | --- | --- | --- |
+| Lifecycle | Where the issue is | `scaffold:triage` | `ededed` grey |
+| | | `scaffold:needs-info` | `fbca04` yellow |
+| | | `scaffold:ready` | `0e8a16` green |
+| | | `scaffold:plan-approved` | `1d76db` blue |
+| Intake | Waiting for a member to accept | `scaffold:proposed` | `fef2c0` pale yellow |
+| Attention | A human must act | `scaffold:escalate` | `b60205` red |
+| | | `scaffold:conflict` | `d93f0b` orange |
+| Flag | Worth a look; doesn't block | `scaffold:no-template` | `f9d0c4` pale orange |
+| Override | A member or approver lifted a gate | `scaffold:accepted` | `d4c5f9` pale purple |
+| | | `scaffold:conflict-resolved` | `d4c5f9` pale purple |
+| | | `scaffold:size-exception` | `d4c5f9` pale purple |
+| | | `scaffold:order-override` | `d4c5f9` pale purple |
+| | | `scaffold:diagram-unchanged` | `d4c5f9` pale purple |
+| Priority | Set by `triage` | `priority:high` | `5319e7` dark purple |
+| | | `priority:medium` | `8a63d2` purple |
+| | | `priority:low` | `c9b8f0` light purple |
 
 ## 3. Skills
 
@@ -106,10 +125,17 @@ src/ tests/ dist/       TypeScript glue, tests, bundled output
 
 ### Self-install (no App, no PAT)
 
-1. Repo admin copies the thin caller `.github/workflows/scaffold.yml` and `.github/scaffold.yml` from `templates/` (later: org starter workflow).
+1. Repo admin copies the thin caller `.github/workflows/scaffold.yml` and `.github/scaffold.yml` from `templates/` (later: org starter workflow). The issue template comes from the `.github` repo (below).
 2. Admin follows the `INSTALL.md` checklist: labels (or run the `scaffold-labels` job), ruleset (PRs only, code-owner review, dismiss stale approvals on push, required SCAFFOLD checks, no bypass), CODEOWNERS block, Copilot settings (section 6), secret scanning + push protection.
 3. A `scaffold-sync` job in the target repo opens a PR (via `GITHUB_TOKEN`) to add/update Copilot instruction files, `.github/skills/`, templates and `.scaffold-version`. Workflow files are never touched by automation.
 4. Requires org setting "Allow GitHub Actions to create and approve pull requests". PRs opened by `GITHUB_TOKEN` don't trigger workflows; a human re-runs checks on them.
+
+### Issue template
+
+The Request form ships once, as an account/org default in the `.github` repo (`JackWP1/.github`, later `ukncsc/.github`), not per repo. Every repo without its own `.github/ISSUE_TEMPLATE/` uses it.
+
+- **Source:** `templates/caller/.github/ISSUE_TEMPLATE/request.yml` here; the `.github` repo holds a copy, changed only by reviewed PR.
+- **No pinning:** GitHub serves defaults live from the `.github` repo's default branch, while triage is pinned to a release. So fields are **only added, never renamed or removed**: triage's template check (`actions/triage/template.mjs`) must keep matching issues from both old and new forms. A test fails if a checked heading is missing from the form.
 
 ## 6. Guardrails
 

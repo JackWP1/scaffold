@@ -1,3 +1,4 @@
+# Shipped via the .github repo as the default template (PLAN.md section 5). Only add fields; never rename or remove one.
 name: Request
 description: Ask for a change. SCAFFOLD triages it automatically.
 body:
