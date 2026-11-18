@@ -17,7 +17,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 
 | Trigger | Skill | Output |
 | --- | --- | --- |
-| `issues: opened/edited` | `triage` | Labels, clarifying questions, agent-ready brief |
+| `issues: opened`, `scaffold:triage` applied | `triage` | Labels, clarifying questions, agent-ready brief |
 | `issue_comment` `/plan` | `task-decomposer` | Plan comment: approach, sub-tasks with blocking edges, acceptance criteria, affected paths, estimated size; work over the soft size limit is split into a stack of PRs or up to 5 sub-tickets (section 6) |
 | After plan approval (before implementation); after code-owner approval (before merge order) | `conflict-check` | `scaffold:conflict` and one conflict comment linking every ticket involved (section 8) |
 | `pull_request` | `code-review` | Review comments (standards + spec axes); `COMMENT` only, never approves; human review waits until they are resolved (section 6) |
@@ -27,7 +27,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 
 ### Issue lifecycle
 
-1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`.
+1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`. On `needs-info`, the author answers the questions in the issue description, then applies `scaffold:triage` to re-run triage.
 2. Member comments `/plan` → plan comment.
 3. Human reviews plan → applies `scaffold:plan-approved`.
 4. Human assigns issue to Copilot → Copilot opens PR.

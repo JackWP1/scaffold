@@ -31,8 +31,8 @@ const { setLabels, upsertStatus, acceptedByMember } = issueSteps(gh, repo, issue
 
 async function main() {
   if (issue.pull_request) return skip('pull request');
-  if (event.action === 'labeled' && event.label?.name !== 'scaffold:accepted') return skip('label is not scaffold:accepted');
-  if (event.action === 'edited' && !labels.includes('scaffold:needs-info')) return skip('edited but not waiting for info');
+  if (event.action === 'edited') return skip('edits do not re-run triage; add scaffold:triage instead');
+  if (event.action === 'labeled' && !['scaffold:accepted', 'scaffold:triage'].includes(event.label?.name)) return skip('label is not scaffold:accepted or scaffold:triage');
 
   const trusted = TRUSTED.includes(issue.author_association)
     || (labels.includes('scaffold:accepted') && await acceptedByMember(event.action === 'labeled' ? event.sender : undefined));
@@ -65,7 +65,7 @@ async function main() {
     const why = err instanceof RateLimited ? 'Copilot is rate limiting' : 'the model call failed';
     console.warn(err.message);
     await setLabels([], ['scaffold:triage']);
-    await upsertStatus(renderNotice(`⚠️ Triage skipped: ${why}. Edit the issue or re-run the workflow to try again.`));
+    await upsertStatus(renderNotice(`⚠️ Triage skipped: ${why}. Add the `scaffold:triage` label or re-run the workflow to try again.`));
     return summary(`### SCAFFOLD triage\nSkipped: ${why}\n\n\`${err.message.slice(0, 500)}\``);
   }
 

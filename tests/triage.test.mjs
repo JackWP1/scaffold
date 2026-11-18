@@ -50,6 +50,18 @@ test('status comment starts with the marker and escapes model text', () => {
   assert.ok(body.includes('Which Safari version?'));
 });
 
+test('needs-info comment lists questions and how to re-triage', () => {
+  const body = renderTriage(good, { skillVersion: '0.1.0', model: 'm' });
+  assert.ok(body.includes('### More information needed\n\n- Which Safari version?'));
+  assert.ok(body.includes('add the `scaffold:triage` label'));
+  assert.ok(!body.includes('Gate') && !body.includes('Agent-ready brief'));
+});
+
+test('ready comment keeps the status table and brief', () => {
+  const body = renderTriage({ ...good, decision: 'ready', questions: [] }, { skillVersion: '0.1.0', model: 'm' });
+  assert.ok(body.includes('| Triage | ✅ ready |') && body.includes('Agent-ready brief'));
+});
+
 test('skill body strips frontmatter', async () => {
   const md = await readFile(new URL('../skills/triage/SKILL.md', import.meta.url), 'utf8');
   assert.ok(skillBody(md).startsWith('# Triage'));
