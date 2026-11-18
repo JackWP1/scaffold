@@ -1,0 +1,14 @@
+name: SCAFFOLD plan gate
+description: Check a scaffold:plan-approved label against the issue timeline and .github/scaffold.yml; remove it if the approval isn't valid.
+inputs:
+  github-token:
+    description: Token with issues:write and contents:read
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SCAFFOLD_ROOT: ${{ github.action_path }}/../..
+      run: node "$GITHUB_ACTION_PATH/gate.mjs"

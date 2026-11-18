@@ -3,7 +3,7 @@
 Two diagrams, kept as code (PLAN.md section 10). How concurrent tickets are checked for conflicts is in `collaboration.md`.
 
 - **Proposed:** the target lifecycle. Hand-maintained; a PR that changes it is a proposal to change the workflow.
-- **Current:** the workflow as implemented. Updated at the end of every slice; from slice 1 it is generated from `config/workflow.yml` and the `scaffold-diagrams` check fails if it is stale.
+- **Current:** the workflow as implemented. Updated at the end of every slice. Hand-drawn until `config/workflow.yml` and the `scaffold-diagrams` check land (outstanding from slice 1); then generated, and the check fails if it is stale.
 
 ## Proposed
 
@@ -38,7 +38,7 @@ flowchart TD
   accept --> triage
   member -- yes --> triage["<span style='font-size:2em'>🤖</span> triage"]
   triage --> needsinfo[scaffold:needs-info]
-  needsinfo --> edit{"<span style='font-size:2em'>🧑</span><br/>Author<br/>edits issue"}
+  needsinfo --> edit{"<span style='font-size:2em'>🧑</span><br/>Author edits issue,<br/>applies scaffold:triage"}
   edit --> triage
   triage --> ready[scaffold:ready<br/>Projects: Ready]
 
@@ -47,13 +47,14 @@ flowchart TD
   limit -- yes: waits in Ready --> ready
   limit -- no --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer"]
   decompose --> plansize{{Estimated size over soft limit?<br/>10 files or 1000 lines}}
-  plansize -- no --> plancomment[Plan comment]
+  plansize -- no --> plancomment[Plan comment<br/>scaffold:planned]
   plansize -- yes --> split["<span style='font-size:2em'>🤖</span> task-decomposer splits work<br/>into a stack of PRs or up to 5 sub-tickets"]
   split --> plancomment
   split -- needs more than 5 sub-tickets --> planreview
   plancomment --> planreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews plan"}
   planreview -- changes needed --> plancmd
-  planreview -- approves --> approved[scaffold:plan-approved<br/>gate: listed approver + plan hash]
+  planreview -- approves --> approved[scaffold:plan-approved<br/>gate: listed approver, not the author,<br/>plan unchanged since approval]
+  approved -- gate fails: label removed --> planreview
 
   approved --> check1["<span style='font-size:2em'>🤖</span> conflict-check 1<br/>before implementation:<br/>vs spec and in-flight work"]
   check1 -- conflict --> conflicts1[scaffold:conflict<br/>Conflicts queue for human review<br/>see collaboration.md]
@@ -120,8 +121,9 @@ flowchart TD
   class ci,review,diagnose,readygate s4
   class check1,check2,conflicts1,conflicts2,order,merge,mq,mainonly s5
 
-  class jira,open,member,proposed,accept,triage,needsinfo,edit,ready planned
-  class plancmd,limit,decompose,plansize,split,plancomment,planreview,approved planned
+  class jira,ready planned
+  class open,member,proposed,accept,triage,needsinfo,edit done
+  class plancmd,limit,decompose,plansize,split,plancomment,planreview,approved done
   class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize,ownerreview,closed planned
   class ci,review,diagnose,readygate planned
   class check1,check2,conflicts1,conflicts2,order,merge,mq,mainonly planned
@@ -131,23 +133,70 @@ Visibility is part of every slice rather than a stage of its own: each slice add
 
 ## Current
 
-As of: **before slice 1**. Assumed manual workflow; confirm with the pilot developers in Phase 0.
+As of: **slice 2**. SCAFFOLD runs intake, triage and planning (blue); implementation onwards is still manual (grey). `Projects: Ready` and the Jira link are not built yet.
 
 ```mermaid
 flowchart TD
-  jira[Jira ticket created] --> refined[Ticket refined]
-  refined --> planned[Ticket planned]
-  planned --> pick{Developer picks up Jira ticket}
+  subgraph key[Key]
+    direction LR
+    ks[SCAFFOLD]
+    km[Manual]
+    kh{"<span style='font-size:2em'>🧑</span><br/>Human<br/>must act"}
+    ka{{Automated<br/>check}}
+    kai["<span style='font-size:2em'>🤖</span> AI step"]
+    ks ~~~ km ~~~ kh ~~~ ka ~~~ kai
+  end
+  style key fill:#fff,stroke:#000
+  key ~~~ jira
+
+  jira[Jira ticket created] --> open{"<span style='font-size:2em'>🧑</span><br/>Developer opens issue<br/>via Request form"}
+  open --> member{{Author is a trusted org<br/>member or collaborator?}}
+  member -- no --> proposed[scaffold:proposed]
+  proposed --> accept{"<span style='font-size:2em'>🧑</span><br/>Member applies<br/>scaffold:accepted"}
+  accept --> triage
+  member -- yes --> triage["<span style='font-size:2em'>🤖</span> triage<br/>flags scaffold:no-template"]
+  triage --> needsinfo[scaffold:needs-info]
+  needsinfo --> edit{"<span style='font-size:2em'>🧑</span><br/>Author edits issue,<br/>applies scaffold:triage"}
+  edit --> triage
+  triage --> ready[scaffold:ready]
+
+  ready --> plancmd{"<span style='font-size:2em'>🧑</span><br/>Member<br/>comments /plan"}
+  plancmd --> limit{{In-flight limit reached?<br/>max_in_flight in scaffold.yml}}
+  limit -- yes: waits --> ready
+  limit -- no --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer<br/>estimate, split into stack<br/>or up to 5 sub-tickets"]
+  decompose --> plansize{{Plan breaks size rules?}}
+  plansize -- yes, first time --> decompose
+  plansize -- no --> plancomment[Plan comment<br/>scaffold:planned]
+  plansize -- yes again: can't be approved --> plancomment
+  plancomment --> planreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews plan"}
+  planreview -- changes needed --> plancmd
+  planreview -- applies scaffold:plan-approved --> gate{{Plan gate<br/>listed approver, not the author,<br/>plan unchanged, size rules}}
+  gate -- fails: label removed --> planreview
+  gate -- passes --> approved[scaffold:plan-approved<br/>sub-tickets created as sub-issues]
+
+  approved --> pick{"<span style='font-size:2em'>🧑</span><br/>Developer picks up ticket"}
   pick --> code[Developer writes code]
   code --> pr[PR]
-  pr --> ci{CI}
+  pr --> ci{{CI}}
   ci -- fails --> code
-  ci -- passes --> review{Peer review}
+  ci -- passes --> review{"<span style='font-size:2em'>🧑</span><br/>Peer review"}
   review -- changes requested --> code
-  review -- approves --> test{Ticket tested}
+  review -- approves --> test{"<span style='font-size:2em'>🧑</span><br/>Ticket tested"}
   test -- fails: changes requested --> code
   test -- passes --> merge[Developer merges]
-  merge --> closed[Jira ticket closed]
+  merge --> closed[Issue and Jira ticket closed]
+
+  linkStyle default stroke-width:3px
+
+  classDef scaffold fill:#1e40af,color:#fff
+  classDef manual fill:#4b5563,color:#fff
+
+  class ks scaffold
+  class km manual
+  class kh,ka,kai scaffold
+
+  class open,member,proposed,accept,triage,needsinfo,edit,ready,plancmd,limit,decompose,plansize,plancomment,planreview,gate,approved scaffold
+  class jira,pick,code,pr,ci,review,test,merge,closed manual
 ```
 
 ## History
@@ -157,3 +206,5 @@ One row per slice, added in the slice's retrospective PR. Earlier versions of bo
 | Slice | Date | Change |
 | --- | --- | --- |
 | 0 | 2026-11-13 | Proposed workflow drawn; current workflow assumed manual |
+| 1 | 2026-11-18 | Intake: Request form, members-only `triage`, `scaffold:needs-info` loop re-run by `scaffold:triage`, `scaffold:no-template` flag, status comment. Diagrams updated in slice 2's PR |
+| 2 | 2026-11-18 | Plan: `/plan`, in-flight limit, `task-decomposer` with size estimate and split, `scaffold:planned`, protected plan gate, sub-tickets as sub-issues on approval. Proposed: needs-info edit step applies `scaffold:triage`; plan comment sets `scaffold:planned`; gate-fail edge |

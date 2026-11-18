@@ -87,7 +87,8 @@ flowchart TD
   class ticket,intake,ready,limit,plan,impl,merged existing
   class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,mainonly,rework,reapprove,flag,queue,resolve,resolved,resume,blocked,closed s5
 
-  class ticket,intake,ready,limit,plan,impl,merged planned
+  class ticket,ready,impl,merged planned
+  class intake,limit,plan done
   class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,mainonly,rework,reapprove,flag,queue,resolve,resolved,resume,blocked,closed planned
 ```
 
@@ -96,3 +97,4 @@ flowchart TD
 | Slice | Date | Change |
 | --- | --- | --- |
 | 0 | 2026-11-13 | Proposed collaboration workflow drawn |
+| 2 | 2026-11-18 | Intake, in-flight limit and plan (with affected paths) marked done |

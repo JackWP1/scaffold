@@ -28,8 +28,8 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 ### Issue lifecycle
 
 1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`. Triage adds `scaffold:no-template` if the issue wasn't created from the Request template, and removes it once the template's headings are there. On `needs-info`, the author answers the questions in the issue description, then applies `scaffold:triage` to re-run triage.
-2. Member comments `/plan` → plan comment.
-3. Human reviews plan → applies `scaffold:plan-approved`.
+2. Member comments `/plan` → plan comment → `scaffold:planned`. A new `/plan` replaces the plan comment and withdraws any approval.
+3. Human reviews plan → applies `scaffold:plan-approved` → the plan gate checks it against the timeline and removes it if the approval isn't valid. On a valid approval of a sub-ticket split, Actions creates the sub-issues.
 4. Human assigns issue to Copilot → Copilot opens PR.
 5. Guard checks (section 6), CI and `code-review` → SCAFFOLD automatically starts a Copilot rework round, with no human approval, until checks pass and all `code-review` comments are resolved → code-owner review → `conflict-check` 2 → merge order → developer adds the PR to the merge queue when it is next → merged.
 6. 6 rework rounds used → circuit breaker: `scaffold:escalate` and straight to human review.
@@ -44,6 +44,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | Lifecycle | Where the issue is | `scaffold:triage` | `ededed` grey |
 | | | `scaffold:needs-info` | `fbca04` yellow |
 | | | `scaffold:ready` | `0e8a16` green |
+| | | `scaffold:planned` | `c5def5` light blue |
 | | | `scaffold:plan-approved` | `1d76db` blue |
 | Intake | Waiting for a member to accept | `scaffold:proposed` | `fef2c0` pale yellow |
 | Attention | A human must act | `scaffold:escalate` | `b60205` red |
@@ -178,7 +179,7 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 | --- | --- | --- | --- |
 | Triaged → ready | `triage` Action applies `scaffold:ready` | Members-only trigger; schema-validated output | Audit log, issue label |
 | Ready → planned | Member comments `/plan` | `author_association` check; in-flight count below `max_in_flight` | Plan comment, audit log |
-| Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (hash); sub-tickets use the parent's approval | Timeline event, check run |
+| Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (its last edit is before the label event; the plan hash is recorded in the audit log); the plan must pass the size rules; an invalid approval is removed; sub-tickets use the parent's approval | Timeline event, status comment, audit log; check run from slice 3 |
 | Approved → implementing | Developer assigns issue to Copilot | Plan gate on the resulting PR | Copilot PR |
 | Oversized PR → exception | Listed approver applies `scaffold:size-exception` | Timeline check; lifts the soft limit only; requested via `/size-exception <reason>` or automatic `scaffold:escalate` | Escalation, timeline event, reason in status comment |
 | Review gate fails → rework | Actions, automatically | Round counter in Actions code; stops after 6 | `@copilot` comment, rework count in status comment |
@@ -208,7 +209,7 @@ Humans are the slow part of the workflow; agents are not. SCAFFOLD is designed t
 - **Flow lead:** a rotating developer (weekly), named in `scaffold.yml` (`flow_lead`, changed by PR at each rotation so code-owner review protects it), orders the backlog, runs `/plan` on the next items and watches `scaffold:escalate` and the Conflicts queue.
 - **Work-in-progress limits:**
   - **Per developer:** `scaffold.yml` sets a maximum number of open Copilot PRs per developer (default 2). Going over gets a comment, not a block.
-  - **Total in flight:** `scaffold.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (assume 20; to be agreed). A ticket is in flight from its `/plan` until its PR merges, it closes or it goes back to `Ready` (it then needs `/plan` again). A split ticket counts as 1 and stays in flight until all its sub-tickets have merged or closed; the parent then closes automatically. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`; when a slot frees up, Actions @-mentions the flow lead on the top waiting ticket (Actions never runs `/plan` itself). This is a block, and it also bounds the work `conflict-check` compares against.
+  - **Total in flight:** `scaffold.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (assume 20; to be agreed). A ticket is in flight from its `/plan` until its PR merges (Actions counts open issues labelled `scaffold:planned` or `scaffold:plan-approved`), it closes or it goes back to `Ready` (it then needs `/plan` again). A split ticket counts as 1 and stays in flight until all its sub-tickets have merged or closed; the parent then closes automatically. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`; when a slot frees up, Actions @-mentions the flow lead on the top waiting ticket (Actions never runs `/plan` itself). This is a block, and it also bounds the work `conflict-check` compares against.
 - **Review routing:** CODEOWNERS plus team auto-assignment (round robin) so no PR waits without a reviewer.
 - **Low-noise output:** SCAFFOLD updates one status comment per issue or PR rather than posting new comments, and only @-mentions a human when a gate needs them.
 

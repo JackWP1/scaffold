@@ -1,0 +1,21 @@
+name: SCAFFOLD plan
+description: On `/plan`, plan an issue with a single tool-less Copilot CLI call, then post the plan comment and update the status comment.
+inputs:
+  github-token:
+    description: Token with issues:write, contents:read and copilot-requests:write
+    default: ${{ github.token }}
+  model:
+    description: Override the model for this skill's tier (config/models.yml)
+    default: ''
+runs:
+  using: composite
+  steps:
+    # Pinned so a CLI release can't change flags or behaviour under a SCAFFOLD release.
+    - shell: bash
+      run: npm install -g --no-fund --no-audit @github/copilot@1.0.114
+    - shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SCAFFOLD_MODEL: ${{ inputs.model }}
+        SCAFFOLD_ROOT: ${{ github.action_path }}/../..
+      run: node "$GITHUB_ACTION_PATH/plan.mjs"

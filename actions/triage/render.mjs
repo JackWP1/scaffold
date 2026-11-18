@@ -1,7 +1,8 @@
 // Renders the SCAFFOLD status comment for triage. All model text is escaped.
 import { escapeForComment as e } from '../lib/text.mjs';
+import { MARKER, gateTable } from '../lib/status.mjs';
 
-export const MARKER = '<!-- scaffold:status -->';
+export { MARKER };
 
 const list = (items) => items.map((i) => `- ${e(i)}`).join('\n');
 
@@ -24,12 +25,9 @@ export function renderTriage(out, meta) {
     MARKER,
     '### SCAFFOLD status',
     '',
-    '| Gate | State |',
-    '| --- | --- |',
-    '| Triage | ✅ ready |',
-    '| Plan | ⏳ pending |',
+    gateTable({ Triage: '✅ ready', Plan: '⏳ waiting for `/plan`' }),
     '',
-    '✅ **Triaged → ready.** A member can comment `/plan` (coming in slice 2).',
+    '**Next:** a member comments `/plan` to get a plan.',
     '',
     `**Summary:** ${e(out.summary)}`,
     `**Type:** ${out.type} · **Suggested priority:** ${out.priority}`,

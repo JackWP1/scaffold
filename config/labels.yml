@@ -8,6 +8,9 @@
 - name: scaffold:ready
   color: "0e8a16"
   description: Triaged and ready for /plan
+- name: scaffold:planned
+  color: "c5def5"
+  description: Plan posted; waiting for a listed approver
 - name: scaffold:plan-approved
   color: "1d76db"
   description: Plan approved by a listed approver

@@ -1,0 +1,48 @@
+# Reusable plan workflow (slice 2). Called from a repo's thin caller workflow.
+name: SCAFFOLD plan
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Override the standard-tier model
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  plan:
+    # The kill switch skips the AI step; the gate below is deterministic and always runs.
+    if: vars.SCAFFOLD_ENABLED != 'false' && github.event_name == 'issue_comment' && github.event.action == 'created' && !github.event.issue.pull_request && startsWith(github.event.comment.body, '/plan')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: scaffold-plan-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+      contents: read
+      copilot-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/actions/plan@3f9c40ae56fc16f2419179314abb9e8288a91f36 # v0.3.0
+        with:
+          model: ${{ inputs.model }}
+
+  gate:
+    if: >-
+      !github.event.issue.pull_request && (
+        (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved') ||
+        (github.event_name == 'issue_comment' && github.event.action == 'edited' && startsWith(github.event.comment.body, '<!-- scaffold:plan -->'))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-plan-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/actions/plan-gate@3f9c40ae56fc16f2419179314abb9e8288a91f36 # v0.3.0
