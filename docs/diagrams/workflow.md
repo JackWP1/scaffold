@@ -62,8 +62,9 @@ flowchart TD
   copilot --> pr[Copilot PR]
   pr --> guards{{Guard checks<br/>plan gate, protected paths, test integrity}}
   pr --> prsize{{PR size check<br/>soft: 10 files / 1000 lines<br/>hard: 30 files / 5000 lines<br/>exempt files excluded}}
-  prsize --> readygate
-  prsize -- over soft limit --> sizecmd{"<span style='font-size:2em'>🧑</span><br/>Developer may comment<br/>/size-exception reason"}
+  prsize -- within soft limit --> readygate
+  prsize -- over soft, within hard --> sizecmd{"<span style='font-size:2em'>🧑</span><br/>Developer may comment<br/>/size-exception reason"}
+  prsize -- over hard --> breaker{{Circuit breaker<br/>6 rework rounds used?}}
   sizecmd --> sizeexc
   pr --> ci{{CI}}
   pr --> review["<span style='font-size:2em'>🤖</span> code-review"]
