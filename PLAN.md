@@ -37,7 +37,25 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 
 ### Labels
 
-`scaffold:triage`, `scaffold:needs-info`, `scaffold:ready`, `scaffold:plan-approved`, `scaffold:proposed`, `scaffold:accepted`, `scaffold:escalate`, `scaffold:conflict`, `scaffold:conflict-resolved`, `scaffold:size-exception`, `scaffold:order-override`, `scaffold:diagram-unchanged`, `priority:high`, `priority:medium`, `priority:low`.
+Colour shows what kind of label it is, so a glance at an issue says whether it needs a human. Synced from `config/labels.yml`; `tests/triage.test.mjs` fails if the two drift apart. Add or change labels in both places.
+
+| Group | Meaning | Labels | Colour |
+| --- | --- | --- | --- |
+| Lifecycle | Where the issue is | `scaffold:triage` | `ededed` grey |
+| | | `scaffold:needs-info` | `fbca04` yellow |
+| | | `scaffold:ready` | `0e8a16` green |
+| | | `scaffold:plan-approved` | `1d76db` blue |
+| Intake | Waiting for a member to accept | `scaffold:proposed` | `fef2c0` pale yellow |
+| Attention | A human must act | `scaffold:escalate` | `b60205` red |
+| | | `scaffold:conflict` | `d93f0b` orange |
+| Override | A member or approver lifted a gate | `scaffold:accepted` | `d4c5f9` pale purple |
+| | | `scaffold:conflict-resolved` | `d4c5f9` pale purple |
+| | | `scaffold:size-exception` | `d4c5f9` pale purple |
+| | | `scaffold:order-override` | `d4c5f9` pale purple |
+| | | `scaffold:diagram-unchanged` | `d4c5f9` pale purple |
+| Priority | Set by `triage` | `priority:high` | `5319e7` dark purple |
+| | | `priority:medium` | `8a63d2` purple |
+| | | `priority:low` | `c9b8f0` light purple |
 
 ## 3. Skills
 

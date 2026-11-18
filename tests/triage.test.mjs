@@ -57,7 +57,17 @@ test('skill body strips frontmatter', async () => {
 
 test('labels config parses with every scaffold label', async () => {
   const labels = parseLabels(await readFile(new URL('../config/labels.yml', import.meta.url), 'utf8'));
-  assert.equal(labels.length, 14);
+  assert.equal(labels.length, 15);
   assert.deepEqual(labels[0], { name: 'scaffold:triage', color: 'ededed', description: 'SCAFFOLD is triaging this issue' });
   assert.ok(labels.every((l) => /^[0-9a-f]{6}$/.test(l.color)));
+});
+
+test('label colours match the PLAN.md section 2 table', async () => {
+  const labels = parseLabels(await readFile(new URL('../config/labels.yml', import.meta.url), 'utf8'));
+  const plan = await readFile(new URL('../PLAN.md', import.meta.url), 'utf8');
+  const spec = {};
+  for (const row of plan.matchAll(/^\|.*\| (`[^|]+`) \| `([0-9a-f]{6})` .*\|$/gm)) {
+    for (const [, name] of row[1].matchAll(/`([^`]+)`/g)) spec[name] = row[2];
+  }
+  assert.deepEqual(Object.fromEntries(labels.map((l) => [l.name, l.color])), spec);
 });
