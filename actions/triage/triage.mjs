@@ -8,6 +8,7 @@ import { validate } from '../lib/validate.mjs';
 import { wrapUntrusted, skillBody } from '../lib/text.mjs';
 import { renderTriage, renderNotice } from './render.mjs';
 import { issueSteps } from './steps.mjs';
+import { usesTemplate } from './template.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:ready', 'scaffold:proposed'];
@@ -80,7 +81,8 @@ async function main() {
 
   const add = [`scaffold:${out.decision}`];
   if (!labels.some((l) => l.startsWith('priority:'))) add.push(`priority:${out.priority}`);
-  await setLabels(add, STATE_LABELS);
+  if (!usesTemplate(issue.body)) add.push('scaffold:no-template');
+  await setLabels(add, [...STATE_LABELS, 'scaffold:no-template']);
   await upsertStatus(renderTriage(out, { skillVersion, model }));
 
   await summary([

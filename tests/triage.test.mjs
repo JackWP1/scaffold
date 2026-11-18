@@ -5,6 +5,7 @@ import { validate } from '../actions/lib/validate.mjs';
 import { wrapUntrusted, escapeForComment, skillBody } from '../actions/lib/text.mjs';
 import { parseLabels } from '../actions/lib/labels.mjs';
 import { renderTriage, MARKER } from '../actions/triage/render.mjs';
+import { usesTemplate } from '../actions/triage/template.mjs';
 
 const schema = JSON.parse(await readFile(new URL('../schemas/triage.schema.json', import.meta.url), 'utf8'));
 
@@ -69,7 +70,7 @@ test('skill body strips frontmatter', async () => {
 
 test('labels config parses with every scaffold label', async () => {
   const labels = parseLabels(await readFile(new URL('../config/labels.yml', import.meta.url), 'utf8'));
-  assert.equal(labels.length, 15);
+  assert.equal(labels.length, 16);
   assert.deepEqual(labels[0], { name: 'scaffold:triage', color: 'ededed', description: 'SCAFFOLD is triaging this issue' });
   assert.ok(labels.every((l) => /^[0-9a-f]{6}$/.test(l.color)));
 });
@@ -82,4 +83,12 @@ test('label colours match the PLAN.md section 2 table', async () => {
     for (const [, name] of row[1].matchAll(/`([^`]+)`/g)) spec[name] = row[2];
   }
   assert.deepEqual(Object.fromEntries(labels.map((l) => [l.name, l.color])), spec);
+});
+
+test('issues from the Request template are recognised', () => {
+  const form = '### Jira key\n\n_No response_\n\n### Kind\n\nBug\n\n### What and why\n\nLogin fails\n\n### Done when\n\n_No response_';
+  assert.ok(usesTemplate(form));
+  assert.ok(!usesTemplate('Login fails on Safari'));
+  assert.ok(!usesTemplate(null));
+  assert.ok(!usesTemplate(form.replace('### Kind', 'Kind')));
 });

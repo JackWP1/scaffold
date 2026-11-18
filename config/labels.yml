@@ -23,6 +23,9 @@
 - name: scaffold:conflict
   color: "d93f0b"
   description: Conflicts with in-flight work or the spec
+- name: scaffold:no-template
+  color: "f9d0c4"
+  description: Not created from the SCAFFOLD Request template
 - name: scaffold:conflict-resolved
   color: "d4c5f9"
   description: Conflict cleared by a listed approver

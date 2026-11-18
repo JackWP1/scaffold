@@ -27,7 +27,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 
 ### Issue lifecycle
 
-1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`. On `needs-info`, the author answers the questions in the issue description, then applies `scaffold:triage` to re-run triage.
+1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`. Triage adds `scaffold:no-template` if the issue wasn't created from the Request template, and removes it once the template's headings are there. On `needs-info`, the author answers the questions in the issue description, then applies `scaffold:triage` to re-run triage.
 2. Member comments `/plan` → plan comment.
 3. Human reviews plan → applies `scaffold:plan-approved`.
 4. Human assigns issue to Copilot → Copilot opens PR.
@@ -48,6 +48,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | Intake | Waiting for a member to accept | `scaffold:proposed` | `fef2c0` pale yellow |
 | Attention | A human must act | `scaffold:escalate` | `b60205` red |
 | | | `scaffold:conflict` | `d93f0b` orange |
+| Flag | Worth a look; doesn't block | `scaffold:no-template` | `f9d0c4` pale orange |
 | Override | A member or approver lifted a gate | `scaffold:accepted` | `d4c5f9` pale purple |
 | | | `scaffold:conflict-resolved` | `d4c5f9` pale purple |
 | | | `scaffold:size-exception` | `d4c5f9` pale purple |
