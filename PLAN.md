@@ -125,10 +125,17 @@ src/ tests/ dist/       TypeScript glue, tests, bundled output
 
 ### Self-install (no App, no PAT)
 
-1. Repo admin copies the thin caller `.github/workflows/scaffold.yml` and `.github/scaffold.yml` from `templates/` (later: org starter workflow).
+1. Repo admin copies the thin caller `.github/workflows/scaffold.yml` and `.github/scaffold.yml` from `templates/` (later: org starter workflow). The issue template comes from the `.github` repo (below).
 2. Admin follows the `INSTALL.md` checklist: labels (or run the `scaffold-labels` job), ruleset (PRs only, code-owner review, dismiss stale approvals on push, required SCAFFOLD checks, no bypass), CODEOWNERS block, Copilot settings (section 6), secret scanning + push protection.
 3. A `scaffold-sync` job in the target repo opens a PR (via `GITHUB_TOKEN`) to add/update Copilot instruction files, `.github/skills/`, templates and `.scaffold-version`. Workflow files are never touched by automation.
 4. Requires org setting "Allow GitHub Actions to create and approve pull requests". PRs opened by `GITHUB_TOKEN` don't trigger workflows; a human re-runs checks on them.
+
+### Issue template
+
+The Request form ships once, as an account/org default in the `.github` repo (`JackWP1/.github`, later `ukncsc/.github`), not per repo. Every repo without its own `.github/ISSUE_TEMPLATE/` uses it.
+
+- **Source:** `templates/caller/.github/ISSUE_TEMPLATE/request.yml` here; the `.github` repo holds a copy, changed only by reviewed PR.
+- **No pinning:** GitHub serves defaults live from the `.github` repo's default branch, while triage is pinned to a release. So fields are **only added, never renamed or removed**: triage's template check (`actions/triage/template.mjs`) must keep matching issues from both old and new forms. A test fails if a checked heading is missing from the form.
 
 ## 6. Guardrails
 

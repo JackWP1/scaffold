@@ -92,3 +92,9 @@ test('issues from the Request template are recognised', () => {
   assert.ok(!usesTemplate(null));
   assert.ok(!usesTemplate(form.replace('### Kind', 'Kind')));
 });
+
+test('template check headings are all in the Request form', async () => {
+  const form = await readFile(new URL('../templates/caller/.github/ISSUE_TEMPLATE/request.yml', import.meta.url), 'utf8');
+  const body = [...form.matchAll(/^\s+label: (.+)$/gm)].map((m) => `### ${m[1]}\n\nx`).join('\n\n');
+  assert.ok(usesTemplate(body));
+});
