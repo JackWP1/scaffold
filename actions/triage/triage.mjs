@@ -52,7 +52,6 @@ async function main() {
   const manifest = await readFile(join(root, 'skills/manifest.yml'), 'utf8');
   const models = await readFile(join(root, 'config/models.yml'), 'utf8');
   const tier = skillMd.match(/^tier:\s*(\S+)/m)[1];
-  const endpoint = process.env.SCAFFOLD_MODELS_ENDPOINT || undefined;
   const model = process.env.SCAFFOLD_MODEL || models.match(new RegExp(`^${tier}:\\s*(\\S+)`, 'm'))[1];
   const skillVersion = manifest.match(/triage:\s*\n\s*version:\s*(\S+)/)[1];
 
@@ -61,9 +60,9 @@ async function main() {
 
   let out;
   try {
-    out = await callModel({ token, model, endpoint, system: skillBody(skillMd), user, schemaName: 'triage', schema });
+    out = await callModel({ token, model, system: skillBody(skillMd), user, schema });
   } catch (err) {
-    const why = err instanceof RateLimited ? 'GitHub Models is rate limiting' : 'the model call failed';
+    const why = err instanceof RateLimited ? 'Copilot is rate limiting' : 'the model call failed';
     console.warn(err.message);
     await setLabels([], ['scaffold:triage']);
     await upsertStatus(renderNotice(`⚠️ Triage skipped: ${why}. Edit the issue or re-run the workflow to try again.`));

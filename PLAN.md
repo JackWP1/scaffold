@@ -7,13 +7,13 @@
 | Constraint | Consequence |
 | --- | --- |
 | GitHub automation only: Actions, native features (rulesets, CODEOWNERS, environments, labels, issue forms) and Copilot agents | No external services, gateways or MCP servers; no self-hosted infrastructure |
-| OpenAI models only | Actions call OpenAI models via GitHub Models; the Copilot coding agent is set to an OpenAI model |
+| OpenAI models only | Actions call OpenAI models via Copilot CLI with no tools (GitHub Models was retired on 2026-07-30); the Copilot coding agent is set to an OpenAI model |
 | No GitHub App, no PAT | Jobs use `GITHUB_TOKEN` only: no cross-repo writes, no edits to `.github/workflows/`, no ruleset creation. Installs are self-service (section 5) |
-| Org: `ukncsc` | Hosting (assumed Enterprise Cloud), GitHub Models availability and approved models are confirmed in Phase 0 |
+| Org: `ukncsc` | Hosting (assumed Enterprise Cloud), org-billed Copilot CLI from Actions and approved models are confirmed in Phase 0 |
 
 ## 2. What SCAFFOLD does (v1)
 
-SCAFFOLD assists; humans decide. Actions steps are **single-shot** GitHub Models calls that return schema-validated JSON; Actions code (not the model) applies comments, labels and checks. **Only the Copilot coding agent writes code**, and only on issues a human assigns to it.
+SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Copilot CLI calls that return schema-validated JSON; Actions code (not the model) applies comments, labels and checks. **Only the Copilot coding agent writes code**, and only on issues a human assigns to it.
 
 | Trigger | Skill | Output |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot** GitHub Models
 
 ### Model tiers
 
-`skills/manifest.yml` maps each skill to a tier; one file maps tiers to OpenAI model IDs on GitHub Models. A CI check rejects non-OpenAI IDs.
+`skills/manifest.yml` maps each skill to a tier; one file maps tiers to OpenAI model IDs for Copilot CLI. A CI check rejects non-OpenAI IDs.
 
 | Tier | Skills |
 | --- | --- |
@@ -167,7 +167,7 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 ## 7. Operations
 
 - **Kill switch:** org/repo variable `SCAFFOLD_ENABLED=false` skips all AI steps.
-- **Rate guards:** concurrency group per issue/PR, input size cap, GitHub Models 429 → backoff then neutral check + comment (never a failure).
+- **Rate guards:** concurrency group per issue/PR, input size cap, Copilot rate limit → neutral check + comment (never a failure).
 - **Audit log:** per AI step, record skill, version, model, input hash and validated output to the job summary and a 90-day artifact. Prompt bodies are not logged.
 - **Usage report:** weekly scheduled job posts runs per skill and repo to an issue (pilot metrics: cost, false positives).
 
@@ -251,7 +251,7 @@ Diagrams are both an output (what the repo and workflow are doing) and an input 
   - `workflow.yml` disagrees with the implementation: labels in `labels.yml`, triggers and skills in `.github/workflows/*.yml`, gate checks in the ruleset template.
   - **Before code exists:** a PR that changes the workflow in this plan (sections 2, 6 or 8) without changing a diagram in `docs/diagrams/` fails; an approver can pass it by applying `scaffold:diagram-unchanged`.
 - **Per issue:** the status comment (section 6) shows the issue's position in the workflow as a Mermaid diagram.
-- **Later:** a `diagram-to-mermaid` skill turning sketches or whiteboard photos attached to issues into a Mermaid draft for a human to correct. Depends on GitHub Models image input and reading issue attachments with `GITHUB_TOKEN` (confirm in Phase 0).
+- **Later:** a `diagram-to-mermaid` skill turning sketches or whiteboard photos attached to issues into a Mermaid draft for a human to correct. Depends on Copilot CLI image input and reading issue attachments with `GITHUB_TOKEN` (confirm in Phase 0).
 
 ## 11. Plan
 
@@ -259,7 +259,7 @@ The workflow is built in **vertical slices**: each slice adds one stage end to e
 
 ### Phase 0: Scope and governance
 
-- Confirm with `ukncsc` admins: hosting (Enterprise Cloud vs GHE.com vs GHES), GitHub Models enabled (including image input), Copilot coding agent enabled with OpenAI models, org Actions settings.
+- Confirm with `ukncsc` admins: hosting (Enterprise Cloud vs GHE.com vs GHES), Copilot CLI billed to the organisation from Actions (`copilot-requests: write`, including image input), Copilot coding agent enabled with OpenAI models, org Actions settings.
 - Choose OpenAI model IDs for `fast`, `standard`, `deep`.
 - Agree the data-handling rule with security and data owners (e.g. opt-in per repo, classification limits, logging position).
 - Confirm the source-of-truth split and the Jira route (section 9), including whether "GitHub for Jira" is allowed.
@@ -328,7 +328,7 @@ A slice is not done until, in its own PR:
 ## 12. Risks
 
 - **Prompt injection:** members-only triggers, untrusted-input handling, single-shot JSON outputs, no code-writing outside Copilot.
-- **Platform availability:** GitHub Models or Copilot OpenAI models may not be enabled for `ukncsc`; Phase 0 blocks on confirmation.
+- **Platform availability:** Org-billed Copilot CLI or Copilot OpenAI models may not be enabled for `ukncsc`; Phase 0 blocks on confirmation.
 - **Rate limits and cost:** tiers, rate guards, kill switch, usage report.
 - **Non-deterministic output:** schema validation; invalid output never writes.
 - **`GITHUB_TOKEN` limits:** sync PRs don't trigger workflows; workflow files and rulesets need a human admin.

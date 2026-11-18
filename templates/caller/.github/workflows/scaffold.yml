@@ -13,7 +13,7 @@ jobs:
     if: github.event_name == 'issues'
     permissions:
       issues: write
-      models: read
+      copilot-requests: write
     uses: JackWP1/scaffold/.github/workflows/triage.yml@fc830bf7e4257cdbcee67e4fd01e33be929c354c # v0.1.1
 
   # Run manually (Actions → SCAFFOLD → Run workflow) to create the labels.

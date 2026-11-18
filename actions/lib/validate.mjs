@@ -26,15 +26,3 @@ export function validate(schema, value, path = '$') {
   return errors;
 }
 
-// OpenAI strict structured outputs reject keywords like maxLength/maxItems;
-// strip them for the request and enforce them locally with validate().
-export function toStrictSchema(schema) {
-  if (Array.isArray(schema)) return schema.map(toStrictSchema);
-  if (typeof schema !== 'object' || schema === null) return schema;
-  const out = {};
-  for (const [k, v] of Object.entries(schema)) {
-    if (['$schema', 'title', 'maxLength', 'maxItems'].includes(k)) continue;
-    out[k] = toStrictSchema(v);
-  }
-  return out;
-}

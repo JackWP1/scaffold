@@ -1,8 +1,8 @@
 name: SCAFFOLD triage
-description: Triage an issue with a single GitHub Models call, then apply labels and a status comment.
+description: Triage an issue with a single tool-less Copilot CLI call, then apply labels and a status comment.
 inputs:
   github-token:
-    description: Token with issues:write and models:read
+    description: Token with issues:write and copilot-requests:write
     default: ${{ github.token }}
   model:
     description: Override the model for this skill's tier (config/models.yml)
@@ -10,6 +10,9 @@ inputs:
 runs:
   using: composite
   steps:
+    # Pinned so a CLI release can't change flags or behaviour under a SCAFFOLD release.
+    - shell: bash
+      run: npm install -g --no-fund --no-audit @github/copilot@1.0.114
     - shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}

@@ -1,5 +1,5 @@
-# Tier -> OpenAI model ID on GitHub Models (PLAN.md section 3).
-# Placeholder choices until Phase 0 confirms the approved models.
-fast: openai/gpt-4.1-mini
-standard: openai/gpt-4.1
-deep: openai/gpt-4.1
+# Tier -> OpenAI model ID for Copilot CLI (PLAN.md section 3).
+# IDs confirmed working from Actions on 2026-11-18; tier choices are placeholders until Phase 0.
+fast: gpt-6-luna
+standard: gpt-6-sol
+deep: gpt-6.1-sol
