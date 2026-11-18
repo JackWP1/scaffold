@@ -1,0 +1,43 @@
+# SCAFFOLD labels (PLAN.md section 2). Synced to a repo by the labels workflow.
+- name: scaffold:triage
+  color: "ededed"
+  description: SCAFFOLD is triaging this issue
+- name: scaffold:needs-info
+  color: "fbca04"
+  description: Triage needs answers from the author
+- name: scaffold:ready
+  color: "0e8a16"
+  description: Triaged and ready for /plan
+- name: scaffold:plan-approved
+  color: "1d76db"
+  description: Plan approved by a listed approver
+- name: scaffold:proposed
+  color: "c5def5"
+  description: Opened by a non-member; a member must apply scaffold:accepted
+- name: scaffold:accepted
+  color: "bfdadc"
+  description: A member accepted this issue for triage
+- name: scaffold:escalate
+  color: "b60205"
+  description: Needs human attention
+- name: scaffold:conflict
+  color: "d93f0b"
+  description: Conflicts with in-flight work or the spec
+- name: scaffold:conflict-resolved
+  color: "c2e0c6"
+  description: Conflict cleared by a listed approver
+- name: scaffold:size-exception
+  color: "f9d0c4"
+  description: Soft PR size limit lifted by a listed approver
+- name: scaffold:diagram-unchanged
+  color: "ededed"
+  description: Workflow change needs no diagram update
+- name: priority:high
+  color: "b60205"
+  description: High priority
+- name: priority:medium
+  color: "fbca04"
+  description: Medium priority
+- name: priority:low
+  color: "0e8a16"
+  description: Low priority

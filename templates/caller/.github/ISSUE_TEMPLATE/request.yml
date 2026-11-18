@@ -1,0 +1,27 @@
+name: Request
+description: Ask for a change. SCAFFOLD triages it automatically.
+body:
+  - type: input
+    id: jira
+    attributes:
+      label: Jira key
+      description: The Jira requirement this delivers, e.g. ABC-123 (leave blank if none yet)
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [Feature, Bug, Chore]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What and why
+      description: The outcome you want and who it is for. For a bug, steps to reproduce plus expected and actual behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: How we'll know it's finished.

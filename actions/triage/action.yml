@@ -1,0 +1,18 @@
+name: SCAFFOLD triage
+description: Triage an issue with a single GitHub Models call, then apply labels and a status comment.
+inputs:
+  github-token:
+    description: Token with issues:write and models:read
+    default: ${{ github.token }}
+  model:
+    description: Override the model for this skill's tier (config/models.yml)
+    default: ''
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SCAFFOLD_MODEL: ${{ inputs.model }}
+        SCAFFOLD_ROOT: ${{ github.action_path }}/../..
+      run: node "$GITHUB_ACTION_PATH/triage.mjs"
