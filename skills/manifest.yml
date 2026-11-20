@@ -2,3 +2,7 @@ triage:
   version: 0.1.0
   tier: fast
   schema: schemas/triage.schema.json
+task-decomposer:
+  version: 0.1.0
+  tier: standard
+  schema: schemas/plan.schema.json

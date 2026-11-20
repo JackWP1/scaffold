@@ -1,0 +1,26 @@
+# SCAFFOLD settings for this repo (PLAN.md sections 6 and 8). Protect with CODEOWNERS:
+# changes here change who can approve plans and how big work can be.
+
+# GitHub logins that can approve plans (scaffold:plan-approved). The issue author can't approve their own issue.
+approvers:
+  - your-login
+
+# Rotating developer who orders the backlog and watches escalations (changed by PR each rotation).
+flow_lead: your-login
+
+# Tickets in flight at once, from /plan until merged, closed or back to Ready.
+max_in_flight: 20
+
+# PR size limits; work over the soft limit is planned as a stack of PRs or up to 5 sub-tickets.
+pr_size:
+  soft:
+    files: 10
+    lines: 1000
+  hard:
+    files: 30
+    lines: 5000
+  exempt:
+    - package-lock.json
+    - yarn.lock
+    - pnpm-lock.yaml
+    - dist/**

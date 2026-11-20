@@ -1,17 +1,18 @@
 // Entry point for the triage composite action (PLAN.md section 2, slice 1).
 import { readFile, appendFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
 import { github } from '../lib/github.mjs';
 import { callModel, RateLimited } from '../lib/models.mjs';
 import { validate } from '../lib/validate.mjs';
-import { wrapUntrusted, skillBody } from '../lib/text.mjs';
+import { wrapUntrusted } from '../lib/text.mjs';
+import { loadSkill } from '../lib/skills.mjs';
 import { renderTriage, renderNotice } from './render.mjs';
-import { issueSteps } from './steps.mjs';
+import { issueSteps } from '../lib/issue.mjs';
 import { usesTemplate } from './template.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
-const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:ready', 'scaffold:proposed'];
+// Re-triage resets the lifecycle, so a planned or approved issue needs /plan again (PLAN.md section 8).
+const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:ready', 'scaffold:proposed', 'scaffold:planned', 'scaffold:plan-approved'];
 
 const root = process.env.SCAFFOLD_ROOT;
 const token = process.env.GITHUB_TOKEN;
@@ -48,20 +49,14 @@ async function main() {
 
   await setLabels(['scaffold:triage'], STATE_LABELS);
 
-  const skillMd = await readFile(join(root, 'skills/triage/SKILL.md'), 'utf8');
-  const schema = JSON.parse(await readFile(join(root, 'schemas/triage.schema.json'), 'utf8'));
-  const manifest = await readFile(join(root, 'skills/manifest.yml'), 'utf8');
-  const models = await readFile(join(root, 'config/models.yml'), 'utf8');
-  const tier = skillMd.match(/^tier:\s*(\S+)/m)[1];
-  const model = process.env.SCAFFOLD_MODEL || models.match(new RegExp(`^${tier}:\\s*(\\S+)`, 'm'))[1];
-  const skillVersion = manifest.match(/triage:\s*\n\s*version:\s*(\S+)/)[1];
+  const { system, schema, version: skillVersion, model } = await loadSkill(root, 'triage', process.env.SCAFFOLD_MODEL);
 
   const user = `Triage this issue.\n\n${wrapUntrusted('untrusted_issue', `Title: ${issue.title}\n\n${issue.body ?? ''}`)}`;
   const inputHash = createHash('sha256').update(user).digest('hex').slice(0, 16);
 
   let out;
   try {
-    out = await callModel({ token, model, system: skillBody(skillMd), user, schema });
+    out = await callModel({ token, model, system, user, schema });
   } catch (err) {
     const why = err instanceof RateLimited ? 'Copilot is rate limiting' : 'the model call failed';
     console.warn(err.message);

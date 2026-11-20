@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": ".github/scaffold-config.yml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["approvers", "max_in_flight", "pr_size"],
+  "properties": {
+    "approvers": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 39 } },
+    "flow_lead": { "type": "string", "maxLength": 39 },
+    "max_in_flight": { "type": "integer", "minimum": 1 },
+    "pr_size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["soft", "hard", "exempt"],
+      "properties": {
+        "soft": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["files", "lines"],
+          "properties": {
+            "files": { "type": "integer", "minimum": 1 },
+            "lines": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "hard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["files", "lines"],
+          "properties": {
+            "files": { "type": "integer", "minimum": 1 },
+            "lines": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "exempt": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 200 } }
+      }
+    }
+  }
+}

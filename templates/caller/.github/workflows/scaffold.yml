@@ -4,6 +4,8 @@ name: SCAFFOLD
 on:
   issues:
     types: [opened, edited, reopened, labeled]
+  issue_comment:
+    types: [created, edited, deleted]
   workflow_dispatch:
 
 permissions: {}
@@ -14,11 +16,20 @@ jobs:
     permissions:
       issues: write
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/triage.yml@ae3484416ac3103d15f05582942806700c81237a # v0.3.0
+    uses: JackWP1/scaffold/.github/workflows/triage.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
+
+  # `/plan` comments, scaffold:plan-approved, and edits to or deletion of the plan comment.
+  plan:
+    if: github.event_name == 'issue_comment' || (github.event_name == 'issues' && github.event.label.name == 'scaffold:plan-approved')
+    permissions:
+      issues: write
+      contents: read
+      copilot-requests: write
+    uses: JackWP1/scaffold/.github/workflows/plan.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
 
   # Run manually (Actions → SCAFFOLD → Run workflow) to create the labels.
   labels:
     if: github.event_name == 'workflow_dispatch'
     permissions:
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/labels.yml@ae3484416ac3103d15f05582942806700c81237a # v0.3.0
+    uses: JackWP1/scaffold/.github/workflows/labels.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0

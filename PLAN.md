@@ -21,15 +21,15 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 | `issue_comment` `/plan` | `task-decomposer` | Plan comment: approach, sub-tasks with blocking edges, acceptance criteria, affected paths, estimated size; work over the soft size limit is split into a stack of PRs or up to 5 sub-tickets (section 6) |
 | After plan approval (before implementation); after code-owner approval (before merge order) | `conflict-check` | `scaffold:conflict` and one conflict comment linking every ticket involved (section 8) |
 | `pull_request` | `code-review` | Review comments (standards + spec axes); `COMMENT` only, never approves; human review waits until they are resolved (section 6) |
-| `workflow_run` (failed, workflows listed in `scaffold.yml`) | `ci-diagnose` | Diagnosis comment on the linked PR |
+| `workflow_run` (failed, workflows listed in `scaffold-config.yml`) | `ci-diagnose` | Diagnosis comment on the linked PR |
 | Human assigns issue to Copilot | `tdd`, `implement` (via `.github/skills/`) | Copilot PR, reviewed and merged by humans |
 | `schedule` (weekly) | — | Usage report issue (section 7) |
 
 ### Issue lifecycle
 
 1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`. Triage adds `scaffold:no-template` if the issue wasn't created from the Request template, and removes it once the template's headings are there. On `needs-info`, the author answers the questions in the issue description, then applies `scaffold:triage` to re-run triage.
-2. Member comments `/plan` → plan comment.
-3. Human reviews plan → applies `scaffold:plan-approved`.
+2. Member comments `/plan` → admission (in-flight limit) reserves a slot with `scaffold:planned` → plan comment. A new `/plan` replaces the plan comment and withdraws any approval. If a first plan fails, the issue goes back to `scaffold:ready`; deleting the plan comment or removing its marker does the same, and any other edit to it removes the approval.
+3. Human reviews plan → applies `scaffold:plan-approved` → the plan gate checks it against the timeline and removes it if the approval isn't valid. On a valid approval of a sub-ticket split, Actions creates the sub-issues.
 4. Human assigns issue to Copilot → Copilot opens PR.
 5. Guard checks (section 6), CI and `code-review` → SCAFFOLD automatically starts a Copilot rework round, with no human approval, until checks pass and all `code-review` comments are resolved → code-owner review → `conflict-check` 2 → merge order → developer adds the PR to the merge queue when it is next → merged.
 6. 6 rework rounds used → circuit breaker: `scaffold:escalate` and straight to human review.
@@ -44,6 +44,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | Lifecycle | Where the issue is | `scaffold:triage` | `ededed` grey |
 | | | `scaffold:needs-info` | `fbca04` yellow |
 | | | `scaffold:ready` | `0e8a16` green |
+| | | `scaffold:planned` | `c5def5` light blue |
 | | | `scaffold:plan-approved` | `1d76db` blue |
 | Intake | Waiting for a member to accept | `scaffold:proposed` | `fef2c0` pale yellow |
 | Attention | A human must act | `scaffold:escalate` | `b60205` red |
@@ -94,9 +95,9 @@ Concrete models are chosen in Phase 0.
 | --- | --- |
 | `hospital:*` state labels | Simplified `scaffold:*` labels (section 2) |
 | `policies/CHARTER.md` | `policies/CHARTER.md`: plan before code, don't improvise, test integrity, protected paths, spec is source of truth, precedent first, untrusted input, structured notes, circuit breaker (6 automatic rework rounds → `scaffold:escalate` and human review) |
-| `hospital.config.yml` in a separate config repo + registration check | `.github/scaffold.yml` **in each repo** (a separate config repo can't be read without an App/PAT), protected by CODEOWNERS |
+| `hospital.config.yml` in a separate config repo + registration check | `.github/scaffold-config.yml` **in each repo** (a separate config repo can't be read without an App/PAT), protected by CODEOWNERS and checked against `schemas/scaffold-config.schema.json`: an invalid file blocks planning and approval rather than falling back to defaults |
 | `recommendations.yml` + deviations + history | Same: versioned recommendations; each deviation needs a reason; released history immutable |
-| `config-guard` | `scaffold-config-guard` check on PRs touching `scaffold.yml`; runs on `pull_request`, never on `pull_request_target` with PR code |
+| `config-guard` | `scaffold-config-guard` check on PRs touching `scaffold-config.yml`; runs on `pull_request`, never on `pull_request_target` with PR code |
 | Templates | Issue forms, PR template (test-integrity checkboxes), CODEOWNERS snippet, spec skeleton, `PRECEDENTS.md` (human-written only) |
 | Self-test suite | vitest with fake GitHub, workflow-property tests, actionlint, markdownlint, shellcheck, dist-freshness check, actions pinned by SHA |
 | TypeScript libs (`config-guard`, `github.ts` REST client, `fake-github.ts`) | Ported; bundled to `dist/*.mjs` and run by composite actions with node |
@@ -111,10 +112,10 @@ Central repo: `ukncsc/scaffold` (internal), Actions access set to "Accessible fr
 .github/workflows/      reusable workflows (workflow_call) + self-test
 actions/<name>/         composite actions; bundle skills, prompts, schemas and dist/
 skills/                 SKILL.md sources + manifest.yml
-schemas/                output and scaffold.yml JSON schemas
+schemas/                output and scaffold-config.yml JSON schemas
 config/                 labels.yml, recommendations.yml, models.yml, workflow.yml
 policies/CHARTER.md
-templates/              caller workflow, scaffold.yml, Copilot instructions, issue/PR templates, CODEOWNERS snippet
+templates/              caller workflow, scaffold-config.yml, Copilot instructions, issue/PR templates, CODEOWNERS snippet
 docs/                   INSTALL.md, ARCHITECTURE.md, CONTRIBUTING-SKILLS.md
 docs/diagrams/          Mermaid workflow and architecture diagrams (section 10)
 src/ tests/ dist/       TypeScript glue, tests, bundled output
@@ -125,7 +126,7 @@ src/ tests/ dist/       TypeScript glue, tests, bundled output
 
 ### Self-install (no App, no PAT)
 
-1. Repo admin copies the thin caller `.github/workflows/scaffold.yml` and `.github/scaffold.yml` from `templates/` (later: org starter workflow). The issue template comes from the `.github` repo (below).
+1. Repo admin copies the thin caller `.github/workflows/scaffold.yml` and `.github/scaffold-config.yml` from `templates/` (later: org starter workflow). The issue template comes from the `.github` repo (below).
 2. Admin follows the `INSTALL.md` checklist: labels (or run the `scaffold-labels` job), ruleset (PRs only, code-owner review, dismiss stale approvals on push, required SCAFFOLD checks, no bypass), CODEOWNERS block, Copilot settings (section 6), secret scanning + push protection.
 3. A `scaffold-sync` job in the target repo opens a PR (via `GITHUB_TOKEN`) to add/update Copilot instruction files, `.github/skills/`, templates and `.scaffold-version`. Workflow files are never touched by automation.
 4. Requires org setting "Allow GitHub Actions to create and approve pull requests". PRs opened by `GITHUB_TOKEN` don't trigger workflows; a human re-runs checks on them.
@@ -150,16 +151,16 @@ The Request form ships once, as an account/org default in the `.github` repo (`J
 All of these are required checks.
 
 - **Plan gate:** fails if the linked issue lacks `scaffold:plan-approved`.
-- **Protected paths:** fails if the PR touches `.github/**`, `.github/scaffold.yml`, `CODEOWNERS`, `PRECEDENTS.md` or `docs/spec/**`; CODEOWNERS is the second layer.
+- **Protected paths:** fails if the PR touches `.github/**`, `.github/scaffold-config.yml`, `CODEOWNERS`, `PRECEDENTS.md` or `docs/spec/**`; CODEOWNERS is the second layer.
 - **Test integrity:** flags removed/skipped tests, removed assertions or reduced coverage; needs a human label to pass.
-- **PR size:** counts changed files and changed lines (additions + deletions) per PR, excluding exempt files. Limits are set in `scaffold.yml`:
+- **PR size:** counts changed files and changed lines (additions + deletions) per PR, excluding exempt files. Limits are set in `scaffold-config.yml`:
 
   | Limit | Files | Lines |
   | --- | --- | --- |
   | Soft | 10 | 1000 |
   | Hard | 30 | 5000 |
 
-  - **Exempt files:** a glob list in `scaffold.yml` (default: lock files such as `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, and generated `dist/`). Changes to the list need code-owner review like the rest of `scaffold.yml`.
+  - **Exempt files:** a glob list in `scaffold-config.yml` (default: lock files such as `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, and generated `dist/`). Changes to the list need code-owner review like the rest of `scaffold-config.yml`.
   - **At plan:** `task-decomposer` estimates the size; work over the soft limit is planned as a stack of PRs or up to 5 sub-tickets, and the approver confirms the split with the plan.
   - **Over soft:** the review gate fails and the automatic rework round asks Copilot to split the PR into a stack of PRs (GitHub stacked PRs, each layer checked against the limits). Splitting into sub-tickets instead is a replan: it goes back to the approver and the ticket returns to `Ready`.
   - **Over hard:** a required check fails, so the PR can't merge even after human review or with a size exception; it must be split.
@@ -178,12 +179,12 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 | --- | --- | --- | --- |
 | Triaged → ready | `triage` Action applies `scaffold:ready` | Members-only trigger; schema-validated output | Audit log, issue label |
 | Ready → planned | Member comments `/plan` | `author_association` check; in-flight count below `max_in_flight` | Plan comment, audit log |
-| Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (hash); sub-tickets use the parent's approval | Timeline event, check run |
+| Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold-config.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (its last edit is before the label event; the plan hash is recorded in the audit log); the plan must pass the size rules and have at least one sub-task; for a sub-ticket split, every sub-issue must exist; exactly one comment may be marked as the plan; an invalid approval is removed, and any edit to or deletion of the plan comment withdraws it; the gate reads the issue's current labels, not the event's, and gives way to a `/plan` admitted while it runs; sub-tickets use the parent's approval | Timeline event, status comment, audit log; check run from slice 3 |
 | Approved → implementing | Developer assigns issue to Copilot | Plan gate on the resulting PR | Copilot PR |
 | Oversized PR → exception | Listed approver applies `scaffold:size-exception` | Timeline check; lifts the soft limit only; requested via `/size-exception <reason>` or automatic `scaffold:escalate` | Escalation, timeline event, reason in status comment |
 | Review gate fails → rework | Actions, automatically | Round counter in Actions code; stops after 6 | `@copilot` comment, rework count in status comment |
 | Copilot PR → human review | Review gate check | Actions code counts unresolved `code-review` threads and rework rounds; reviewer requested only on pass | Check run, rework count in status comment |
-| Merge order → override | Flow lead applies `scaffold:order-override` | Timeline check: label applied by the `flow_lead` in `scaffold.yml` after the PR's current merge position and latest push, with a `/order-override <reason>` comment by the flow lead; never lifts an open conflict | Timeline event, reason in status comment and audit log |
+| Merge order → override | Flow lead applies `scaffold:order-override` | Timeline check: label applied by the `flow_lead` in `scaffold-config.yml` after the PR's current merge position and latest push, with a `/order-override <reason>` comment by the flow lead; never lifts an open conflict | Timeline event, reason in status comment and audit log |
 | Conflict flagged → cleared | Listed approver applies `scaffold:conflict-resolved`, or the blocking ticket merges | Plan gate and `merge-order` check fail while `scaffold:conflict` is open; timeline check: label applied by a listed approver after the latest flag | Conflict comment, timeline event |
 | PR → mergeable | Required checks + code-owner review + second `conflict-check` + merge queue | Ruleset, no bypass; `merge-order` check | Check runs, review, merge position, merge queue run |
 
@@ -205,10 +206,10 @@ Humans are the slow part of the workflow; agents are not. SCAFFOLD is designed t
 
 - **One prioritised queue:** a GitHub Projects board per project with `Status` (mirrors the gates in section 6), `Priority`, `Size` and `Iteration` fields. Developers pull from the top of `Ready`; they don't choose from the full backlog. Priority is set with a `priority:*` label so Actions can read it (merge order, below).
   - `GITHUB_TOKEN` can't write to Projects, so SCAFFOLD only sets labels; the board uses Projects' built-in workflows (auto-add by label, set status on close/merge).
-- **Flow lead:** a rotating developer (weekly), named in `scaffold.yml` (`flow_lead`, changed by PR at each rotation so code-owner review protects it), orders the backlog, runs `/plan` on the next items and watches `scaffold:escalate` and the Conflicts queue.
+- **Flow lead:** a rotating developer (weekly), named in `scaffold-config.yml` (`flow_lead`, changed by PR at each rotation so code-owner review protects it), orders the backlog, runs `/plan` on the next items and watches `scaffold:escalate` and the Conflicts queue.
 - **Work-in-progress limits:**
-  - **Per developer:** `scaffold.yml` sets a maximum number of open Copilot PRs per developer (default 2). Going over gets a comment, not a block.
-  - **Total in flight:** `scaffold.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (assume 20; to be agreed). A ticket is in flight from its `/plan` until its PR merges, it closes or it goes back to `Ready` (it then needs `/plan` again). A split ticket counts as 1 and stays in flight until all its sub-tickets have merged or closed; the parent then closes automatically. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`; when a slot frees up, Actions @-mentions the flow lead on the top waiting ticket (Actions never runs `/plan` itself). This is a block, and it also bounds the work `conflict-check` compares against.
+  - **Per developer:** `scaffold-config.yml` sets a maximum number of open Copilot PRs per developer (default 2). Going over gets a comment, not a block.
+  - **Total in flight:** `scaffold-config.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (assume 20; to be agreed). A ticket is in flight from its `/plan` until its PR merges (Actions counts open issues labelled `scaffold:planned` or `scaffold:plan-approved`; admission runs one at a time per repo so two `/plan`s can't both take the last slot, and each admission also picks up any `/plan` that GitHub's concurrency queue dropped), it closes or it goes back to `Ready` (it then needs `/plan` again). A split ticket counts as 1 and stays in flight until all its sub-tickets have merged or closed; the parent then closes automatically. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`; when a slot frees up, Actions @-mentions the flow lead on the top waiting ticket (Actions never runs `/plan` itself). This is a block, and it also bounds the work `conflict-check` compares against.
 - **Review routing:** CODEOWNERS plus team auto-assignment (round robin) so no PR waits without a reviewer.
 - **Low-noise output:** SCAFFOLD updates one status comment per issue or PR rather than posting new comments, and only @-mentions a human when a gate needs them.
 
@@ -231,7 +232,7 @@ Several tickets are in development at once. SCAFFOLD checks each one against the
   4. earliest code-owner approval.
 
   The developer adds the PR to the merge queue when it is next. A `merge-order` check in the merge queue fails if a PR jumps the order or has an open conflict.
-  - **Override:** the flow lead can let a PR go out of order. They comment `/order-override <reason>` and apply `scaffold:order-override`. The `merge-order` check reads the timeline and accepts the override only if both were made by the `flow_lead` in `scaffold.yml` after the PR's current merge position and latest push; otherwise it fails. A new position or push makes the override stale. The override never lifts an open conflict. The reason is recorded in the status comment and the audit log.
+  - **Override:** the flow lead can let a PR go out of order. They comment `/order-override <reason>` and apply `scaffold:order-override`. The `merge-order` check reads the timeline and accepts the override only if both were made by the `flow_lead` in `scaffold-config.yml` after the PR's current merge position and latest push; otherwise it fails. A new position or push makes the override stale. The override never lifts an open conflict. The reason is recorded in the status comment and the audit log.
 
 ### Deferred (later iteration)
 
@@ -304,7 +305,7 @@ The workflow is built in **vertical slices**: each slice adds one stage end to e
 Only what slice 1 needs.
 
 - Scaffold the layout (section 5); port Hospital's TS libs, tests and self-test workflow.
-- Write `CHARTER.md`, `labels.yml`, `scaffold.yml` schema and config-guard.
+- Write `CHARTER.md`, `labels.yml`, `scaffold-config.yml` schema and config-guard.
 - Add kill switch, rate guards and audit logging.
 - Add CODEOWNERS, branch and `v*` tag rulesets, semver releases.
 - Create `scaffold-sandbox` with fixture issues and PRs, including prompt-injection cases; it is the end-to-end test for every slice.
@@ -336,7 +337,7 @@ A slice is not done until, in its own PR:
 
 ### Phase 3: Install path
 
-- Write `templates/` (caller, `scaffold.yml`, Copilot instructions, issue/PR templates, CODEOWNERS snippet).
+- Write `templates/` (caller, `scaffold-config.yml`, Copilot instructions, issue/PR templates, CODEOWNERS snippet).
 - Write `INSTALL.md` checklist and the `scaffold-labels` and `scaffold-sync` jobs.
 - Install on further pilot repos.
 

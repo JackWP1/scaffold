@@ -1,0 +1,79 @@
+# Reusable plan workflow (slice 2). Called from a repo's thin caller workflow.
+name: SCAFFOLD plan
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Override the standard-tier model
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  # Admission runs in one repo-wide group so the in-flight count and reservation can't interleave
+  # across issues; it also sweeps up `/plan` runs the group dropped (actions/plan/admission.mjs).
+  # The kill switch skips planning; the gate below is deterministic and always runs.
+  admit:
+    if: vars.SCAFFOLD_ENABLED != 'false' && github.event_name == 'issue_comment' && github.event.action == 'created' && !github.event.issue.pull_request && startsWith(github.event.comment.body, '/plan')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-admit-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+      contents: read
+    outputs:
+      admitted: ${{ steps.admit.outputs.admitted }}
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - id: admit
+        uses: JackWP1/scaffold/actions/plan@b46968e98f2af84ad5a5aac3c1b6497b80064967 # v0.4.0
+        with:
+          mode: admit
+
+  plan:
+    needs: admit
+    if: needs.admit.outputs.admitted != '' && needs.admit.outputs.admitted != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.admit.outputs.admitted) }}
+    concurrency:
+      group: scaffold-plan-${{ github.repository }}-${{ matrix.issue }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+      contents: read
+      copilot-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/actions/plan@b46968e98f2af84ad5a5aac3c1b6497b80064967 # v0.4.0
+        with:
+          mode: plan
+          issue: ${{ matrix.issue }}
+          comment: ${{ matrix.comment }}
+          model: ${{ inputs.model }}
+
+  # Any edit to or deletion of a bot comment: the gate works out whether it was the plan, even if
+  # the edit removed the marker.
+  gate:
+    if: >-
+      !github.event.issue.pull_request && (
+        (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved') ||
+        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && github.event.comment.user.login == 'github-actions[bot]')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-plan-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/actions/plan-gate@b46968e98f2af84ad5a5aac3c1b6497b80064967 # v0.4.0
