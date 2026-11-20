@@ -1,42 +1,64 @@
 // The planned → approved gate (PLAN.md section 6, slice 2), with the client injected so tests can fake it.
-// Runs when scaffold:plan-approved is applied and when someone edits or deletes the plan comment. No model call.
+// Runs when scaffold:plan-approved is applied and when any bot comment is edited or deleted. No model call.
+//
+// `/plan` admission runs in a different concurrency group, so it can change this issue while the gate
+// runs. The gate reads the issue fresh, and after writing checks whether an admission came after the
+// approval it checked. The plan job shares this gate's per-issue group and sets the labels last.
 import { issueSteps } from '../lib/issue.mjs';
 import { MARKER, setGates } from '../lib/status.mjs';
+import { escapeForComment } from '../lib/text.mjs';
 import { PLAN_MARKER, decodePlan, evaluateApproval } from './rules.mjs';
 import { createSubTickets } from './subtickets.mjs';
 
 const hours = (from, to) => ((Date.parse(to) - Date.parse(from)) / 3_600_000).toFixed(1);
 
-// Returns the job summary lines, or a skip reason.
-export async function runGate(gh, repo, { event, schema, config }) {
-  const { issue } = event;
-  const labels = issue.labels.map((l) => l.name);
-  const { setLabels, findComment, upsertStatus, events } = issueSteps(gh, repo, issue.number, labels);
-  const updateStatus = async (states, next) => upsertStatus(setGates((await findComment(MARKER))?.body, states, next));
+// An admission withdraws approval and reserves scaffold:planned; the gate's pass path does neither.
+const admittedAfter = (events, approvalId) => {
+  const i = events.findIndex((e) => e.id === approvalId);
+  return events.slice(i + 1).some((e) => (e.event === 'unlabeled' && e.label?.name === 'scaffold:plan-approved')
+    || (e.event === 'labeled' && e.label?.name === 'scaffold:planned'));
+};
 
-  if (issue.pull_request) return { skip: 'pull request' };
+// Returns the job summary lines, or a skip reason. `configError` is set when scaffold-config.yml is invalid.
+export async function runGate(gh, repo, { event, schema, config, configError }) {
+  if (event.issue.pull_request) return { skip: 'pull request' };
   if (event.action === 'labeled' && event.label?.name !== 'scaffold:plan-approved') return { skip: 'label is not scaffold:plan-approved' };
-  if (['edited', 'deleted'].includes(event.action) && !event.comment?.body?.startsWith(PLAN_MARKER)) return { skip: 'comment is not the plan' };
+  // An edit counts if the comment was the plan before or after it, so removing or moving the marker can't hide it.
+  const touched = ['edited', 'deleted'].includes(event.action);
+  if (touched && ![event.comment?.body, event.changes?.body?.from].some((b) => b?.startsWith(PLAN_MARKER))) {
+    return { skip: 'comment is not the plan' };
+  }
 
-  const planComment = await findComment(PLAN_MARKER);
+  const issue = await gh.get(`/repos/${repo}/issues/${event.issue.number}`);
+  const labels = issue.labels.map((l) => l.name);
+  const { setLabels, findComment, findComments, upsertStatus, events } = issueSteps(gh, repo, issue.number, labels);
+  const updateStatus = async (states, next) => upsertStatus(setGates((await findComment(MARKER))?.body, states, next));
+  const approvedLabel = labels.includes('scaffold:plan-approved');
+
+  const plans = await findComments(PLAN_MARKER);
+  const planComment = plans[0];
   // No plan left: back to Ready, which also frees the in-flight slot (PLAN.md section 8).
-  if (!planComment && (event.action === 'deleted' || labels.includes('scaffold:plan-approved'))) {
+  if (!planComment && (touched || approvedLabel)) {
+    const what = touched ? 'plan deleted or its marker removed' : 'no plan';
     await setLabels(['scaffold:ready'], ['scaffold:planned', 'scaffold:plan-approved']);
-    const what = event.action === 'deleted' ? 'plan deleted' : 'no plan';
     await updateStatus({ Plan: `🗑️ ${what}`, Approval: '⏳ pending' }, 'a member comments `/plan` to plan again.');
     return { lines: ['### SCAFFOLD plan gate', `${what[0].toUpperCase()}${what.slice(1)}: approval withdrawn, back to \`scaffold:ready\``] };
   }
-  if (!labels.includes('scaffold:plan-approved')) return { skip: 'scaffold:plan-approved is not applied' };
+  if (!approvedLabel) return { skip: 'scaffold:plan-approved is not applied' };
 
-  const plan = decodePlan(planComment.body, schema);
-  const result = evaluateApproval({
-    events: await events(),
-    author: issue.user?.login,
-    approvers: config.approvers,
-    planComment,
-    plan,
-    limits: config.pr_size,
-  });
+  const allEvents = await events();
+  const result = configError
+    ? { ok: false, reason: `\`.github/scaffold-config.yml\` is invalid: ${escapeForComment(configError)}` }
+    : plans.length > 1
+      ? { ok: false, reason: 'more than one comment is marked as the plan: delete the extra one, or comment `/plan` again' }
+      : evaluateApproval({
+        events: allEvents,
+        author: issue.user?.login,
+        approvers: config.approvers,
+        planComment,
+        plan: decodePlan(planComment.body, schema),
+        limits: config.pr_size,
+      });
   const audit = (outcome, extra = []) => ({
     lines: [
       '### SCAFFOLD plan gate',
@@ -55,6 +77,7 @@ export async function runGate(gh, repo, { event, schema, config }) {
   if (!result.ok) return reject(result.reason);
 
   // Approval stands only once every sub-ticket exists; a retry reuses the ones already created.
+  const plan = decodePlan(planComment.body, schema);
   const states = { Approval: `✅ approved by \`${result.approver}\` (plan \`${result.hash}\`)` };
   const extra = [];
   if (plan.split === 'sub-tickets') {
@@ -68,6 +91,10 @@ export async function runGate(gh, repo, { event, schema, config }) {
     }
   }
   await setLabels([], ['scaffold:planned']);
+  if (admittedAfter(await events(), result.eventId)) {
+    await setLabels(['scaffold:planned'], []);
+    return audit('superseded by /plan', extra);
+  }
   await updateStatus(states, plan.split === 'sub-tickets'
     ? 'developers assign each sub-ticket to Copilot when its blockers are done (coming in slice 3).'
     : 'a developer assigns this issue to Copilot (coming in slice 3).');

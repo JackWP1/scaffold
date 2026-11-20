@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { validate } from '../actions/lib/validate.mjs';
-import { parseYaml, configFrom, DEFAULTS } from '../actions/lib/config.mjs';
+import { parseYaml, configFrom, DEFAULTS, ConfigError } from '../actions/lib/config.mjs';
 import { MARKER, setGates } from '../actions/lib/status.mjs';
 import { loadSkill } from '../actions/lib/skills.mjs';
 import { renderTriage } from '../actions/triage/render.mjs';
@@ -36,6 +36,26 @@ test('scaffold-config.yml subset parses nested maps and lists', () => {
   assert.deepEqual(config.approvers, ['alice', 'bob']);
   assert.deepEqual(config.pr_size.soft, { files: 5, lines: 1000 });
   assert.deepEqual(config.pr_size.hard, DEFAULTS.pr_size.hard);
+});
+
+test('an invalid scaffold-config.yml is rejected, not replaced by defaults', () => {
+  const cases = {
+    'max_in_flight: foo': /max_in_flight: expected integer/,
+    'max_in_flight: 0': /max_in_flight: less than 1/,
+    'approvers: alice': /approvers: expected array/,
+    'approvers:\n  - "not a login"': /approvers\[0\]: not a GitHub login/,
+    'flow_lead: [a, b]': /flow_lead: expected string/,
+    'pr_size: big': /pr_size: expected object/,
+    'pr_size:\n  soft:\n    files: -1': /soft.files: less than 1/,
+    'pr_size:\n  soft:\n    lines: 9000': /soft.lines: more than pr_size.hard.lines/,
+    'pr_size:\n  exempt:\n    - ""': /exempt\[0\]: empty/,
+    'max_inflight: 3': /max_inflight: not allowed/,
+    ': nope': /can't parse line 1/,
+    '- just a list': /expected a map/,
+  };
+  for (const [yaml, error] of Object.entries(cases)) {
+    assert.throws(() => configFrom(yaml), (err) => err instanceof ConfigError && error.test(err.message), yaml);
+  }
 });
 
 test('a missing scaffold-config.yml lists no approvers', () => {
@@ -112,12 +132,12 @@ test('sub-ticket body links the parent and earlier blockers', () => {
   assert.ok(body.includes('Sub-ticket 2 of #7') && body.includes('- #8'));
 });
 
-const approved = (login, at = '2026-11-18T12:00:00Z', type = 'User') => ({ event: 'labeled', label: { name: 'scaffold:plan-approved' }, actor: { login, type }, created_at: at });
+const approved = (login, at = '2026-11-18T12:00:00Z', type = 'User') => ({ id: 7, event: 'labeled', label: { name: 'scaffold:plan-approved' }, actor: { login, type }, created_at: at });
 const planComment = { body: 'plan', updated_at: '2026-11-18T11:00:00Z' };
 const gate = (over) => evaluateApproval({ events: [approved('Alice')], author: 'carol', approvers: ['alice'], planComment, plan: small, limits, ...over });
 
 test('plan gate passes for a listed approver after the plan was posted', () => {
-  assert.deepEqual(gate({}), { ok: true, approver: 'Alice', at: '2026-11-18T12:00:00Z', hash: planHash('plan') });
+  assert.deepEqual(gate({}), { ok: true, approver: 'Alice', at: '2026-11-18T12:00:00Z', eventId: 7, hash: planHash('plan') });
 });
 
 test('plan gate fails for the author, a bot, an unlisted user or no label', () => {
@@ -176,32 +196,37 @@ test('a retry links a sub-ticket created but not linked last time, and ignores l
   assert.deepEqual(posts, [['/repos/o/r/issues/7/sub_issues', 1009], ['/repos/o/r/issues', undefined], ['/repos/o/r/issues/7/sub_issues', 1010]]);
 });
 
-// Gate runs against a fake issue. `planBody` is the bot's plan comment, if any.
-async function gateRun({ action = 'labeled', labels = ['scaffold:plan-approved'], planBody, events = [approved('alice')], subIssues = null, comment } = {}) {
-  const comments = planBody ? [{ id: 5, user: bot, body: planBody, updated_at: '2026-11-18T11:00:00Z', html_url: 'u' }] : [];
+// Gate runs against a fake issue. `labels` are the issue's current labels; the event payload's can differ.
+// `plans` are the bot's plan comment bodies; `later` are events that appear only on a second read.
+async function gateRun({ action = 'labeled', labels = ['scaffold:plan-approved'], payloadLabels = labels, plans = [], planUpdated = '2026-11-18T11:00:00Z', events = [approved('alice')], later = [], subIssues = null, comment, changes, config = configFrom('approvers: [alice]'), configError } = {}) {
+  const comments = plans.map((body, i) => ({ id: 5 + i, user: bot, body, updated_at: planUpdated, html_url: 'u' }));
+  let reads = 0;
   const gh = fakeGh({
     '/repos/o/r/issues/1/comments': comments,
-    '/repos/o/r/issues/1/events': events,
+    '/repos/o/r/issues/1/events': () => (reads++ ? [...events, ...later] : events),
     '/repos/o/r/issues/1/sub_issues?': [],
     '/repos/o/r/issues/1/sub_issues': subIssues,
     '/repos/o/r/issues/1/timeline': [],
+    '/repos/o/r/issues/1/labels': null,
+    '/repos/o/r/issues/1': { number: 1, user: { login: 'carol' }, labels: labels.map((name) => ({ name })) },
     '/repos/o/r/issues': { id: 1, number: 2 },
   });
   const event = {
     action,
     label: action === 'labeled' ? { name: 'scaffold:plan-approved' } : undefined,
     comment,
-    issue: { number: 1, user: { login: 'carol' }, labels: labels.map((name) => ({ name })) },
+    changes,
+    issue: { number: 1, user: { login: 'carol' }, labels: payloadLabels.map((name) => ({ name })) },
   };
-  const out = await runGate(gh, 'o/r', { event, schema, config: configFrom('approvers: [alice]') });
+  const out = await runGate(gh, 'o/r', { event, schema, config, configError });
   const labelCalls = gh.calls.filter(([m, path]) => path.includes('/labels')).map(([m, path, body]) => (m === 'DELETE' ? `-${decodeURIComponent(path.split('/').pop())}` : body.labels.map((l) => `+${l}`).join(' ')));
   const status = gh.calls.filter(([m, path]) => path.endsWith('/comments') || path.includes('/issues/comments/')).filter(([m]) => m !== 'GET').at(-1)?.[2]?.body;
-  return { out, labelCalls, status };
+  return { out, labelCalls, status, text: out.lines?.join('\n') };
 }
 const planBody = (p) => renderPlan(p, { problems: [], skillVersion: '0.1.0', model: 'm', limits });
 
 test('gate passes a valid approval and drops scaffold:planned', async () => {
-  const { out, labelCalls } = await gateRun({ labels: ['scaffold:planned', 'scaffold:plan-approved'], planBody: planBody(small) });
+  const { out, labelCalls } = await gateRun({ labels: ['scaffold:planned', 'scaffold:plan-approved'], plans: [planBody(small)] });
   assert.ok(out.lines.some((l) => l.includes('| pass |')));
   assert.deepEqual(labelCalls, ['-scaffold:planned']);
 });
@@ -210,12 +235,53 @@ test('deleting the plan comment withdraws approval and goes back to Ready', asyn
   const deleted = { body: `${PLAN_MARKER}\nold`, user: bot };
   for (const labels of [['scaffold:plan-approved'], ['scaffold:planned']]) {
     const { out, labelCalls, status } = await gateRun({ action: 'deleted', comment: deleted, labels });
-    assert.match(out.lines.join('\n'), /approval withdrawn/);
+    assert.match(out.lines.join('\n'), /deleted or its marker removed: approval withdrawn/);
     assert.ok(labelCalls.includes('+scaffold:ready'));
     assert.ok(labelCalls.includes(`-${labels[0]}`));
-    assert.match(status, /\| Plan \| 🗑️ plan deleted \|/);
+    assert.match(status, /\| Plan \| 🗑️ plan deleted or its marker removed \|/);
   }
   assert.equal((await gateRun({ action: 'deleted', comment: { body: 'hi' } })).out.skip, 'comment is not the plan');
+});
+
+test('an edit that removes or moves the plan marker withdraws approval', async () => {
+  const comment = { body: `tampered\n${PLAN_MARKER}`, user: bot };
+  const { text, labelCalls } = await gateRun({ action: 'edited', comment, changes: { body: { from: `${PLAN_MARKER}\nold` } } });
+  assert.match(text, /marker removed: approval withdrawn/);
+  assert.deepEqual(labelCalls, ['-scaffold:plan-approved', '+scaffold:ready']);
+});
+
+test('an edit that keeps the marker fails the approval; edits to other comments are skipped', async () => {
+  const body = planBody(small);
+  const { text, labelCalls } = await gateRun({ action: 'edited', comment: { body, user: bot }, plans: [body], planUpdated: '2026-11-18T13:00:00Z' });
+  assert.match(text, /fail: the plan changed after it was approved/);
+  assert.deepEqual(labelCalls, ['-scaffold:plan-approved', '+scaffold:planned']);
+  const status = await gateRun({ action: 'edited', comment: { body: `${MARKER}\nx`, user: bot }, changes: { body: { from: `${MARKER}\ny` } }, plans: [body] });
+  assert.equal(status.out.skip, 'comment is not the plan');
+});
+
+test('two comments marked as the plan fail the gate', async () => {
+  const { text } = await gateRun({ plans: [planBody(small), `${PLAN_MARKER}\nforged`] });
+  assert.match(text, /fail: more than one comment is marked as the plan/);
+});
+
+test('an invalid scaffold-config.yml fails the gate', async () => {
+  const { text, status } = await gateRun({ plans: [planBody(small)], config: undefined, configError: '$.max_in_flight: expected integer' });
+  assert.match(text, /fail: `.github\/scaffold-config.yml` is invalid: \$.max_in_flight: expected integer/);
+  assert.match(status, /\| Approval \| ❌ not approved: `.github\/scaffold-config.yml` is invalid/);
+});
+
+test('the gate reads current labels, not the event payload', async () => {
+  const { out, labelCalls } = await gateRun({ labels: ['scaffold:planned'], payloadLabels: ['scaffold:plan-approved'], plans: [planBody(small)] });
+  assert.equal(out.skip, 'scaffold:plan-approved is not applied');
+  assert.deepEqual(labelCalls, []);
+});
+
+test('a /plan admitted while the gate runs supersedes the approval', async () => {
+  const withdrawn = { id: 8, event: 'unlabeled', label: { name: 'scaffold:plan-approved' }, actor: bot };
+  const { text, labelCalls, status } = await gateRun({ labels: ['scaffold:planned', 'scaffold:plan-approved'], plans: [planBody(small)], later: [withdrawn] });
+  assert.match(text, /\| superseded by \/plan \|/);
+  assert.deepEqual(labelCalls, ['-scaffold:planned', '+scaffold:planned']);
+  assert.equal(status, undefined);
 });
 
 test('an approval with no plan comment also goes back to Ready', async () => {
@@ -225,7 +291,7 @@ test('an approval with no plan comment also goes back to Ready', async () => {
 
 test('approval is withheld when a sub-ticket cannot be created', async () => {
   const split = plan('sub-tickets', [task('1', 2, 10), task('2', 2, 10)], { files: 12, lines: 20 });
-  const { out, labelCalls, status } = await gateRun({ labels: ['scaffold:planned', 'scaffold:plan-approved'], planBody: planBody(split), subIssues: new Error('POST sub_issues: 403') });
+  const { out, labelCalls, status } = await gateRun({ labels: ['scaffold:planned', 'scaffold:plan-approved'], plans: [planBody(split)], subIssues: new Error('POST sub_issues: 403') });
   assert.match(out.lines.join('\n'), /fail: sub-tickets could not all be created/);
   assert.deepEqual(labelCalls, ['-scaffold:plan-approved', '+scaffold:planned']);
   assert.match(status, /\| Approval \| ❌ not approved: sub-tickets/);
@@ -266,6 +332,15 @@ test('admission refuses at the in-flight limit, counting other issues once', asy
   assert.match(posted(gh, '/comments')[0].body, /\| Plan \| ⏸️ waiting: 1 of 1 tickets in flight \|/);
 });
 
+test('admission refuses when scaffold-config.yml is invalid', async () => {
+  const gh = admitGh();
+  const r = await admit(gh, 'o/r', { issue: issue(['scaffold:ready']), comment: planCmd(), configError: '$.max_in_flight: expected integer' });
+  assert.equal(r.outcome, 'refused');
+  assert.deepEqual(posted(gh, '/reactions'), [{ content: 'confused' }]);
+  assert.match(posted(gh, '/comments')[0].body, /\| Plan \| ⛔ `.github\/scaffold-config.yml` is invalid: \$.max_in_flight: expected integer \|/);
+  assert.deepEqual(posted(gh, '/labels'), []);
+});
+
 test('admission skips handled comments and refuses non-members or unready issues', async () => {
   const done = admitGh({ reactions: [{ user: bot, content: 'eyes' }] });
   assert.equal((await admit(done, 'o/r', { issue: issue(['scaffold:ready']), comment: planCmd(), config: configFrom('') })).reason, 'already handled');
@@ -292,11 +367,11 @@ test('the sweep finds recent /plan comments, oldest first', async () => {
   assert.match(gh.calls[0][1], /since=2026-11-20T10%3A00%3A00Z&sort=created&direction=asc/);
 });
 
-test('workflows: admission is repo-wide, planning per issue, and plan deletion reaches the gate', async () => {
+test('workflows: admission is repo-wide, planning per issue, and bot comment edits reach the gate', async () => {
   const wf = await readFile(new URL('../.github/workflows/plan.yml', import.meta.url), 'utf8');
   assert.match(wf, /group: scaffold-admit-\$\{\{ github\.repository \}\}\n/);
   assert.match(wf, /group: scaffold-plan-\$\{\{ github\.repository \}\}-\$\{\{ matrix\.issue \}\}/);
-  assert.match(wf, /\["edited","deleted"\]/);
+  assert.match(wf, /\["edited","deleted"\]'\), github\.event\.action\) && github\.event\.comment\.user\.login == 'github-actions\[bot\]'/);
   const caller = await readFile(new URL('../templates/caller/.github/workflows/scaffold.yml', import.meta.url), 'utf8');
   assert.match(caller, /issue_comment:\n\s+types: \[created, edited, deleted\]/);
 });

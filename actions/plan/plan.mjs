@@ -6,7 +6,7 @@ import { callModel, RateLimited } from '../lib/models.mjs';
 import { validate } from '../lib/validate.mjs';
 import { wrapUntrusted } from '../lib/text.mjs';
 import { loadSkill } from '../lib/skills.mjs';
-import { loadConfig, readRepoFile } from '../lib/config.mjs';
+import { loadConfig, readRepoFile, ConfigError } from '../lib/config.mjs';
 import { issueSteps } from '../lib/issue.mjs';
 import { MARKER, setGates } from '../lib/status.mjs';
 import { PLAN_MARKER, checkPlan } from './rules.mjs';
@@ -25,17 +25,23 @@ const summary = (md) => appendFile(process.env.GITHUB_STEP_SUMMARY ?? '/dev/null
 const issue = await gh.get(`/repos/${repo}/issues/${Number(process.env.SCAFFOLD_ISSUE)}`);
 const comment = await gh.get(`/repos/${repo}/issues/comments/${Number(process.env.SCAFFOLD_COMMENT)}`);
 const labels = issue.labels.map((l) => l.name);
-const { setLabels, findComment, upsertComment, upsertStatus } = issueSteps(gh, repo, issue.number, labels);
+const { setLabels, findComment, findComments, upsertComment, upsertStatus } = issueSteps(gh, repo, issue.number, labels);
 
 async function updateStatus(states, next) {
   const status = await findComment(MARKER);
   await upsertStatus(setGates(status?.body, states, next));
 }
 
-// On failure, a first plan gives back its in-flight slot; a replan keeps scaffold:planned and the old plan.
-async function failed(plan, why) {
-  if (!(await findComment(PLAN_MARKER))) await setLabels(['scaffold:ready'], ['scaffold:planned']);
-  await updateStatus({ Plan: `⚠️ ${plan}` }, 'comment `/plan` again to retry.');
+// On failure, a first plan gives back its in-flight slot. A replan keeps scaffold:planned and the old plan,
+// with the approval withdrawn; labels are set either way, since a gate run may have changed them meanwhile.
+async function failed(plan, why, next = 'comment `/plan` again to retry.') {
+  if (await findComment(PLAN_MARKER)) {
+    await setLabels(['scaffold:planned'], ['scaffold:ready', 'scaffold:plan-approved']);
+    await updateStatus({ Plan: `⚠️ ${plan}`, Approval: '⏳ withdrawn by `/plan`' }, next);
+  } else {
+    await setLabels(['scaffold:ready'], ['scaffold:planned', 'scaffold:plan-approved']);
+    await updateStatus({ Plan: `⚠️ ${plan}` }, next);
+  }
   return summary(`### SCAFFOLD plan\n${why}`);
 }
 
@@ -50,7 +56,16 @@ async function repoPaths() {
 }
 
 async function main() {
-  const config = await loadConfig(gh, repo);
+  let config;
+  try {
+    config = await loadConfig(gh, repo);
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    return failed('`.github/scaffold-config.yml` is invalid', `Invalid config: ${err.message}`, 'fix `.github/scaffold-config.yml`, then comment `/plan` again.');
+  }
+  if ((await findComments(PLAN_MARKER)).length > 1) {
+    return failed('more than one comment is marked as the plan', 'More than one plan comment (no writes)', 'delete the extra plan comment, then comment `/plan` again.');
+  }
   const { system, schema, version: skillVersion, model } = await loadSkill(root, 'task-decomposer', process.env.SCAFFOLD_MODEL);
   const status = await findComment(MARKER);
   const precedents = await readRepoFile(gh, repo, 'PRECEDENTS.md');

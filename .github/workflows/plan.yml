@@ -58,11 +58,13 @@ jobs:
           comment: ${{ matrix.comment }}
           model: ${{ inputs.model }}
 
+  # Any edit to or deletion of a bot comment: the gate works out whether it was the plan, even if
+  # the edit removed the marker.
   gate:
     if: >-
       !github.event.issue.pull_request && (
         (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved') ||
-        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && startsWith(github.event.comment.body, '<!-- scaffold:plan -->'))
+        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && github.event.comment.user.login == 'github-actions[bot]')
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5

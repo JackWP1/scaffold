@@ -60,7 +60,7 @@ export function evaluateApproval({ events, author, approvers, planComment, plan,
   const applied = events.filter((e) => e.event === 'labeled' && e.label?.name === 'scaffold:plan-approved').at(-1);
   if (!applied) return { ok: false, reason: '`scaffold:plan-approved` was not applied' };
   const actor = applied.actor ?? {};
-  const fail = (reason) => ({ ok: false, reason, approver: actor.login, at: applied.created_at });
+  const fail = (reason) => ({ ok: false, reason, approver: actor.login, at: applied.created_at, eventId: applied.id });
   if (actor.type !== 'User') return fail('applied by a bot, not a person');
   if (actor.login?.toLowerCase() === author?.toLowerCase()) return fail('the issue author can\'t approve their own issue');
   if (!approvers.includes(actor.login?.toLowerCase())) return fail(`\`${actor.login}\` is not a listed approver in \`.github/scaffold-config.yml\``);
@@ -69,5 +69,5 @@ export function evaluateApproval({ events, author, approvers, planComment, plan,
   if (!plan) return fail('the plan comment\'s data is missing or invalid: comment `/plan` again');
   const problems = checkPlan(plan, limits);
   if (problems.length) return fail(`the plan fails the size rules: ${problems.join('; ')}`);
-  return { ok: true, approver: actor.login, at: applied.created_at, hash: planHash(planComment.body) };
+  return { ok: true, approver: actor.login, at: applied.created_at, eventId: applied.id, hash: planHash(planComment.body) };
 }

@@ -6,6 +6,7 @@
 // SCAFFOLD hasn't reacted to. The reaction is the "handled" mark: it is written inside the group.
 import { issueSteps } from '../lib/issue.mjs';
 import { MARKER, setGates } from '../lib/status.mjs';
+import { escapeForComment } from '../lib/text.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 const PLANNABLE = ['scaffold:ready', 'scaffold:planned', 'scaffold:plan-approved'];
@@ -34,33 +35,39 @@ export async function inFlight(gh, repo, exclude) {
 }
 
 // Admits one `/plan` comment: reacts 👀 and reserves the slot by applying scaffold:planned, or
-// reacts 😕. Returns { outcome: 'admitted' | 'refused' | 'skipped', reason }.
-export async function admit(gh, repo, { issue, comment, config }) {
+// reacts 😕. `configError` is set when .github/scaffold-config.yml is invalid, which blocks planning.
+// Returns { outcome: 'admitted' | 'refused' | 'skipped', reason }.
+export async function admit(gh, repo, { issue, comment, config, configError }) {
   if (issue.pull_request) return { outcome: 'skipped', reason: 'pull request' };
   if (!isPlanCommand(comment.body)) return { outcome: 'skipped', reason: 'comment is not /plan' };
   if (await handled(gh, repo, comment)) return { outcome: 'skipped', reason: 'already handled' };
   const react = (content) => gh.post(`/repos/${repo}/issues/comments/${comment.id}/reactions`, { content });
   const labels = issue.labels.map((l) => l.name);
   const { setLabels, findComment, upsertStatus } = issueSteps(gh, repo, issue.number, labels);
+  const refuse = async (reason, plan, next) => {
+    await react('confused');
+    if (plan) await upsertStatus(setGates((await findComment(MARKER))?.body, { Plan: plan }, next));
+    return { outcome: 'refused', reason };
+  };
 
   if (!TRUSTED.includes(comment.author_association) || comment.user?.type !== 'User') {
-    await react('confused');
-    return { outcome: 'refused', reason: `/plan by ${comment.author_association} ${comment.user?.type}: members only` };
+    return refuse(`/plan by ${comment.author_association} ${comment.user?.type}: members only`);
   }
-  if (!labels.some((l) => PLANNABLE.includes(l))) {
-    await react('confused');
-    return { outcome: 'refused', reason: 'issue is not scaffold:ready' };
+  if (!labels.some((l) => PLANNABLE.includes(l))) return refuse('issue is not scaffold:ready');
+  if (configError) {
+    return refuse(
+      `invalid config: ${configError}`,
+      `⛔ \`.github/scaffold-config.yml\` is invalid: ${escapeForComment(configError)}`,
+      'fix `.github/scaffold-config.yml`, then comment `/plan` again.',
+    );
   }
   const count = await inFlight(gh, repo, issue.number);
   if (count >= config.max_in_flight) {
-    await react('confused');
-    const status = await findComment(MARKER);
-    await upsertStatus(setGates(
-      status?.body,
-      { Plan: `⏸️ waiting: ${count} of ${config.max_in_flight} tickets in flight` },
+    return refuse(
+      `${count} of ${config.max_in_flight} tickets in flight`,
+      `⏸️ waiting: ${count} of ${config.max_in_flight} tickets in flight`,
       'wait for a ticket to merge or close, then comment `/plan` again.',
-    ));
-    return { outcome: 'refused', reason: `${count} of ${config.max_in_flight} tickets in flight` };
+    );
   }
   await react('eyes');
   // Reserve the slot; a new plan also withdraws any approval of the old one.

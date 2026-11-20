@@ -27,6 +27,14 @@ export function issueSteps(gh, repo, number, labels) {
     }
   }
 
+  async function findComments(marker) {
+    const all = [];
+    for await (const comments of gh.pages(`${base}/comments`)) {
+      all.push(...comments.filter((c) => c.user?.login === BOT && c.body?.startsWith(marker)));
+    }
+    return all;
+  }
+
   async function upsertComment(marker, body) {
     const mine = await findComment(marker);
     if (mine) return gh.patch(`/repos/${repo}/issues/comments/${mine.id}`, { body });
@@ -63,5 +71,5 @@ export function issueSteps(gh, repo, number, labels) {
     return hasWriteAccess(actor);
   }
 
-  return { setLabels, findComment, upsertComment, upsertStatus, events, acceptedByMember };
+  return { setLabels, findComment, findComments, upsertComment, upsertStatus, events, acceptedByMember };
 }
