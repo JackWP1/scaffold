@@ -11,13 +11,39 @@ on:
 permissions: {}
 
 jobs:
-  plan:
-    # The kill switch skips the AI step; the gate below is deterministic and always runs.
+  # Admission runs in one repo-wide group so the in-flight count and reservation can't interleave
+  # across issues; it also sweeps up `/plan` runs the group dropped (actions/plan/admission.mjs).
+  # The kill switch skips planning; the gate below is deterministic and always runs.
+  admit:
     if: vars.SCAFFOLD_ENABLED != 'false' && github.event_name == 'issue_comment' && github.event.action == 'created' && !github.event.issue.pull_request && startsWith(github.event.comment.body, '/plan')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     concurrency:
-      group: scaffold-plan-${{ github.repository }}-${{ github.event.issue.number }}
+      group: scaffold-admit-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+      contents: read
+    outputs:
+      admitted: ${{ steps.admit.outputs.admitted }}
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - id: admit
+        uses: JackWP1/scaffold/actions/plan@1e32e9a46579863c8f02f29381d802196be300de # v0.4.0
+        with:
+          mode: admit
+
+  plan:
+    needs: admit
+    if: needs.admit.outputs.admitted != '' && needs.admit.outputs.admitted != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.admit.outputs.admitted) }}
+    concurrency:
+      group: scaffold-plan-${{ github.repository }}-${{ matrix.issue }}
       cancel-in-progress: false
     permissions:
       issues: write
@@ -27,13 +53,16 @@ jobs:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - uses: JackWP1/scaffold/actions/plan@1e32e9a46579863c8f02f29381d802196be300de # v0.4.0
         with:
+          mode: plan
+          issue: ${{ matrix.issue }}
+          comment: ${{ matrix.comment }}
           model: ${{ inputs.model }}
 
   gate:
     if: >-
       !github.event.issue.pull_request && (
         (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved') ||
-        (github.event_name == 'issue_comment' && github.event.action == 'edited' && startsWith(github.event.comment.body, '<!-- scaffold:plan -->'))
+        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && startsWith(github.event.comment.body, '<!-- scaffold:plan -->'))
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5

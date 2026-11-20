@@ -161,9 +161,10 @@ flowchart TD
   triage --> ready[scaffold:ready]
 
   ready --> plancmd{"<span style='font-size:2em'>🧑</span><br/>Member<br/>comments /plan"}
-  plancmd --> limit{{In-flight limit reached?<br/>max_in_flight in scaffold-config.yml}}
+  plancmd --> limit{{Admit, one at a time per repo:<br/>in-flight limit reached?<br/>max_in_flight in scaffold-config.yml<br/>also sweeps up dropped /plan runs}}
   limit -- yes: waits --> ready
-  limit -- no --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer<br/>estimate, split into stack<br/>or up to 5 sub-tickets"]
+  limit -- no: reserves slot,<br/>scaffold:planned --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer<br/>estimate, split into stack<br/>or up to 5 sub-tickets"]
+  decompose -- fails on a first plan:<br/>slot released --> ready
   decompose --> plansize{{Plan breaks size rules?}}
   plansize -- yes, first time --> decompose
   plansize -- no --> plancomment[Plan comment<br/>scaffold:planned]
@@ -171,8 +172,9 @@ flowchart TD
   plancomment --> planreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews plan"}
   planreview -- changes needed --> plancmd
   planreview -- applies scaffold:plan-approved --> gate{{Plan gate<br/>listed approver, not the author,<br/>plan unchanged, size rules}}
-  gate -- fails: label removed --> planreview
+  gate -- fails, or sub-tickets not all created:<br/>label removed --> planreview
   gate -- passes --> approved[scaffold:plan-approved<br/>sub-tickets created as sub-issues]
+  plancomment -- plan comment deleted:<br/>approval withdrawn --> ready
 
   approved --> pick{"<span style='font-size:2em'>🧑</span><br/>Developer picks up ticket"}
   pick --> code[Developer writes code]
@@ -207,4 +209,4 @@ One row per slice, added in the slice's retrospective PR. Earlier versions of bo
 | --- | --- | --- |
 | 0 | 2026-11-13 | Proposed workflow drawn; current workflow assumed manual |
 | 1 | 2026-11-18 | Intake: Request form, members-only `triage`, `scaffold:needs-info` loop re-run by `scaffold:triage`, `scaffold:no-template` flag, status comment. Diagrams updated in slice 2's PR |
-| 2 | 2026-11-18 | Plan: `/plan`, in-flight limit, `task-decomposer` with size estimate and split, `scaffold:planned`, protected plan gate, sub-tickets as sub-issues on approval. Proposed: needs-info edit step applies `scaffold:triage`; plan comment sets `scaffold:planned`; gate-fail edge |
+| 2 | 2026-11-20 | Plan: `/plan`, in-flight limit (repo-wide admission with a sweep for dropped runs; a failed first plan gives its slot back), `task-decomposer` with size estimate and split, `scaffold:planned`, protected plan gate, sub-tickets as sub-issues on approval (approval withheld until all exist); deleting the plan comment sends the issue back to Ready; plans with no sub-tasks are rejected. Proposed: needs-info edit step applies `scaffold:triage`; plan comment sets `scaffold:planned`; gate-fail edge |

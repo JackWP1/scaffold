@@ -31,6 +31,7 @@ export function checkPlan(plan, limits) {
   const problems = [];
   const ids = plan.subtasks.map((t) => t.id);
   if (plan.split === 'too-big') problems.push(`needs more than ${MAX_SUB_TICKETS} sub-tickets: replan or split it in Jira`);
+  else if (!plan.subtasks.length) problems.push('the plan has no sub-tasks');
   if (plan.split === 'none' && over(plan.estimate, limits.soft)) {
     problems.push(`estimate ${fmt(plan.estimate)} is over the soft limit (${fmt(limits.soft)}) but the work is not split`);
   }

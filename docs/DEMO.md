@@ -43,7 +43,9 @@ Use the second account from step 5 as the issue author where the author matters.
 | 6 | Comment `/plan` again on an approved issue | Approval withdrawn; new plan |
 | 7 | Plan a large issue (e.g. "rewrite the auth module and its UI") | Split into a stack or sub-tickets; on approval, sub-issues created under the parent with blocked-by links |
 | 8 | Set `max_in_flight: 1` with one issue planned, then `/plan` another | 😕 reaction; Plan row ⏸️ waiting |
-| 9 | Open the runs in the Actions tab | Job summaries: skill, version, model, input hash and plan; gate outcome, approver, plan hash and hours from plan to approval |
+| 9 | With `max_in_flight: 2` and nothing planned, comment `/plan` on three issues within a few seconds | Two get 👀 and plans, one 😕. If GitHub cancelled a waiting admit run, its comment is still handled by the next run (job summary: `sweep`) |
+| 10 | Delete the plan comment on a planned or approved issue | Back to `scaffold:ready`, approval removed, Plan row 🗑️ plan deleted |
+| 11 | Open the runs in the Actions tab | Job summaries: admission outcomes (this run and sweep); skill, version, model, input hash and plan; gate outcome, approver, plan hash and hours from plan to approval |
 
 ## Not in the demo yet
 

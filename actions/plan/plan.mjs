@@ -1,4 +1,4 @@
-// Entry point for the plan composite action: `/plan` → task-decomposer (PLAN.md section 2, slice 2).
+// Entry point for the plan action's plan mode: task-decomposer for an issue the admit job admitted (PLAN.md section 2, slice 2).
 import { readFile, appendFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { github } from '../lib/github.mjs';
@@ -12,9 +12,6 @@ import { MARKER, setGates } from '../lib/status.mjs';
 import { PLAN_MARKER, checkPlan } from './rules.mjs';
 import { renderPlan, splitSummary } from './render.mjs';
 
-const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
-const PLANNABLE = ['scaffold:ready', 'scaffold:planned', 'scaffold:plan-approved'];
-const IN_FLIGHT = ['scaffold:planned', 'scaffold:plan-approved'];
 const MAX_PATHS = 1500;
 
 const root = process.env.SCAFFOLD_ROOT;
@@ -24,30 +21,22 @@ const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const gh = github(token);
 const summary = (md) => appendFile(process.env.GITHUB_STEP_SUMMARY ?? '/dev/null', `${md}\n`);
 
-const { issue, comment } = event;
+// The admit job chose this issue and comment, which may come from its sweep rather than this event.
+const issue = await gh.get(`/repos/${repo}/issues/${Number(process.env.SCAFFOLD_ISSUE)}`);
+const comment = await gh.get(`/repos/${repo}/issues/comments/${Number(process.env.SCAFFOLD_COMMENT)}`);
 const labels = issue.labels.map((l) => l.name);
 const { setLabels, findComment, upsertComment, upsertStatus } = issueSteps(gh, repo, issue.number, labels);
-const react = (content) => gh.post(`/repos/${repo}/issues/comments/${comment.id}/reactions`, { content }).catch((err) => console.warn(err.message));
-
-function skip(reason) {
-  console.log(`Skipping: ${reason}`);
-  return summary(`### SCAFFOLD plan\nSkipped: ${reason}`);
-}
 
 async function updateStatus(states, next) {
   const status = await findComment(MARKER);
   await upsertStatus(setGates(status?.body, states, next));
 }
 
-// Open issues in flight (PLAN.md section 8), not counting this one. Sub-tickets carry no lifecycle label.
-async function inFlight() {
-  const numbers = new Set();
-  for (const label of IN_FLIGHT) {
-    for await (const page of gh.pages(`/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}`)) {
-      for (const i of page) if (!i.pull_request && i.number !== issue.number) numbers.add(i.number);
-    }
-  }
-  return numbers.size;
+// On failure, a first plan gives back its in-flight slot; a replan keeps scaffold:planned and the old plan.
+async function failed(plan, why) {
+  if (!(await findComment(PLAN_MARKER))) await setLabels(['scaffold:ready'], ['scaffold:planned']);
+  await updateStatus({ Plan: `⚠️ ${plan}` }, 'comment `/plan` again to retry.');
+  return summary(`### SCAFFOLD plan\n${why}`);
 }
 
 async function repoPaths() {
@@ -61,32 +50,7 @@ async function repoPaths() {
 }
 
 async function main() {
-  if (issue.pull_request) return skip('pull request');
-  if (!/^\/plan(\s|$)/.test(comment.body ?? '')) return skip('comment is not /plan');
-  if (!TRUSTED.includes(comment.author_association) || comment.user?.type !== 'User') {
-    await react('confused');
-    return skip(`/plan by ${comment.author_association} ${comment.user?.type}: members only`);
-  }
-  if (!labels.some((l) => PLANNABLE.includes(l))) {
-    await react('confused');
-    return skip('issue is not scaffold:ready');
-  }
-
   const config = await loadConfig(gh, repo);
-  const count = await inFlight();
-  if (count >= config.max_in_flight) {
-    await react('confused');
-    await updateStatus(
-      { Plan: `⏸️ waiting: ${count} of ${config.max_in_flight} tickets in flight` },
-      'wait for a ticket to merge or close, then comment `/plan` again.',
-    );
-    return summary(`### SCAFFOLD plan\nRefused: ${count} of ${config.max_in_flight} tickets in flight`);
-  }
-  await react('eyes');
-
-  // A new plan withdraws any approval of the old one.
-  await setLabels([], ['scaffold:plan-approved']);
-
   const { system, schema, version: skillVersion, model } = await loadSkill(root, 'task-decomposer', process.env.SCAFFOLD_MODEL);
   const status = await findComment(MARKER);
   const precedents = await readRepoFile(gh, repo, 'PRECEDENTS.md');
@@ -114,15 +78,13 @@ async function main() {
       if (plan) break;
       const why = err instanceof RateLimited ? 'Copilot is rate limiting' : 'the model call failed';
       console.warn(err.message);
-      await updateStatus({ Plan: `⚠️ skipped: ${why}` }, 'comment `/plan` again to retry.');
-      return summary(`### SCAFFOLD plan\nSkipped: ${why}\n\n\`${err.message.slice(0, 500)}\``);
+      return failed(`skipped: ${why}`, `Skipped: ${why}\n\n\`${err.message.slice(0, 500)}\``);
     }
     const errors = validate(schema, out);
     if (errors.length) {
       console.log(`::warning::Invalid plan output: ${errors.join('; ')}`);
       if (plan) break;
-      await updateStatus({ Plan: '⚠️ invalid output, nothing applied' }, 'comment `/plan` again to retry.');
-      return summary(`### SCAFFOLD plan\nInvalid output (no writes):\n\n- ${errors.join('\n- ')}`);
+      return failed('invalid output, nothing applied', `Invalid output (no writes):\n\n- ${errors.join('\n- ')}`);
     }
     plan = out;
     problems = checkPlan(plan, limits);
@@ -130,6 +92,7 @@ async function main() {
   }
 
   const planComment = await upsertComment(PLAN_MARKER, renderPlan(plan, { problems, skillVersion, model, limits }));
+  // Admission already applied these; set again in case a gate run on this issue changed them meanwhile.
   await setLabels(['scaffold:planned'], ['scaffold:ready', 'scaffold:plan-approved']);
   const link = `[planned](${planComment.html_url})`;
   const approvers = config.approvers.map((a) => `\`${a}\``).join(', ');
@@ -150,8 +113,6 @@ async function main() {
     '| Skill | Version | Model | Input hash | Split | Estimate | Problems |',
     '| --- | --- | --- | --- | --- | --- | --- |',
     `| task-decomposer | ${skillVersion} | ${model} | \`${inputHash}\` | ${plan.split} | ${plan.estimate.files} files / ${plan.estimate.lines} lines | ${problems.length} |`,
-    '',
-    `In flight before this plan: ${count} of ${config.max_in_flight}`,
     '',
     '<details><summary>Validated output</summary>',
     '',

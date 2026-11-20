@@ -24,12 +24,12 @@ flowchart LR
     direction TB
     subgraph wf[Reusable workflows]
       triagewf[triage.yml]
-      planwf[plan.yml<br/>jobs: plan, gate]
+      planwf[plan.yml<br/>jobs: admit, plan, gate]
       labelswf[labels.yml]
     end
     subgraph actions[Composite actions]
       triage[actions/triage]
-      plan[actions/plan]
+      plan[actions/plan<br/>modes: admit, plan]
       gate[actions/plan-gate]
       labels[actions/labels]
     end
@@ -90,4 +90,4 @@ Fill shows the slice that added each component (blue: slice 1, green: slice 2; c
 
 | Slice | Date | Change |
 | --- | --- | --- |
-| 2 | 2026-11-18 | Drawn: slice 1 triage and labels; slice 2 plan, plan gate, `scaffold-config.yml` config and status gates |
+| 2 | 2026-11-20 | Drawn: slice 1 triage and labels; slice 2 plan (admit and plan modes), plan gate, `scaffold-config.yml` config and status gates |
