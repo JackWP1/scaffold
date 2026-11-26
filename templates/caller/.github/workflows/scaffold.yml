@@ -1,24 +1,39 @@
 # Thin SCAFFOLD caller. Copy to .github/workflows/scaffold.yml in your repo.
 # Refs are pinned to a release SHA by scripts/release.sh; keep them pinned.
+# Which packages run is set by `stages` in .github/scaffold-config.yml, not here.
 name: SCAFFOLD
 on:
   issues:
     types: [opened, edited, reopened, labeled]
   issue_comment:
     types: [created, edited, deleted]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted, dismissed]
+  schedule:
+    - cron: '17 6 * * 1'
   workflow_dispatch:
+    inputs:
+      task:
+        description: What to run
+        type: choice
+        options: [labels, usage-report]
+        default: labels
 
 permissions: {}
 
 jobs:
+  # Intake package.
   triage:
     if: github.event_name == 'issues'
     permissions:
       issues: write
+      contents: read
       copilot-requests: write
     uses: JackWP1/scaffold/.github/workflows/triage.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
 
-  # `/plan` comments, scaffold:plan-approved, and edits to or deletion of the plan comment.
+  # Plan package: `/plan` comments, scaffold:plan-approved, and edits to or deletion of the plan comment.
   plan:
     if: github.event_name == 'issue_comment' || (github.event_name == 'issues' && github.event.label.name == 'scaffold:plan-approved')
     permissions:
@@ -27,9 +42,26 @@ jobs:
       copilot-requests: write
     uses: JackWP1/scaffold/.github/workflows/plan.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
 
-  # Run manually (Actions → SCAFFOLD → Run workflow) to create the labels.
+  # Core, always on: make `config-guard / scaffold-config-guard` a required check in the ruleset.
+  config-guard:
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
+
+  # Core, always on: weekly, or run manually (Actions → SCAFFOLD → Run workflow → usage-report).
+  usage-report:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.task == 'usage-report')
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
+
+  # Run manually (Actions → SCAFFOLD → Run workflow → labels) to create the labels.
   labels:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.task == 'labels'
     permissions:
       issues: write
     uses: JackWP1/scaffold/.github/workflows/labels.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0

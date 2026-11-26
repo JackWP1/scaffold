@@ -1,0 +1,21 @@
+# Reusable core check (always on): scaffold-config-guard on PRs (PLAN.md section 4).
+# Runs on pull_request and pull_request_review, never pull_request_target, and only reads.
+name: SCAFFOLD config guard
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  scaffold-config-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-config-guard-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/core/actions/config-guard@b46968e98f2af84ad5a5aac3c1b6497b80064967 # v0.4.0

@@ -1,20 +1,21 @@
 # SCAFFOLD architecture
 
-Components and how they call each other (PLAN.md section 10). Updated in every slice's PR; hand-drawn until the `scaffold-diagrams` check generates it.
+Components and how they call each other (PLAN.md section 10). The components diagram is hand-drawn and updated in every slice's PR; the Actions graph below it is generated from `.github/workflows/*.yml` and the caller template, and the `scaffold-diagrams` check fails if it is stale.
 
-- **Calling repo:** a thin caller workflow and `.github/scaffold-config.yml`. The Request issue form comes from the `.github` repo.
-- **SCAFFOLD repo:** reusable workflows call composite actions pinned to a release SHA; the actions bundle skills, schemas and config, so no cross-repo checkout is needed.
+- **Calling repo:** a thin caller workflow and `.github/scaffold-config.yml`, whose `stages` turns packages on or off. The Request issue form comes from the `.github` repo.
+- **SCAFFOLD repo:** one reusable workflow per package calls that package's composite actions, pinned to a release SHA. Each package action reads `stages` first and does nothing else when its stage is off. Actions bundle their skills, schemas and config, so no cross-repo checkout is needed.
+- **Packages:** `intake` and `plan` import only from `core` (a test fails on any other import) and hand over through labels and marked comments.
 - **Model calls:** one tool-less Copilot CLI call per AI step. Actions code validates the JSON and makes every write with `GITHUB_TOKEN`.
 
-As of: **slice 2**.
+As of: **Phase 1b**.
 
 ```mermaid
 flowchart LR
   subgraph caller[Calling repo]
     direction TB
-    events([issues, issue_comment,<br/>workflow_dispatch])
+    events([issues, issue_comment, pull_request,<br/>pull_request_review, schedule,<br/>workflow_dispatch])
     callerwf[".github/workflows/scaffold.yml<br/>thin caller"]
-    cfg[".github/scaffold-config.yml<br/>approvers, max_in_flight, pr_size"]
+    cfg[".github/scaffold-config.yml<br/>stages, approvers, limits"]
     events --> callerwf
   end
 
@@ -25,69 +26,110 @@ flowchart LR
     subgraph wf[Reusable workflows]
       triagewf[triage.yml]
       planwf[plan.yml<br/>jobs: admit, plan, gate]
+      guardwf[config-guard.yml]
+      reportwf[usage-report.yml]
       labelswf[labels.yml]
     end
-    subgraph actions[Composite actions]
+    subgraph intake[packages/intake]
       triage[actions/triage]
-      plan[actions/plan<br/>modes: admit, plan]
-      gate[actions/plan-gate]
+      triageskill[skills/triage<br/>schemas, Request form,<br/>HANDOFF.md]
+    end
+    subgraph plan[packages/plan]
+      planact[actions/plan<br/>modes: admit, plan]
+      gate[actions/gate]
+      planskill[skills/task-decomposer<br/>schemas, manual plan template,<br/>HANDOFF.md]
+    end
+    subgraph core[packages/core, always on]
+      stage[bin/stage.mjs<br/>reads stages first]
+      guard[actions/config-guard]
+      report[actions/usage-report]
       labels[actions/labels]
-    end
-    subgraph lib[actions/lib]
-      gh[github.mjs<br/>REST client]
-      models[models.mjs<br/>Copilot CLI, no tools]
-      validate[validate.mjs]
-      issue[issue.mjs<br/>labels, comments, timeline]
-      status[status.mjs<br/>status comment gates]
-      config[config.mjs<br/>scaffold-config.yml]
-      skills[skills.mjs]
-    end
-    subgraph data[Bundled data]
-      skillmd[skills/*/SKILL.md<br/>manifest.yml]
-      schemas[schemas/*.json]
-      cfgfiles[config/labels.yml<br/>config/models.yml]
+      lib[lib: github, config, stages,<br/>approval timeline check, issue,<br/>status, models, skills, validate]
+      cfgfiles[config: labels.yml,<br/>models.yml, workflow.yml]
+      diagrams[diagrams: generator and<br/>scaffold-diagrams check]
     end
     triagewf --> triage
-    planwf --> plan
+    planwf --> planact
     planwf --> gate
+    guardwf --> guard
+    reportwf --> report
     labelswf --> labels
+    triage & planact & gate --> stage
+    triage --> triageskill
+    planact --> planskill
+    triage & planact & gate & guard & report & labels --> lib
+    lib --> cfgfiles
+    diagrams --> cfgfiles
   end
 
-  callerwf --> triagewf
-  callerwf --> planwf
-  callerwf --> labelswf
+  callerwf --> triagewf & planwf & guardwf & reportwf & labelswf
 
-  triage --> models
-  plan --> models
-  triage & plan & gate --> validate
-  triage & plan & gate --> issue
-  triage & plan & gate --> status
-  plan & gate --> config
-  triage & plan --> skills
-  skills --> skillmd
-  skills --> cfgfiles
-  validate --> schemas
-  labels --> cfgfiles
-  issue --> gh
-  config --> gh
-  labels --> gh
-
-  config -. reads .-> cfg
-  models --> copilot[(Copilot CLI<br/>OpenAI model)]
-  gh --> api[(GitHub REST API<br/>GITHUB_TOKEN)]
+  lib -. reads .-> cfg
+  lib --> copilot[(Copilot CLI<br/>OpenAI model)]
+  lib --> api[(GitHub REST API<br/>GITHUB_TOKEN)]
 
   classDef ext fill:#4b5563,color:#fff
   classDef s1 fill:#1e40af,color:#fff
   classDef s2 fill:#166534,color:#fff
+  classDef p1b fill:#6d28d9,color:#fff
   class copilot,api,form,events ext
-  class triagewf,triage,labelswf,labels,models,validate,issue,skills,skillmd,schemas,cfgfiles,gh s1
-  class planwf,plan,gate,status,config,cfg s2
+  class triagewf,triage,triageskill,labelswf,labels s1
+  class planwf,planact,gate,planskill,cfg s2
+  class guardwf,guard,reportwf,report,stage,lib,cfgfiles,diagrams p1b
 ```
 
-Fill shows the slice that added each component (blue: slice 1, green: slice 2; colours as in `workflow.md`); grey is outside SCAFFOLD.
+Fill shows when each component arrived (blue: slice 1, green: slice 2, purple: Phase 1b; slice colours as in `workflow.md`); grey is outside SCAFFOLD.
+
+## Actions graph
+
+Caller jobs, the reusable workflows they call, those workflows' jobs, and the package actions each job runs.
+
+<!-- generated by `node packages/core/diagrams/check.mjs --write`: do not edit by hand -->
+```mermaid
+flowchart LR
+  subgraph caller["Caller: .github/workflows/scaffold.yml"]
+    c_triage["triage"]
+    c_plan["plan"]
+    c_config_guard["config-guard"]
+    c_usage_report["usage-report"]
+    c_labels["labels"]
+  end
+  subgraph w_config_guard_yml["config-guard.yml"]
+    w_config_guard_yml_scaffold_config_guard["scaffold-config-guard"]
+  end
+  subgraph w_labels_yml["labels.yml"]
+    w_labels_yml_labels["labels"]
+  end
+  subgraph w_plan_yml["plan.yml"]
+    w_plan_yml_admit["admit"]
+    w_plan_yml_plan["plan"]
+    w_plan_yml_admit --> w_plan_yml_plan
+    w_plan_yml_gate["gate"]
+  end
+  subgraph w_triage_yml["triage.yml"]
+    w_triage_yml_triage["triage"]
+  end
+  subgraph w_usage_report_yml["usage-report.yml"]
+    w_usage_report_yml_usage_report["usage-report"]
+  end
+  c_triage --> w_triage_yml
+  c_plan --> w_plan_yml
+  c_config_guard --> w_config_guard_yml
+  c_usage_report --> w_usage_report_yml
+  c_labels --> w_labels_yml
+  w_config_guard_yml_scaffold_config_guard --> a_packages_core_actions_config_guard["packages/core/actions/config-guard"]
+  w_labels_yml_labels --> a_packages_core_actions_labels["packages/core/actions/labels"]
+  w_plan_yml_admit --> a_packages_plan_actions_plan["packages/plan/actions/plan"]
+  w_plan_yml_plan --> a_packages_plan_actions_plan["packages/plan/actions/plan"]
+  w_plan_yml_gate --> a_packages_plan_actions_gate["packages/plan/actions/gate"]
+  w_triage_yml_triage --> a_packages_intake_actions_triage["packages/intake/actions/triage"]
+  w_usage_report_yml_usage_report --> a_packages_core_actions_usage_report["packages/core/actions/usage-report"]
+```
+<!-- end of generated diagram -->
 
 ## History
 
 | Slice | Date | Change |
 | --- | --- | --- |
 | 2 | 2026-11-20 | Drawn: slice 1 triage and labels; slice 2 plan (admit and plan modes), plan gate, `scaffold-config.yml` config and status gates |
+| 1b | 2026-11-26 | Packages: `core`, `intake` and `plan`, each action reading `stages` first; timeline approval check moved to core; `scaffold-config-guard`, weekly usage report, `workflow.yml` and the generated Actions graph added |
