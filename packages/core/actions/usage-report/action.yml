@@ -1,0 +1,13 @@
+name: SCAFFOLD usage report
+description: Post the week's SCAFFOLD usage (runs per skill and job, gate outcomes, stages on or off) to the usage report issue. Core, always on.
+inputs:
+  github-token:
+    description: Token with actions:read, contents:read and issues:write
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/main.mjs"

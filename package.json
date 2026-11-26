@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "diagrams": "node packages/core/diagrams/check.mjs --write"
   },
   "engines": {
     "node": ">=20"

@@ -1,0 +1,49 @@
+name: SCAFFOLD plan
+description: On `/plan`, admit the issue against the in-flight limit (admit mode), then plan it with a single tool-less Copilot CLI call (plan mode). Skipped when the plan stage is off.
+inputs:
+  github-token:
+    description: Token with issues:write and contents:read, plus copilot-requests:write in plan mode
+    default: ${{ github.token }}
+  mode:
+    description: '`admit` (run in a repo-wide concurrency group) or `plan`'
+    required: true
+  issue:
+    description: Issue number to plan (plan mode)
+    default: ''
+  comment:
+    description: ID of the `/plan` comment (plan mode)
+    default: ''
+  model:
+    description: Override the model for this skill's tier (packages/core/config/models.yml)
+    default: ''
+outputs:
+  admitted:
+    description: JSON list of { issue, comment } admitted for planning (admit mode); empty when the plan stage is off
+    value: ${{ steps.admit.outputs.admitted }}
+runs:
+  using: composite
+  steps:
+    # Reads `stages` first (PLAN.md section 5): when plan is off, nothing is admitted or planned.
+    - id: stage
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/../../../core/bin/stage.mjs" plan
+    - if: inputs.mode == 'admit' && steps.stage.outputs.state != 'off'
+      id: admit
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/admit.mjs"
+    # Pinned so a CLI release can't change flags or behaviour under a SCAFFOLD release.
+    - if: inputs.mode == 'plan' && steps.stage.outputs.state == 'on'
+      shell: bash
+      run: npm install -g --no-fund --no-audit @github/copilot@1.0.114
+    - if: inputs.mode == 'plan' && steps.stage.outputs.state != 'off'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SCAFFOLD_ISSUE: ${{ inputs.issue }}
+        SCAFFOLD_COMMENT: ${{ inputs.comment }}
+        SCAFFOLD_MODEL: ${{ inputs.model }}
+      run: node "$GITHUB_ACTION_PATH/plan.mjs"

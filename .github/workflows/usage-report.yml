@@ -1,0 +1,18 @@
+# Reusable core job (always on): weekly usage report (PLAN.md section 7).
+name: SCAFFOLD usage report
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  usage-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/core/actions/usage-report@b46968e98f2af84ad5a5aac3c1b6497b80064967 # v0.4.0

@@ -1,0 +1,4 @@
+task-decomposer:
+  version: 0.2.0
+  tier: standard
+  schema: schemas/plan.schema.json

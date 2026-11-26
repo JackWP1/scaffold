@@ -1,5 +1,14 @@
-# SCAFFOLD settings for this repo (PLAN.md sections 6 and 8). Protect with CODEOWNERS:
-# changes here change who can approve plans and how big work can be.
+# SCAFFOLD settings for this repo (PLAN.md sections 5, 6 and 8). Protect with CODEOWNERS.
+# scaffold-config-guard requires a listed approver's review for changes to stages, approvers and limits.
+
+# Packages on (true) or off (false). A package not listed is off; when one is off, humans do that
+# stage by hand (packages/<stage>/HANDOFF.md). Only released packages can be turned on.
+stages:
+  intake: true
+  plan: true
+  implement: false        # not released yet (slice 3)
+  review: false           # not released yet (slice 4)
+  collaboration: false    # not released yet (slice 5)
 
 # GitHub logins that can approve plans (scaffold:plan-approved). The issue author can't approve their own issue.
 approvers:
@@ -8,10 +17,19 @@ approvers:
 # Rotating developer who orders the backlog and watches escalations (changed by PR each rotation).
 flow_lead: your-login
 
-# Tickets in flight at once, from /plan until merged, closed or back to Ready.
+# Tickets in flight at once, from /plan until merged, closed, too big or back to Ready; 1–100.
 max_in_flight: 20
 
-# PR size limits; work over the soft limit is planned as a stack of PRs or up to 5 sub-tickets.
+# PRs in one ticket's stack; a plan that needs more is too big and goes back to triage; 1–10.
+max_stack_prs: 5
+
+# Open Copilot PRs per developer before a warning (advisory, slice 3); 1–10.
+warn_open_prs_per_developer: 2
+
+# Automatic rework rounds before the circuit breaker (slice 3); 1–10.
+max_rework_rounds: 6
+
+# PR size limits; work over the soft limit is planned as a stack of up to max_stack_prs PRs.
 pr_size:
   soft:
     files: 10

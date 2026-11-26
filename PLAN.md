@@ -56,7 +56,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | Intake | Waiting for a member to accept | `scaffold:proposed` | `fef2c0` pale yellow |
 | Attention | A human must act | `scaffold:escalate` | `b60205` red |
 | | | `scaffold:conflict` | `d93f0b` orange |
-| | | `scaffold:too-big` (Phase 1b) | `e99695` pink |
+| | | `scaffold:too-big` | `e99695` pink |
 | Flag | Worth a look; doesn't block | `scaffold:no-template` | `f9d0c4` pale orange |
 | Override | A member or approver lifted a gate | `scaffold:accepted` | `d4c5f9` pale purple |
 | | | `scaffold:conflict-resolved` | `d4c5f9` pale purple |
@@ -235,7 +235,7 @@ Each package's `HANDOFF.md` sets out its contract: what must be true before it s
 
 The Request form ships once, as an account/org default in the `.github` repo (`JackWP1/.github`, later `ukncsc/.github`), not per repo. Every repo without its own `.github/ISSUE_TEMPLATE/` uses it.
 
-- **Source:** `templates/caller/.github/ISSUE_TEMPLATE/request.yml` here; the `.github` repo holds a copy, changed only by reviewed PR.
+- **Source:** `packages/intake/templates/request.yml` here (the intake package owns it); the `.github` repo holds a copy, changed only by reviewed PR.
 - **No pinning:** GitHub serves defaults live from the `.github` repo's default branch, while triage is pinned to a release. So fields are **only added, never renamed or removed**: triage's template check (`packages/intake/template.mjs`) must keep matching issues from both old and new forms. A test fails if a checked heading is missing from the form.
 
 ## 6. Guardrails

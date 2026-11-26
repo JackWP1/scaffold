@@ -1,0 +1,20 @@
+name: SCAFFOLD plan gate
+description: Check a scaffold:plan-approved label against the issue timeline and .github/scaffold-config.yml; remove it if the approval isn't valid. Skipped when the plan stage is off.
+inputs:
+  github-token:
+    description: Token with issues:write and contents:read
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    # Reads `stages` first (PLAN.md section 5): when plan is off, the gate is manual.
+    - id: stage
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/../../../core/bin/stage.mjs" plan
+    - if: steps.stage.outputs.state != 'off'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/main.mjs"

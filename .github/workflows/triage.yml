@@ -1,4 +1,5 @@
-# Reusable triage workflow (slice 1). Called from a repo's thin caller workflow.
+# Reusable intake workflow (slice 1): triage. Called from a repo's thin caller workflow.
+# The action reads `stages` first and does nothing else when intake is off (PLAN.md section 5).
 name: SCAFFOLD triage
 on:
   workflow_call:
@@ -20,9 +21,10 @@ jobs:
       cancel-in-progress: true
     permissions:
       issues: write
+      contents: read
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/actions/triage@b46968e98f2af84ad5a5aac3c1b6497b80064967 # v0.4.0
+      - uses: JackWP1/scaffold/packages/intake/actions/triage@b46968e98f2af84ad5a5aac3c1b6497b80064967 # v0.4.0
         with:
           model: ${{ inputs.model }}

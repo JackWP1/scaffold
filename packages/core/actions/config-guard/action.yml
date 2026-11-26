@@ -1,0 +1,13 @@
+name: scaffold-config-guard
+description: Validate .github/scaffold-config.yml on a PR; a change to a protected setting needs a listed approver's review. Core baseline check, always on.
+inputs:
+  github-token:
+    description: Token with contents:read and pull-requests:read
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/main.mjs"

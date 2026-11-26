@@ -1,0 +1,182 @@
+# The implemented workflow (PLAN.md section 10). `node packages/core/diagrams/check.mjs --write` generates
+# the Current diagram in docs/diagrams/workflow.md from `diagram`, and the Actions graph in
+# docs/diagrams/architecture.md from .github/workflows/*.yml. The scaffold-diagrams check (self-test)
+# fails if either is stale, or if this file disagrees with labels.yml, the caller's triggers, the
+# reusable workflows or the packages' skills. Same YAML subset as scaffold-config.yml: maps and lists of
+# plain values; no "#" inside values.
+
+# Labels SCAFFOLD defines for later slices, so labels.yml and this file stay in step.
+reserved_labels: [scaffold:escalate, scaffold:conflict, scaffold:conflict-resolved, scaffold:size-exception, scaffold:order-override, scaffold:diagram-unchanged]
+
+# Core: always on. Its workflows run whatever `stages` says.
+core:
+  workflows: [labels.yml, config-guard.yml, usage-report.yml]
+  checks: [scaffold-config-guard]
+  triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request_review.submitted, pull_request_review.dismissed, schedule, workflow_dispatch]
+
+# Packages, in workflow order. Each is switched by `stages` in scaffold-config.yml.
+stages:
+  intake:
+    workflow: triage.yml
+    skills: [triage]
+    triggers: [issues.opened, issues.edited, issues.reopened, issues.labeled]
+    labels: [scaffold:triage, scaffold:needs-info, scaffold:ready, scaffold:proposed, scaffold:accepted, scaffold:no-template, priority:high, priority:medium, priority:low]
+    gates: [Triaged → ready]
+  plan:
+    workflow: plan.yml
+    skills: [task-decomposer]
+    triggers: [issue_comment.created, issue_comment.edited, issue_comment.deleted, issues.labeled]
+    labels: [scaffold:planned, scaffold:plan-approved, scaffold:too-big]
+    gates: [Ready → planned, Planned → approved, Planned → too big]
+
+# The Current diagram. kind: human (a person must act), check (automated), ai (model step) or state.
+# owner: scaffold (a package or core runs it) or manual. Edges use Mermaid syntax: a --> b or a -- label --> b.
+diagram:
+  nodes:
+    jira:
+      owner: manual
+      text: Jira ticket created
+    open:
+      kind: human
+      owner: manual
+      text: Developer opens issue<br/>via Request form
+    intakeon:
+      kind: check
+      text: intake stage on?<br/>stages in scaffold-config.yml
+    manualtriage:
+      kind: human
+      owner: manual
+      text: Humans triage by hand<br/>packages/intake/HANDOFF.md
+    member:
+      kind: check
+      text: Author is a trusted org<br/>member or collaborator?
+    proposed:
+      text: scaffold:proposed
+    accept:
+      kind: human
+      text: Member applies<br/>scaffold:accepted
+    triage:
+      kind: ai
+      text: triage<br/>flags scaffold:no-template
+    needsinfo:
+      text: scaffold:needs-info
+    edit:
+      kind: human
+      text: Author edits issue,<br/>applies scaffold:triage
+    ready:
+      text: scaffold:ready
+    split:
+      kind: human
+      owner: manual
+      text: Member creates the proposed<br/>tickets as new issues,<br/>closes this one as split
+    planon:
+      kind: check
+      text: plan stage on?<br/>stages in scaffold-config.yml
+    manualplan:
+      kind: human
+      owner: manual
+      text: Humans plan by hand<br/>packages/plan/HANDOFF.md:<br/>scaffold:planned, manual plan template,<br/>approver applies scaffold:plan-approved
+    plancmd:
+      kind: human
+      text: Member<br/>comments /plan
+    limit:
+      kind: check
+      text: Admit, one at a time per repo:<br/>in-flight limit reached?<br/>max_in_flight in scaffold-config.yml<br/>also sweeps up dropped /plan runs
+    decompose:
+      kind: ai
+      text: task-decomposer<br/>estimate; one PR, or a stack<br/>of up to max_stack_prs PRs
+    plansize:
+      kind: check
+      text: Plan breaks size rules?
+    toobig:
+      text: scaffold:too-big<br/>leaves flight
+    retriage:
+      kind: human
+      text: Member applies<br/>scaffold:triage
+    plancomment:
+      text: Plan comment<br/>scaffold:planned
+    planreview:
+      kind: human
+      text: Approver<br/>reviews plan
+    gate:
+      kind: check
+      text: Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs
+    approved:
+      text: scaffold:plan-approved
+    pick:
+      kind: human
+      owner: manual
+      text: Developer picks up ticket
+    code:
+      owner: manual
+      text: Developer writes code
+    pr:
+      owner: manual
+      text: PR
+    ci:
+      kind: check
+      owner: manual
+      text: CI
+    review:
+      kind: human
+      owner: manual
+      text: Peer review
+    test:
+      kind: human
+      owner: manual
+      text: Ticket tested
+    merge:
+      owner: manual
+      text: Developer merges
+    closed:
+      owner: manual
+      text: Issue and Jira ticket closed
+  edges:
+    - jira --> open
+    - open --> intakeon
+    - intakeon -- no --> manualtriage
+    - manualtriage --> ready
+    - intakeon -- yes --> member
+    - member -- no --> proposed
+    - proposed --> accept
+    - accept --> triage
+    - member -- yes --> triage
+    - triage --> needsinfo
+    - needsinfo --> edit
+    - edit --> triage
+    - triage --> ready
+    - triage -- too big:<br/>proposes smaller tickets --> split
+    - split --> open
+    - ready --> planon
+    - planon -- no --> manualplan
+    - manualplan --> pick
+    - planon -- yes --> plancmd
+    - plancmd --> limit
+    - limit -- yes, or scaffold-config.yml invalid:<br/>waits --> ready
+    - limit -- no: reserves slot,<br/>scaffold:planned --> decompose
+    - decompose -- fails on a first plan:<br/>slot released --> ready
+    - decompose --> plansize
+    - plansize -- yes, first time --> decompose
+    - plansize -- no --> plancomment
+    - plansize -- yes again: can't be approved --> plancomment
+    - plansize -- needs more than<br/>max_stack_prs PRs --> toobig
+    - toobig --> retriage
+    - retriage --> triage
+    - plancomment --> planreview
+    - planreview -- changes needed --> plancmd
+    - planreview -- applies scaffold:plan-approved --> gate
+    - gate -- fails: label removed --> planreview
+    - gate -- passes --> approved
+    - plancomment -- plan comment deleted<br/>or its marker removed:<br/>approval withdrawn --> ready
+    - approved -- plan comment edited:<br/>approval removed --> planreview
+    - approved --> pick
+    - pick --> code
+    - code --> pr
+    - pr --> ci
+    - ci -- fails --> code
+    - ci -- passes --> review
+    - review -- changes requested --> code
+    - review -- approves --> test
+    - test -- fails: changes requested --> code
+    - test -- passes --> merge
+    - merge --> closed

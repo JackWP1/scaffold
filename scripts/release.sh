@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cuts a release by pinning every internal ref to an immutable SHA (PLAN.md section 5).
 #   Commit A: current HEAD, holding the action code being released.
-#   Commit B: reusable workflows pin actions/* to A. Tagged <version>.
+#   Commit B: reusable workflows pin packages/*/actions/* to A. Tagged <version>.
 #   Commit C: caller template pins the reusable workflows to B.
 # A workflow can't pin the commit that contains it, hence the extra commits.
 # Merge with a merge commit (not squash or rebase) so A and B stay reachable.
@@ -19,7 +19,7 @@ pin() { # pin <path-regex> <sha> <files...>
 }
 
 a=$(git rev-parse HEAD)
-pin 'actions/[\w-]+' "$a" .github/workflows/*.yml
+pin 'packages/[\w/-]+' "$a" .github/workflows/*.yml
 git commit -qam "Release $version: pin actions to ${a:0:7}"
 b=$(git rev-parse HEAD)
 git tag -a "$version" -m "SCAFFOLD $version" "$b"
