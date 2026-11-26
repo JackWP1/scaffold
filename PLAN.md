@@ -165,6 +165,7 @@ docs/diagrams/          Mermaid workflow and architecture diagrams (section 10)
 - Skills and prompts ship **inside composite actions**, so the runner fetches them at the pinned ref; no cross-repo checkout token needed.
 - GitHub only loads reusable workflows from `.github/workflows/`, so each package's workflow stays there as a thin file that calls `packages/<stage>/` actions.
 - Consumers call `uses: ukncsc/scaffold/.github/workflows/<stage>.yml@v1`; Dependabot bumps the pin. All packages ship in one release with one version tag.
+- **Changing this repo:** the scaffold repo doesn't install the caller, so consumer PR checks (section 6) don't run here. PRs to `main` need code-owner review under the branch ruleset and must pass `self-test`; releases go through `scripts/release.sh`, with tags protected by the `v*` ruleset. Changes to the package workflows in `.github/workflows/` follow this route.
 
 ### Packages
 
@@ -247,7 +248,7 @@ The Request form ships once, as an account/org default in the `.github` repo (`J
 
 ### PR checks
 
-All of these are required checks. Baseline checks belong to `core` and run on every PR whatever `stages` says; the rest belong to the implement package (section 5).
+PR checks run in consumer repos, through the caller workflow; the scaffold repo doesn't install the caller (section 5). All of these are required checks. Baseline checks belong to `core` and run on every PR whatever `stages` says; the rest belong to the implement package (section 5).
 
 **Baseline (core):**
 
@@ -439,7 +440,7 @@ Restructure what slices 1 and 2 built into packages (section 5) before more is a
    - Extend `scaffold-config-guard` to require a listed approver's review for changes to `stages`, `approvers`, `gherkin`, `bdd` and limits.
 6. **Switches:** each reusable workflow reads `stages` first and skips the package when it's off; checks from an off package pass with "stage off: manual"; gates grandfather issues already past their entry when the package was turned on; the status comment shows manual stages.
 7. **Handoffs:** write `HANDOFF.md` for intake and plan, plus the manual plan template that produces the marked plan comment.
-8. **Checks:** a CI check that packages import only from `core`; tests for each package with its neighbours off; move the reusable workflows (`triage.yml`, `plan.yml`, `labels.yml`) to the new action paths; change the pin pattern in `scripts/release.sh` from `actions/` to `packages/`; update the caller template; and make `tests/pins.test.mjs` fail on any internal `uses:` path that doesn't exist at HEAD.
+8. **Checks:** a CI check that packages import only from `core`; tests for each package with its neighbours off; move the reusable workflows (`triage.yml`, `plan.yml`, `labels.yml`) to the new action paths; change the pin pattern in `scripts/release.sh` from `actions/` to `packages/`; update the caller template; and make `tests/pins.test.mjs` fail on any internal `uses:` path that doesn't exist at HEAD. These workflow changes land under this repo's ruleset (section 5), not the consumer protected-paths check.
 9. **Catch up:** build what slice 1 listed but didn't ship: `workflow.yml`, the `scaffold-diagrams` check and the weekly usage report. The new rules depend on them.
 10. **Visibility:** update `workflow.yml`, the architecture diagram and `docs/diagrams/workflow.md` for packages and switches; release v0.5.0. `scaffold-diagrams` (step 9) must pass on this PR.
     - **Current diagram:** remove the sub-ticket steps, add `too-big` back to triage, show stages that are off as manual, and add a Phase 1b row to the history table.
