@@ -18,7 +18,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 | Trigger | Skill | Output |
 | --- | --- | --- |
 | `issues: opened`, `scaffold:triage` applied | `triage` | Labels, clarifying questions, agent-ready brief |
-| `issue_comment` `/plan` | `task-decomposer` | Plan comment: approach, sub-tasks with blocking edges, acceptance criteria, affected paths, estimated size; work over the soft size limit is split into a stack of PRs or up to 5 sub-tickets (section 6) |
+| `issue_comment` `/plan` | `task-decomposer` | Plan comment: approach, sub-tasks with blocking edges, acceptance criteria, affected paths, estimated size; work over the soft size limit is split into a stack of PRs or up to `max_sub_tickets` sub-tickets (section 6) |
 | After plan approval (before implementation); after code-owner approval (before merge order) | `conflict-check` | `scaffold:conflict` and one conflict comment linking every ticket involved (section 8) |
 | `pull_request` | `code-review` | Review comments (standards + spec axes); `COMMENT` only, never approves; human review waits until they are resolved (section 6) |
 | `workflow_run` (failed, workflows listed in `scaffold-config.yml`) | `ci-diagnose` | Diagnosis comment on the linked PR |
@@ -32,8 +32,10 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 3. Human reviews plan → applies `scaffold:plan-approved` → the plan gate checks it against the timeline and removes it if the approval isn't valid. On a valid approval of a sub-ticket split, Actions creates the sub-issues.
 4. Human assigns issue to Copilot → Copilot opens PR.
 5. Guard checks (section 6), CI and `code-review` → SCAFFOLD automatically starts a Copilot rework round, with no human approval, until checks pass and all `code-review` comments are resolved → code-owner review → `conflict-check` 2 → merge order → developer adds the PR to the merge queue when it is next → merged.
-6. 6 rework rounds used → circuit breaker: `scaffold:escalate` and straight to human review.
+6. `max_rework_rounds` rework rounds used → circuit breaker: `scaffold:escalate` and straight to human review.
 7. Throughout, each ticket is checked against other in-flight work and the existing spec; conflicts and regression risks go to the Conflicts queue for human review (section 8).
+
+Each stage is a package that a repo can switch off; humans then do that stage by hand and hand over in the same way (section 5).
 
 ### Labels
 
@@ -61,7 +63,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 
 ## 3. Skills
 
-- Each skill is a folder: `skills/<name>/SKILL.md` (YAML frontmatter: `name`, `description`, `inputs`, `outputs`, `tier`; body: instructions, constraints, output schema, definition of done), plus optional `examples/`.
+- Each skill is a folder in the package that uses it: `packages/<stage>/skills/<name>/SKILL.md` (YAML frontmatter: `name`, `description`, `inputs`, `outputs`, `tier`; body: instructions, constraints, output schema, definition of done), plus optional `examples/`.
 - Output schemas live in `schemas/`; every model response is validated with ajv before any write. Invalid output → neutral check + comment, no writes.
 - Adapted (MIT, attributed) from the mattpocock skills vendored in Hospital:
 
@@ -79,7 +81,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 
 ### Model tiers
 
-`skills/manifest.yml` maps each skill to a tier; one file maps tiers to OpenAI model IDs for Copilot CLI. A CI check rejects non-OpenAI IDs.
+Each `SKILL.md` names its tier; `packages/core/config/models.yml` maps tiers to OpenAI model IDs for Copilot CLI. A CI check rejects non-OpenAI IDs.
 
 | Tier | Skills |
 | --- | --- |
@@ -94,8 +96,8 @@ Concrete models are chosen in Phase 0.
 | Hospital | SCAFFOLD |
 | --- | --- |
 | `hospital:*` state labels | Simplified `scaffold:*` labels (section 2) |
-| `policies/CHARTER.md` | `policies/CHARTER.md`: plan before code, don't improvise, test integrity, protected paths, spec is source of truth, precedent first, untrusted input, structured notes, circuit breaker (6 automatic rework rounds → `scaffold:escalate` and human review) |
-| `hospital.config.yml` in a separate config repo + registration check | `.github/scaffold-config.yml` **in each repo** (a separate config repo can't be read without an App/PAT), protected by CODEOWNERS and checked against `schemas/scaffold-config.schema.json`: an invalid file blocks planning and approval rather than falling back to defaults |
+| `policies/CHARTER.md` | `policies/CHARTER.md`: plan before code, don't improvise, test integrity, protected paths, spec is source of truth, precedent first, untrusted input, structured notes, circuit breaker (`max_rework_rounds` automatic rework rounds → `scaffold:escalate` and human review) |
+| `hospital.config.yml` in a separate config repo + registration check | `.github/scaffold-config.yml` **in each repo** (a separate config repo can't be read without an App/PAT), protected by CODEOWNERS and checked against `packages/core/schemas/scaffold-config.schema.json`: an invalid file blocks every package rather than falling back to defaults. Holds the repo's limits and package switches (section 5) |
 | `recommendations.yml` + deviations + history | Same: versioned recommendations; each deviation needs a reason; released history immutable |
 | `config-guard` | `scaffold-config-guard` check on PRs touching `scaffold-config.yml`; runs on `pull_request`, never on `pull_request_target` with PR code |
 | Templates | Issue forms, PR template (test-integrity checkboxes), CODEOWNERS snippet, spec skeleton, `PRECEDENTS.md` (human-written only) |
@@ -109,20 +111,73 @@ Concrete models are chosen in Phase 0.
 Central repo: `ukncsc/scaffold` (internal), Actions access set to "Accessible from repositories in the organization". Built in `JackWP1/scaffold` until moved before the pilot.
 
 ```text
-.github/workflows/      reusable workflows (workflow_call) + self-test
-actions/<name>/         composite actions; bundle skills, prompts, schemas and dist/
-skills/                 SKILL.md sources + manifest.yml
-schemas/                output and scaffold-config.yml JSON schemas
-config/                 labels.yml, recommendations.yml, models.yml, workflow.yml
+.github/workflows/      one thin reusable workflow per package (workflow_call) + self-test
+packages/core/          always on: lib (GitHub client, config, labels, status comment, audit, models),
+                        scaffold-config.yml schema, labels.yml, models.yml, workflow.yml, labels action
+packages/intake/        action, skills/triage, triage schema, Request issue form, tests, HANDOFF.md
+packages/plan/          actions (admit/plan, plan-gate), skills/task-decomposer, plan schema,
+                        manual plan template, tests, HANDOFF.md
+packages/implement/     slice 3: guard checks, review gate, rework, skills/tdd + implement, HANDOFF.md
+packages/review/        slice 4: skills/code-review + ci-diagnose, HANDOFF.md
+packages/collaboration/ slice 5: skills/conflict-check, merge order, HANDOFF.md
 policies/CHARTER.md
-templates/              caller workflow, scaffold-config.yml, Copilot instructions, issue/PR templates, CODEOWNERS snippet
+templates/              caller workflow, scaffold-config.yml, Copilot instructions, PR template, CODEOWNERS snippet
 docs/                   INSTALL.md, ARCHITECTURE.md, CONTRIBUTING-SKILLS.md
 docs/diagrams/          Mermaid workflow and architecture diagrams (section 10)
-src/ tests/ dist/       TypeScript glue, tests, bundled output
 ```
 
 - Skills and prompts ship **inside composite actions**, so the runner fetches them at the pinned ref; no cross-repo checkout token needed.
-- Consumers call `uses: ukncsc/scaffold/.github/workflows/<x>.yml@v1`; Dependabot bumps the pin.
+- GitHub only loads reusable workflows from `.github/workflows/`, so each package's workflow stays there as a thin file that calls `packages/<stage>/` actions.
+- Consumers call `uses: ukncsc/scaffold/.github/workflows/<stage>.yml@v1`; Dependabot bumps the pin. All packages ship in one release with one version tag.
+
+### Packages
+
+Each workflow stage is a package: **intake**, **plan**, **implement**, **review** and **collaboration**. `core` holds shared code and is always on.
+
+- **Independent:** a package imports only from `core`, never from another package. Packages hand over through GitHub state only: labels, marked comments, sub-issues and check runs. A CI check fails on any import between packages.
+- **Switchable:** `stages` in `scaffold-config.yml` turns each package on or off. Off means the **whole stage**: no AI step, no gates and no labels from that package. Humans do the stage by hand, following its `HANDOFF.md`.
+  - A package's required checks still run when it is off and pass with "stage off: manual", so rulesets don't block. An invalid config fails them (fail closed).
+  - The status comment shows a stage that is off as **manual**.
+  - Turning a package on applies its gates to all open work. Work done by hand while it was off must pass them, for example by running `/plan` again.
+  - Enabling a package that isn't released yet is a config error.
+- **Tested alone:** each package's tests run with its neighbours off, using fixtures in the shape of a manual handoff.
+
+### Project config
+
+A project is one repo: config, limits and counts are per repo (`GITHUB_TOKEN` can't read other repos, section 1). All limits are set in `.github/scaffold-config.yml` and changed by PR with code-owner review. The schema sets the bounds; values outside them make the file invalid.
+
+```yaml
+stages:                      # packages on (true) or off (false); default: every released package on
+  intake: true
+  plan: true
+  implement: true
+  review: true
+  collaboration: true
+max_in_flight: 20            # tickets in flight at once (section 8); 1–100
+max_sub_tickets: 5           # sub-tickets per ticket (section 6); 1–10
+max_open_prs_per_developer: 2  # open Copilot PRs per developer before a warning (section 8); 1–10
+max_rework_rounds: 6         # automatic rework rounds before the circuit breaker (section 6); 1–10
+pr_size:                     # section 6
+  soft: { files: 10, lines: 1000 }
+  hard: { files: 30, lines: 5000 }
+  exempt: [package-lock.json, yarn.lock, pnpm-lock.yaml, dist/**]
+approvers: [login]
+flow_lead: login
+```
+
+Defaults are the values above. A limit belongs to the package that enforces it. When that package is off, the limit isn't enforced and the humans doing the stage apply it.
+
+### Handoffs
+
+Each package's `HANDOFF.md` sets out its contract: what must be true before it starts (entry), what it leaves behind (exit), and the manual steps to use when it's off. A manual handoff leaves the same state as the package would, so the next stage works the same either way. Manual templates (for example `packages/plan/templates/manual-plan.md`) produce the same marked comments as the package.
+
+| Package | Entry | Exit | When off, humans |
+| --- | --- | --- | --- |
+| Intake | Issue opened from the Request form | `scaffold:ready` or `scaffold:needs-info`; `priority:*`; Jira key and agent-ready brief in the issue | Check the form headings and Jira key, ask questions, set priority, apply `scaffold:ready` |
+| Plan | `scaffold:ready` | Plan comment (marked) and `scaffold:plan-approved` applied by a listed approver; sub-issues if split | Write the plan from the manual template; keep to `max_in_flight` and `max_sub_tickets`; approver reviews and applies the label; create sub-issues |
+| Implement | `scaffold:plan-approved` | PR linked to the issue, within the size limits, checks passing, ready for human review | Implement or assign Copilot by hand; keep the PR within the size limits; check test integrity in review |
+| Review | Open PR | `code-review` threads resolved; CI failures diagnosed | Review the PR against standards and the spec; diagnose CI failures |
+| Collaboration | Approved plan; code-owner-approved PR | No open `scaffold:conflict`; merge position | Flow lead checks in-flight tickets for overlap and orders merges by the rules in section 8 |
 
 ### Self-install (no App, no PAT)
 
@@ -153,7 +208,7 @@ All of these are required checks.
 - **Plan gate:** fails if the linked issue lacks `scaffold:plan-approved`.
 - **Protected paths:** fails if the PR touches `.github/**`, `.github/scaffold-config.yml`, `CODEOWNERS`, `PRECEDENTS.md` or `docs/spec/**`; CODEOWNERS is the second layer.
 - **Test integrity:** flags removed/skipped tests, removed assertions or reduced coverage; needs a human label to pass.
-- **PR size:** counts changed files and changed lines (additions + deletions) per PR, excluding exempt files. Limits are set in `scaffold-config.yml`:
+- **PR size:** counts changed files and changed lines (additions + deletions) per PR, excluding exempt files. Limits are set per repo in `scaffold-config.yml` (section 5); defaults:
 
   | Limit | Files | Lines |
   | --- | --- | --- |
@@ -161,14 +216,14 @@ All of these are required checks.
   | Hard | 30 | 5000 |
 
   - **Exempt files:** a glob list in `scaffold-config.yml` (default: lock files such as `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, and generated `dist/`). Changes to the list need code-owner review like the rest of `scaffold-config.yml`.
-  - **At plan:** `task-decomposer` estimates the size; work over the soft limit is planned as a stack of PRs or up to 5 sub-tickets, and the approver confirms the split with the plan.
+  - **At plan:** `task-decomposer` estimates the size; work over the soft limit is planned as a stack of PRs or up to `max_sub_tickets` sub-tickets, and the approver confirms the split with the plan.
   - **Over soft:** the review gate fails and the automatic rework round asks Copilot to split the PR into a stack of PRs (GitHub stacked PRs, each layer checked against the limits). Splitting into sub-tickets instead is a replan: it goes back to the approver and the ticket returns to `Ready`.
   - **Over hard:** a required check fails, so the PR can't merge even after human review or with a size exception; it must be split.
-  - **Sub-tickets:** at most 5 per ticket, created as GitHub sub-issues under the parent, and only from an approved plan. The plan gate passes a sub-ticket when its parent's approval is valid (read via the sub-issue's parent); editing the parent's plan fails all its open sub-tickets until it is re-approved. Replanning any sub-ticket replans the parent: the parent goes back to `Ready` and merged sub-tickets stay merged. Needing more than 5 means the ticket is too big: it goes back to the approver to replan or split in Jira.
+  - **Sub-tickets:** at most `max_sub_tickets` per ticket (default 5), created as GitHub sub-issues under the parent, and only from an approved plan. The plan gate passes a sub-ticket when its parent's approval is valid (read via the sub-issue's parent); editing the parent's plan fails all its open sub-tickets until it is re-approved. Replanning any sub-ticket replans the parent: the parent goes back to `Ready` and merged sub-tickets stay merged. Needing more than `max_sub_tickets` means the ticket is too big: it goes back to the approver to replan or split in Jira.
   - **Exceptions:** lift the soft limit only. Only a listed approver can grant one, by applying `scaffold:size-exception` (timeline check, as for plan approval). Requested by a developer commenting `/size-exception <reason>`, or automatically with `scaffold:escalate` when the circuit breaker trips on an oversized PR.
 - **Review gate:** a human reviewer is requested only when guard checks and CI pass, every `code-review` comment is resolved and the PR is within the soft size limit (or has an exception), or the circuit breaker trips.
 - **Automatic rework:** when the review gate fails, Actions posts one `@copilot` comment listing the failing checks and unresolved `code-review` threads. No human approves the round.
-- **Circuit breaker:** after 6 automatic rework rounds, counted across the PR's whole life (including rounds after a merge queue failure or re-review) → `scaffold:escalate` and hand to human review.
+- **Circuit breaker:** after `max_rework_rounds` automatic rework rounds (default 6), counted across the PR's whole life (including rounds after a merge queue failure or re-review) → `scaffold:escalate` and hand to human review.
 - Copilot firewall on the default allowlist. "Require approval for workflow runs" is turned off for the Copilot agent so rework rounds run checks without a human; protected paths, the review gate and code-owner review stay required.
 
 ### Handover gates
@@ -182,18 +237,19 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 | Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold-config.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (its last edit is before the label event; the plan hash is recorded in the audit log); the plan must pass the size rules and have at least one sub-task; for a sub-ticket split, every sub-issue must exist; exactly one comment may be marked as the plan; an invalid approval is removed, and any edit to or deletion of the plan comment withdraws it; the gate reads the issue's current labels, not the event's, and gives way to a `/plan` admitted while it runs; sub-tickets use the parent's approval | Timeline event, status comment, audit log; check run from slice 3 |
 | Approved → implementing | Developer assigns issue to Copilot | Plan gate on the resulting PR | Copilot PR |
 | Oversized PR → exception | Listed approver applies `scaffold:size-exception` | Timeline check; lifts the soft limit only; requested via `/size-exception <reason>` or automatic `scaffold:escalate` | Escalation, timeline event, reason in status comment |
-| Review gate fails → rework | Actions, automatically | Round counter in Actions code; stops after 6 | `@copilot` comment, rework count in status comment |
+| Review gate fails → rework | Actions, automatically | Round counter in Actions code; stops after `max_rework_rounds` | `@copilot` comment, rework count in status comment |
 | Copilot PR → human review | Review gate check | Actions code counts unresolved `code-review` threads and rework rounds; reviewer requested only on pass | Check run, rework count in status comment |
 | Merge order → override | Flow lead applies `scaffold:order-override` | Timeline check: label applied by the `flow_lead` in `scaffold-config.yml` after the PR's current merge position and latest push, with a `/order-override <reason>` comment by the flow lead; never lifts an open conflict | Timeline event, reason in status comment and audit log |
 | Conflict flagged → cleared | Listed approver applies `scaffold:conflict-resolved`, or the blocking ticket merges | Plan gate and `merge-order` check fail while `scaffold:conflict` is open; timeline check: label applied by a listed approver after the latest flag | Conflict comment, timeline event |
 | PR → mergeable | Required checks + code-owner review + second `conflict-check` + merge queue | Ruleset, no bypass; `merge-order` check | Check runs, review, merge position, merge queue run |
 
+- Each gate belongs to the package of the stage it ends, and is off when that package is off (section 5). The handover then relies on the humans following `HANDOFF.md`.
 - Labels alone are not protection: anyone with triage permission can apply them. The check that reads the timeline is the protection.
 - Each issue has one SCAFFOLD **status comment**, updated in place, showing passed and pending gates (as a Mermaid diagram, section 10).
 
 ## 7. Operations
 
-- **Kill switch:** org/repo variable `SCAFFOLD_ENABLED=false` skips all AI steps.
+- **Kill switch:** org/repo variable `SCAFFOLD_ENABLED=false` skips all AI steps. `stages` in `scaffold-config.yml` turns whole packages off per repo (section 5).
 - **Rate guards:** concurrency group per issue/PR, input size cap, Copilot rate limit → neutral check + comment (never a failure).
 - **Audit log:** per AI step, record skill, version, model, input hash and validated output to the job summary and a 90-day artifact. Prompt bodies are not logged.
 - **Usage report:** weekly scheduled job posts runs per skill and repo to an issue (pilot metrics: cost, false positives).
@@ -208,8 +264,8 @@ Humans are the slow part of the workflow; agents are not. SCAFFOLD is designed t
   - `GITHUB_TOKEN` can't write to Projects, so SCAFFOLD only sets labels; the board uses Projects' built-in workflows (auto-add by label, set status on close/merge).
 - **Flow lead:** a rotating developer (weekly), named in `scaffold-config.yml` (`flow_lead`, changed by PR at each rotation so code-owner review protects it), orders the backlog, runs `/plan` on the next items and watches `scaffold:escalate` and the Conflicts queue.
 - **Work-in-progress limits:**
-  - **Per developer:** `scaffold-config.yml` sets a maximum number of open Copilot PRs per developer (default 2). Going over gets a comment, not a block.
-  - **Total in flight:** `scaffold-config.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (assume 20; to be agreed). A ticket is in flight from its `/plan` until its PR merges (Actions counts open issues labelled `scaffold:planned` or `scaffold:plan-approved`; admission runs one at a time per repo so two `/plan`s can't both take the last slot, and each admission also picks up any `/plan` that GitHub's concurrency queue dropped), it closes or it goes back to `Ready` (it then needs `/plan` again). A split ticket counts as 1 and stays in flight until all its sub-tickets have merged or closed; the parent then closes automatically. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`; when a slot frees up, Actions @-mentions the flow lead on the top waiting ticket (Actions never runs `/plan` itself). This is a block, and it also bounds the work `conflict-check` compares against.
+  - **Per developer:** `scaffold-config.yml` sets `max_open_prs_per_developer`, the maximum number of open Copilot PRs per developer (default 2). Going over gets a comment, not a block.
+  - **Total in flight:** `scaffold-config.yml` sets `max_in_flight`, the maximum number of tickets in flight per project at once (default 20; set per repo). Enforced by the plan package; when it's off, the flow lead keeps to the limit by hand. A ticket is in flight from its `/plan` until its PR merges (Actions counts open issues labelled `scaffold:planned` or `scaffold:plan-approved`; admission runs one at a time per repo so two `/plan`s can't both take the last slot, and each admission also picks up any `/plan` that GitHub's concurrency queue dropped), it closes or it goes back to `Ready` (it then needs `/plan` again). A split ticket counts as 1 and stays in flight until all its sub-tickets have merged or closed; the parent then closes automatically. At the limit, `/plan` is refused with a comment and the ticket waits at the top of `Ready`; when a slot frees up, Actions @-mentions the flow lead on the top waiting ticket (Actions never runs `/plan` itself). This is a block, and it also bounds the work `conflict-check` compares against.
 - **Review routing:** CODEOWNERS plus team auto-assignment (round robin) so no PR waits without a reviewer.
 - **Low-noise output:** SCAFFOLD updates one status comment per issue or PR rather than posting new comments, and only @-mentions a human when a gate needs them.
 
@@ -297,7 +353,7 @@ The workflow is built in **vertical slices**: each slice adds one stage end to e
 - Confirm Copilot acts on `@copilot` comments posted by `github-actions[bot]`; GitHub only documents it responding to users with write access. If it doesn't, automatic rework needs an exception to section 1 (a GitHub App or service account), or the assigning developer prompts each round.
 - Confirm Copilot can't change `.github/workflows/` before turning off workflow-run approval for it.
 - Confirm the Copilot coding agent can create stacked PRs (the `gh-stack` skill in its setup steps); otherwise oversized work is always split into sub-tickets. Confirm `GITHUB_TOKEN` can create sub-issues.
-- Agree the PR size limits and exempt file list (section 6).
+- Agree the default limits (`max_in_flight`, `max_sub_tickets`, `max_open_prs_per_developer`, `max_rework_rounds`, PR size and exempt files) and which packages each pilot repo turns on (section 5).
 - Confirm merge queue is available on the pilot repos and whether `GITHUB_TOKEN` can set "blocked by" issue relationships (otherwise a human sets them); agree the merge queue status check timeout.
 
 ### Phase 1: Foundations
@@ -309,6 +365,21 @@ Only what slice 1 needs.
 - Add kill switch, rate guards and audit logging.
 - Add CODEOWNERS, branch and `v*` tag rulesets, semver releases.
 - Create `scaffold-sandbox` with fixture issues and PRs, including prompt-injection cases; it is the end-to-end test for every slice.
+
+### Phase 1b: Packages (before slice 3)
+
+Restructure what slices 1 and 2 built into packages (section 5) before more is added. No change to behaviour while every package is on.
+
+1. **Core:** move `actions/lib`, `actions/labels`, `config/`, `schemas/scaffold-config.schema.json` and the model tier mapping to `packages/core/`.
+2. **Intake:** move `actions/triage`, `skills/triage`, `schemas/triage.schema.json`, the Request form and `tests/triage.test.mjs` to `packages/intake/`.
+3. **Plan:** move `actions/plan`, `actions/plan-gate`, `skills/task-decomposer`, `schemas/plan.schema.json` and `tests/plan.test.mjs` to `packages/plan/`.
+4. **Config:** add `stages`, `max_sub_tickets`, `max_open_prs_per_developer` and `max_rework_rounds` to the schema, `DEFAULTS` and the template, with bounds. Replace `MAX_SUB_TICKETS` in `rules.mjs` with the config value; raise the plan schema's sub-ticket cap to the bound (10) and pass the limit to `task-decomposer`.
+5. **Switches:** each reusable workflow reads `stages` first and skips the package when it's off; the plan gate passes with "stage off: manual"; the status comment shows manual stages.
+6. **Handoffs:** write `HANDOFF.md` for intake and plan, plus the manual plan template that produces the marked plan comment.
+7. **Checks:** a CI check that packages import only from `core`; tests for each package with its neighbours off; update `scripts/release.sh`, `tests/pins.test.mjs` and the caller template for the new action paths.
+8. **Visibility:** update the architecture diagram and `workflow.yml` for packages and switches; release v0.5.0.
+
+Slices 3–5 then each add a new package, with its `HANDOFF.md`, its switch and its limits.
 
 ### Phase 2: Vertical slices
 
@@ -330,6 +401,7 @@ A slice is not done until, in its own PR:
 - `workflow.yml` and the architecture diagram include the new stage, gates and checks;
 - the status comment shows the new gate;
 - the audit log and usage report include the new skill or gate;
+- the stage ships as its own package with a `stages` switch, its limits in `scaffold-config.yml` and a `HANDOFF.md`, and its tests pass with its neighbours off;
 - the retrospective adds a row to the diagram history and any workflow changes to the Proposed diagram.
 
 - Move to `ukncsc/scaffold` (internal) and set Actions access before the first pilot-repo run.
@@ -358,6 +430,8 @@ A slice is not done until, in its own PR:
 - **Platform availability:** Org-billed Copilot CLI or Copilot OpenAI models may not be enabled for `ukncsc`; Phase 0 blocks on confirmation.
 - **Rate limits and cost:** tiers, rate guards, kill switch, usage report.
 - **Non-deterministic output:** schema validation; invalid output never writes.
+- **Stage turned off:** turning off a package removes its gates too (for example plan off means no plan gate on Copilot PRs). `stages` is in the CODEOWNERS-protected config, the status comment shows manual stages, and the usage report lists repos with packages off.
+- **Manual handoff drift:** humans skip steps the package would have enforced; `HANDOFF.md` checklists and manual templates that leave the same state, and gates re-apply when a package is turned back on.
 - **`GITHUB_TOKEN` limits:** sync PRs don't trigger workflows; workflow files and rulesets need a human admin.
 - **Skill drift:** pinned versions, Dependabot, `.scaffold-version`.
 - **Data handling:** unresolved until Phase 0.
