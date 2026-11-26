@@ -32,6 +32,10 @@ test('an invalid scaffold-config.yml is rejected, not replaced by defaults', () 
     'approvers:\n  - "not a login"': /approvers\[0\]: not a GitHub login/,
     'flow_lead: [a, b]': /flow_lead: expected string/,
     'pr_size: big': /pr_size: expected object/,
+    'stages: null': /stages: expected object/,
+    'approvers: null': /approvers: expected array/,
+    'pr_size: null': /pr_size: expected object/,
+    'pr_size:\n  soft: null': /pr_size.soft: expected object/,
     'pr_size:\n  soft:\n    files: -1': /soft.files: less than 1/,
     'pr_size:\n  soft:\n    lines: 9000': /soft.lines: more than pr_size.hard.lines/,
     'pr_size:\n  exempt:\n    - ""': /exempt\[0\]: empty/,
@@ -42,6 +46,10 @@ test('an invalid scaffold-config.yml is rejected, not replaced by defaults', () 
   for (const [yaml, error] of Object.entries(cases)) {
     assert.throws(() => configFrom(yaml), (err) => err instanceof ConfigError && error.test(err.message), yaml);
   }
+});
+
+test('flow_lead: null is allowed (no flow lead)', () => {
+  assert.equal(configFrom('flow_lead: null').flow_lead, null);
 });
 
 test('a missing scaffold-config.yml lists no approvers and turns every package off', () => {

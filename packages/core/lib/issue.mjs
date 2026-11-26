@@ -43,10 +43,11 @@ export function issueSteps(gh, repo, number, labels) {
 
   const upsertStatus = (body) => upsertComment(MARKER, body);
 
+  // Oldest first, sorted here so callers taking the latest event don't depend on the API's order.
   async function events() {
     const all = [];
     for await (const page of gh.pages(`${base}/events`)) all.push(...page);
-    return all;
+    return all.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id);
   }
 
   async function hasWriteAccess(actor) {

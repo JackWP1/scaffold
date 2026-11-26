@@ -48,6 +48,15 @@ test('a protected change needs a listed approver from the base branch who is not
   assert.equal((await guard({ head, reviews: [review('mallory')] })).ok, false, 'unlisted');
 });
 
+test('the latest review wins whatever order the API returns them in', async () => {
+  const head = 'approvers: [alice, bob]\nmax_in_flight: 5\nflow_lead: bob';
+  const at = (r, id, submitted_at) => ({ ...r, id, submitted_at });
+  const approve = at(review('alice'), 1, '2026-11-20T10:00:00Z');
+  const block = at(review('alice', 'CHANGES_REQUESTED'), 2, '2026-11-20T11:00:00Z');
+  assert.equal((await guard({ head, reviews: [block, approve] })).ok, false, 'newest first');
+  assert.equal((await guard({ head, reviews: [approve, block] })).ok, false, 'oldest first');
+});
+
 test('a PR cannot approve itself by adding its author or reviewer as an approver', async () => {
   const head = 'approvers: [alice, bob, mallory]\nmax_in_flight: 10\nflow_lead: bob';
   const r = await guard({ head, reviews: [review('mallory')] });

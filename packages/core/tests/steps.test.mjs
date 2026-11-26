@@ -61,6 +61,12 @@ test('without a sender, the latest scaffold:accepted labeler is checked', async 
   assert.equal(gh.calls.at(-1)[1], '/repos/o/r/collaborators/alice/permission');
 });
 
+test('events come back oldest first whatever order the API returns them in', async () => {
+  const ev = (id, created_at) => ({ id, event: 'labeled', label: { name: 'x' }, created_at });
+  const gh = fakeGh({ '/repos/o/r/issues/1/events': [ev(3, '2026-11-20T12:00:00Z'), ev(1, '2026-11-20T10:00:00Z'), ev(2, '2026-11-20T10:00:00Z')] });
+  assert.deepEqual((await issueSteps(gh, 'o/r', 1, []).events()).map((e) => e.id), [1, 2, 3]);
+});
+
 test('without a sender or a labeled event, acceptance is not trusted', async () => {
   const gh = fakeGh({ '/repos/o/r/issues/1/events': [], ...perm('admin') });
   assert.equal(await issueSteps(gh, 'o/r', 1, []).acceptedByMember(), false);

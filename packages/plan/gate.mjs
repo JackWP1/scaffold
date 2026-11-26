@@ -46,6 +46,11 @@ export async function runGate(gh, repo, { event, schema, config, configError }) 
       await updateStatus({ Plan: manualBefore('plan'), Approval: manualBefore('plan') });
       return { lines: ['### SCAFFOLD plan gate', 'Planned before the `plan` stage was on: left to the humans (manual)'] };
     }
+    // A too-big ticket stays with triage to be split, not back to Ready (PLAN.md section 8).
+    if (labels.includes('scaffold:too-big')) {
+      await setLabels([], ['scaffold:planned', 'scaffold:plan-approved']);
+      return { skip: 'scaffold:too-big: left with triage to be split' };
+    }
     // No plan left: back to Ready, which also frees the in-flight slot (PLAN.md section 8).
     const what = touched ? 'plan deleted or its marker removed' : 'no plan';
     await setLabels(['scaffold:ready'], ['scaffold:planned', 'scaffold:plan-approved']);

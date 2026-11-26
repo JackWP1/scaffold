@@ -12,13 +12,14 @@ async function touchesConfig(gh, repo, number) {
   return false;
 }
 
-// Each reviewer's latest decision; comments don't change it.
+// Each reviewer's latest decision; comments don't change it. Sorted oldest first so it doesn't depend on the API's order.
 async function latestReviews(gh, repo, number) {
+  const all = [];
+  for await (const page of gh.pages(`/repos/${repo}/pulls/${number}/reviews`)) all.push(...page);
+  all.sort((a, b) => Date.parse(a.submitted_at) - Date.parse(b.submitted_at) || a.id - b.id);
   const latest = new Map();
-  for await (const page of gh.pages(`/repos/${repo}/pulls/${number}/reviews`)) {
-    for (const r of page) {
-      if (r.user?.login && ['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(r.state)) latest.set(r.user.login.toLowerCase(), r);
-    }
+  for (const r of all) {
+    if (r.user?.login && ['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(r.state)) latest.set(r.user.login.toLowerCase(), r);
   }
   return [...latest.values()];
 }

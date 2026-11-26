@@ -196,6 +196,13 @@ test('deleting the plan comment withdraws approval and goes back to Ready', asyn
   assert.equal((await gateRun({ action: 'deleted', comment: { body: 'hi' } })).out.skip, 'comment is not the plan');
 });
 
+test('deleting the plan of a too-big ticket leaves it with triage, not back to Ready', async () => {
+  const deleted = { body: `${PLAN_MARKER}\nold`, user: bot };
+  const { out, labelCalls } = await gateRun({ action: 'deleted', comment: deleted, labels: ['scaffold:too-big', 'scaffold:plan-approved'], events: [] });
+  assert.match(out.skip, /too-big: left with triage/);
+  assert.deepEqual(labelCalls, ['-scaffold:plan-approved']);
+});
+
 test('an edit that removes or moves the plan marker withdraws approval', async () => {
   const comment = { body: `tampered\n${PLAN_MARKER}`, user: bot };
   const { text, labelCalls } = await gateRun({ action: 'edited', comment, changes: { body: { from: `${PLAN_MARKER}\nold` } } });

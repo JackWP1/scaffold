@@ -69,8 +69,9 @@ export function parseYaml(text) {
 const isMap = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 // Fills in defaults; a value of the wrong shape is kept as is so validation reports it.
+// Defaults fill missing keys only: an explicit null is kept so validation rejects it.
 function merge(defaults, value) {
-  if (!isMap(defaults) || !isMap(value)) return value ?? defaults;
+  if (!isMap(defaults) || !isMap(value)) return value === undefined ? defaults : value;
   const out = { ...defaults };
   for (const [k, v] of Object.entries(value ?? {})) out[k] = merge(defaults[k], v);
   return out;
