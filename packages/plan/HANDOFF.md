@@ -26,7 +26,7 @@ The plan gate re-checks the approval against the issue timeline; the label alone
 
 1. Before planning, count open issues labelled `scaffold:planned` or `scaffold:plan-approved`. At `max_in_flight`, wait.
 2. Apply `scaffold:planned` and remove `scaffold:ready`, so the ticket counts as in flight.
-3. Write the plan as a comment from `packages/plan/templates/manual-plan.md`. Keep each PR within the soft size limit and the stack within `max_stack_prs`. If it needs more, apply `scaffold:too-big`, remove `scaffold:planned` and send it back to triage.
+3. Write the plan as a comment from `packages/plan/templates/manual-plan.md`. Keep each PR within the soft size limit (`pr_size.soft`) and the stack within `max_stack_prs`, both from `.github/scaffold-config.yml`. If it needs more, apply `scaffold:too-big`, remove `scaffold:planned` and send it back to triage.
 4. A listed approver who isn't the issue author reviews the plan and applies `scaffold:plan-approved`. Editing the plan afterwards needs a fresh approval.
 
 ## Turning plan on

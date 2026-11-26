@@ -418,6 +418,10 @@ test('the manual plan template produces a marked plan comment with the package\'
   const manual = await readFile(new URL('../templates/manual-plan.md', import.meta.url), 'utf8');
   assert.ok(manual.startsWith(`${PLAN_MARKER}\n### SCAFFOLD plan`));
   for (const h of ['#### Approach', '#### Acceptance criteria', '#### Affected paths', '#### Sub-tasks', '#### Risks']) assert.ok(manual.includes(h), h);
+  // Limits are per repo: the template points at the config instead of quoting the defaults.
+  assert.doesNotMatch(manual, /\b\d+ files\b|\b\d+ lines\b/);
+  assert.match(manual, /pr_size\.soft/);
+  assert.match(manual, /max_stack_prs/);
   const generated = planBody(small);
   for (const h of ['#### Approach', '#### Acceptance criteria', '#### Affected paths', '#### Sub-tasks']) assert.ok(generated.includes(h), h);
 });

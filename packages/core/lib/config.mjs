@@ -103,6 +103,20 @@ export function configFrom(text) {
   return config;
 }
 
+// The approvers from a file that fails validation, so the guard can still ask them to review the fix.
+// Null unless `approvers` parses as a non-empty list of GitHub logins.
+export function approversFrom(text) {
+  let raw;
+  try {
+    raw = parseYaml(text);
+  } catch {
+    return null;
+  }
+  const list = isMap(raw) ? raw.approvers : null;
+  if (!Array.isArray(list) || !list.length || !list.every((a) => typeof a === 'string' && LOGIN.test(a))) return null;
+  return list.map((a) => a.toLowerCase());
+}
+
 // A file from the repo's default branch (or `ref`), or null if it doesn't exist.
 export async function readRepoFile(gh, repo, path, ref) {
   try {

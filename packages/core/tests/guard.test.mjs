@@ -68,3 +68,24 @@ test('with no approvers on the base branch (first install) the change passes on 
   assert.equal(r.ok, true);
   assert.match(r.outcome, /No approvers are listed on the base branch/);
 });
+
+test('an invalid base file fails closed: any change needs an approver read from the raw file', async () => {
+  const base = 'approvers: [alice]\nmax_in_flight: nope';
+  const head = 'approvers: [carol]\nmax_in_flight: 10';
+  const none = await guard({ base, head });
+  assert.equal(none.ok, false);
+  assert.match(none.outcome, /invalid on the base branch/);
+  assert.match(none.lines.join('\n'), /Listed approvers \(base branch\): `alice`/);
+  assert.equal((await guard({ base, head, reviews: [review('carol')] })).ok, false);
+  const ok = await guard({ base, head, reviews: [review('alice')] });
+  assert.equal(ok.ok, true);
+  assert.match(ok.outcome, /approved by `alice`/);
+});
+
+test('an invalid base file with no usable approvers fails for an admin to fix', async () => {
+  for (const base of ['max_in_flight: nope', 'approvers: [not a login]\nmax_in_flight: nope', 'approvers: nope: nope']) {
+    const r = await guard({ base, head: 'approvers: [carol]', reviews: [review('alice')] });
+    assert.equal(r.ok, false, base);
+    assert.match(r.outcome, /no valid `approvers` list .* repo admin must fix/, base);
+  }
+});

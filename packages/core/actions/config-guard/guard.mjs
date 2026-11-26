@@ -1,8 +1,8 @@
 // scaffold-config-guard (PLAN.md section 4): a core check on every PR, with the client injected so tests
 // can fake it. Validates .github/scaffold-config.yml at the PR head; a change to a protected setting
 // needs an approving review of the head commit from an approver listed on the base branch (so a PR can't
-// list itself) who isn't the PR author.
-import { configFrom, readRepoFile, ConfigError, CONFIG_PATH, PROTECTED } from '../../lib/config.mjs';
+// list itself) who isn't the PR author. An invalid base file fails closed.
+import { configFrom, approversFrom, readRepoFile, ConfigError, CONFIG_PATH, PROTECTED } from '../../lib/config.mjs';
 import { escapeForComment } from '../../lib/text.mjs';
 
 async function touchesConfig(gh, repo, number) {
@@ -35,28 +35,41 @@ export async function runGuard(gh, repo, { pr }) {
     if (!(err instanceof ConfigError)) throw err;
     return result(false, `\`${CONFIG_PATH}\` is invalid: ${escapeForComment(err.message)}`);
   }
-  let base = null;
+  // A missing base file is a first install (the defaults). An invalid one fails closed: its settings
+  // can't be compared, so any change needs a listed approver, read from the raw file if possible.
+  const baseText = (await readRepoFile(gh, repo, CONFIG_PATH, pr.base.sha)) ?? '';
+  let base;
+  let approvers;
+  let list;
   try {
-    base = configFrom((await readRepoFile(gh, repo, CONFIG_PATH, pr.base.sha)) ?? '');
+    base = configFrom(baseText);
+    approvers = base.approvers;
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
+    approvers = approversFrom(baseText);
+    list = `\`${CONFIG_PATH}\` (invalid on the base branch: ${escapeForComment(err.message)})`;
+    if (!approvers) {
+      return result(false, `${list}: no valid \`approvers\` list to check against. A repo admin must fix the file on the base branch`);
+    }
   }
 
-  const changed = PROTECTED.filter((k) => JSON.stringify(base?.[k]) !== JSON.stringify(head[k]));
-  if (!changed.length) return result(true, 'valid; no protected setting changed');
-  const list = changed.map((k) => `\`${k}\``).join(', ');
-  // First install, or a base file that never passed this check: nobody is listed to approve yet.
-  if (!base?.approvers.length) {
-    return result(true, `valid; changes ${list}. No approvers are listed on the base branch, so code-owner review is the only protection for this PR`);
+  if (base) {
+    const changed = PROTECTED.filter((k) => JSON.stringify(base[k]) !== JSON.stringify(head[k]));
+    if (!changed.length) return result(true, 'valid; no protected setting changed');
+    list = changed.map((k) => `\`${k}\``).join(', ');
+    // First install: nobody is listed to approve yet.
+    if (!approvers.length) {
+      return result(true, `valid; changes ${list}. No approvers are listed on the base branch, so code-owner review is the only protection for this PR`);
+    }
   }
 
   const author = pr.user?.login?.toLowerCase();
   const approvals = (await latestReviews(gh, repo, pr.number))
     .filter((r) => r.state === 'APPROVED' && r.commit_id === pr.head.sha && r.user.type === 'User');
-  const approver = approvals.find((r) => base.approvers.includes(r.user.login.toLowerCase()) && r.user.login.toLowerCase() !== author);
+  const approver = approvals.find((r) => approvers.includes(r.user.login.toLowerCase()) && r.user.login.toLowerCase() !== author);
   if (approver) return result(true, `valid; changes ${list}, approved by \`${approver.user.login}\``);
   return result(false, `changes ${list}: needs an approving review of the latest commit from a listed approver who isn't the PR author`, [
     '',
-    `Listed approvers (base branch): ${base.approvers.map((a) => `\`${a}\``).join(', ')}`,
+    `Listed approvers (base branch): ${approvers.map((a) => `\`${a}\``).join(', ')}`,
   ]);
 }
