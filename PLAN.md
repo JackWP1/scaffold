@@ -17,7 +17,8 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 
 | Trigger | Skill | Output |
 | --- | --- | --- |
-| `issues: opened`, `scaffold:triage` applied | `triage` | Labels, clarifying questions, agent-ready brief |
+| `issues: opened`, `scaffold:triage` applied | `triage` | Labels, clarifying questions, agent-ready brief; decides whether Gherkin scenarios are needed |
+| `scaffold:needs-gherkin` with no scenarios, or `issue_comment` `/gherkin` | `gherkin-writer` | Draft Gherkin scenarios comment for a human to approve (section 2, Scenarios) |
 | `issue_comment` `/plan` | `task-decomposer` | Plan comment: approach, sub-tasks with blocking edges, acceptance criteria, affected paths, estimated size; work over the soft size limit is split into a stack of PRs or up to `max_sub_tickets` sub-tickets (section 6) |
 | After plan approval (before implementation); after code-owner approval (before merge order) | `conflict-check` | `scaffold:conflict` and one conflict comment linking every ticket involved (section 8) |
 | `pull_request` | `code-review` | Review comments (standards + spec axes); `COMMENT` only, never approves; human review waits until they are resolved (section 6) |
@@ -28,6 +29,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 ### Issue lifecycle
 
 1. Issue opened → `triage` (members only, section 6) → `scaffold:triage` / `scaffold:needs-info` / `scaffold:ready`. Triage adds `scaffold:no-template` if the issue wasn't created from the Request template, and removes it once the template's headings are there. On `needs-info`, the author answers the questions in the issue description, then applies `scaffold:triage` to re-run triage.
+   - If the issue needs scenarios (`scaffold:needs-gherkin`), it stops at `scaffold:triage` until a listed approver applies `scaffold:gherkin-approved` to the scenarios comment; only then does it become `scaffold:ready`.
 2. Member comments `/plan` → admission (in-flight limit) reserves a slot with `scaffold:planned` → plan comment. A new `/plan` replaces the plan comment and withdraws any approval. If a first plan fails, the issue goes back to `scaffold:ready`; deleting the plan comment or removing its marker does the same, and any other edit to it removes the approval.
 3. Human reviews plan → applies `scaffold:plan-approved` → the plan gate checks it against the timeline and removes it if the approval isn't valid. On a valid approval of a sub-ticket split, Actions creates the sub-issues.
 4. Human assigns issue to Copilot → Copilot opens PR.
@@ -48,9 +50,11 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | | | `scaffold:ready` | `0e8a16` green |
 | | | `scaffold:planned` | `c5def5` light blue |
 | | | `scaffold:plan-approved` | `1d76db` blue |
+| | | `scaffold:gherkin-approved` | `1d76db` blue |
 | Intake | Waiting for a member to accept | `scaffold:proposed` | `fef2c0` pale yellow |
 | Attention | A human must act | `scaffold:escalate` | `b60205` red |
 | | | `scaffold:conflict` | `d93f0b` orange |
+| Attention | | `scaffold:needs-gherkin` | `fbca04` yellow |
 | Flag | Worth a look; doesn't block | `scaffold:no-template` | `f9d0c4` pale orange |
 | Override | A member or approver lifted a gate | `scaffold:accepted` | `d4c5f9` pale purple |
 | | | `scaffold:conflict-resolved` | `d4c5f9` pale purple |
@@ -61,6 +65,17 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | | | `priority:medium` | `8a63d2` purple |
 | | | `priority:low` | `c9b8f0` light purple |
 
+### Scenarios (BDD)
+
+Issues that change behaviour carry acceptance scenarios in Gherkin. They are the "what done looks like" that plans, tests and reviews are checked against. An agent may draft them; a human must approve them.
+
+- **When required:** set by `gherkin` in `scaffold-config.yml` (section 5): `auto` (default) lets `triage` decide and apply `scaffold:needs-gherkin` when the issue changes user-visible behaviour; `always` requires scenarios on every issue; `off` never does. A member can add or remove `scaffold:needs-gherkin` to override `triage`.
+- **Source:** the author can write scenarios in the Request form's optional Gherkin field (a field added, not renamed, section 5). Otherwise, or when a member comments `/gherkin`, `gherkin-writer` drafts them from the issue and the spec. Either way they land in one marked **scenarios comment**; Actions checks the Gherkin parses before posting.
+- **Approval:** a listed approver applies `scaffold:gherkin-approved` (gate in section 6). This applies to human-written scenarios as well as agent drafts. Until it's valid, the issue can't become `scaffold:ready`.
+- **Changes:** editing or redrafting the scenarios comment withdraws `scaffold:gherkin-approved`; if the issue is already planned, it also withdraws the plan approval and the issue goes back to `scaffold:triage`.
+- **Downstream:** `task-decomposer` maps every scenario to a sub-task (plan rules fail an unmapped scenario); `tdd` writes the scenarios as a failing `.feature` file and step definitions first; the PR's `.feature` file must match the approved comment (section 6); `code-review` checks the code against the scenarios.
+- **Owner:** the intake package (section 5). When it's off, humans write scenarios from `packages/intake/templates/manual-gherkin.md` and an approver applies the label.
+
 ## 3. Skills
 
 - Each skill is a folder in the package that uses it: `packages/<stage>/skills/<name>/SKILL.md` (YAML frontmatter: `name`, `description`, `inputs`, `outputs`, `tier`; body: instructions, constraints, output schema, definition of done), plus optional `examples/`.
@@ -70,6 +85,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | SCAFFOLD skill | Source | Used by |
 | --- | --- | --- |
 | `triage` | `triage` | Actions |
+| `gherkin-writer` | New | Actions (intake) |
 | `task-decomposer` | `to-tickets` | Actions (`/plan`) |
 | `code-review` | `code-review` | Actions |
 | `ci-diagnose` | `diagnosing-bugs` (no HITL script) | Actions |
@@ -86,7 +102,7 @@ Each `SKILL.md` names its tier; `packages/core/config/models.yml` maps tiers to 
 | Tier | Skills |
 | --- | --- |
 | `fast` | `triage` |
-| `standard` | `task-decomposer`, `ci-diagnose` |
+| `standard` | `gherkin-writer`, `task-decomposer`, `ci-diagnose` |
 | `deep` | `code-review`, `conflict-check` |
 
 Concrete models are chosen in Phase 0.
@@ -157,6 +173,7 @@ max_in_flight: 20            # tickets in flight at once (section 8); 1–100
 max_sub_tickets: 5           # sub-tickets per ticket (section 6); 1–10
 max_open_prs_per_developer: 2  # open Copilot PRs per developer before a warning (section 8); 1–10
 max_rework_rounds: 6         # automatic rework rounds before the circuit breaker (section 6); 1–10
+gherkin: auto                # auto (triage decides), always or off (section 2, Scenarios)
 pr_size:                     # section 6
   soft: { files: 10, lines: 1000 }
   hard: { files: 30, lines: 5000 }
@@ -173,8 +190,8 @@ Each package's `HANDOFF.md` sets out its contract: what must be true before it s
 
 | Package | Entry | Exit | When off, humans |
 | --- | --- | --- | --- |
-| Intake | Issue opened from the Request form | `scaffold:ready` or `scaffold:needs-info`; `priority:*`; Jira key and agent-ready brief in the issue | Check the form headings and Jira key, ask questions, set priority, apply `scaffold:ready` |
-| Plan | `scaffold:ready` | Plan comment (marked) and `scaffold:plan-approved` applied by a listed approver; sub-issues if split | Write the plan from the manual template; keep to `max_in_flight` and `max_sub_tickets`; approver reviews and applies the label; create sub-issues |
+| Intake | Issue opened from the Request form | `scaffold:ready` or `scaffold:needs-info`; `priority:*`; Jira key and agent-ready brief in the issue; if scenarios are needed, an approved scenarios comment | Check the form headings and Jira key, ask questions, set priority; write scenarios from the manual template and have an approver apply `scaffold:gherkin-approved`; apply `scaffold:ready` |
+| Plan | `scaffold:ready`; approved scenarios if `scaffold:needs-gherkin` | Plan comment (marked), mapping every scenario to a sub-task, and `scaffold:plan-approved` applied by a listed approver; sub-issues if split | Write the plan from the manual template; keep to `max_in_flight` and `max_sub_tickets`; approver reviews and applies the label; create sub-issues |
 | Implement | `scaffold:plan-approved` | PR linked to the issue, within the size limits, checks passing, ready for human review | Implement or assign Copilot by hand; keep the PR within the size limits; check test integrity in review |
 | Review | Open PR | `code-review` threads resolved; CI failures diagnosed | Review the PR against standards and the spec; diagnose CI failures |
 | Collaboration | Approved plan; code-owner-approved PR | No open `scaffold:conflict`; merge position | Flow lead checks in-flight tickets for overlap and orders merges by the rules in section 8 |
@@ -207,6 +224,7 @@ All of these are required checks.
 
 - **Plan gate:** fails if the linked issue lacks `scaffold:plan-approved`.
 - **Protected paths:** fails if the PR touches `.github/**`, `.github/scaffold-config.yml`, `CODEOWNERS`, `PRECEDENTS.md` or `docs/spec/**`; CODEOWNERS is the second layer.
+- **Scenarios:** if the issue has approved scenarios, the PR must add them as a `.feature` file with step definitions, identical to the approved comment (Actions compares hashes); changing a scenario means changing the comment, which withdraws the approval and the plan's.
 - **Test integrity:** flags removed/skipped tests, removed assertions or reduced coverage; needs a human label to pass.
 - **PR size:** counts changed files and changed lines (additions + deletions) per PR, excluding exempt files. Limits are set per repo in `scaffold-config.yml` (section 5); defaults:
 
@@ -232,7 +250,8 @@ Every handover between a human, an agent or a stage is a gate. Gates are **prote
 
 | Gate | Passed by | Protection | Evidence |
 | --- | --- | --- | --- |
-| Triaged → ready | `triage` Action applies `scaffold:ready` | Members-only trigger; schema-validated output | Audit log, issue label |
+| Scenarios → approved | Listed approver applies `scaffold:gherkin-approved` | Timeline check as for plan approval: listed approver, not the issue author or a bot; scenarios comment unchanged since approval (hash in the audit log); Gherkin parses; any edit to or deletion of the comment withdraws it | Timeline event, status comment, audit log |
+| Triaged → ready | `triage` Action applies `scaffold:ready` | Members-only trigger; schema-validated output; if `scaffold:needs-gherkin`, only after a valid `scaffold:gherkin-approved` | Audit log, issue label |
 | Ready → planned | Member comments `/plan` | `author_association` check; in-flight count below `max_in_flight` | Plan comment, audit log |
 | Planned → approved | Developer applies `scaffold:plan-approved` | Plan gate reads the issue timeline: label must be applied by a listed approver in `scaffold-config.yml` (not the issue author or a bot), and the plan comment must be unchanged since approval (its last edit is before the label event; the plan hash is recorded in the audit log); the plan must pass the size rules and have at least one sub-task; for a sub-ticket split, every sub-issue must exist; exactly one comment may be marked as the plan; an invalid approval is removed, and any edit to or deletion of the plan comment withdraws it; the gate reads the issue's current labels, not the event's, and gives way to a `/plan` admitted while it runs; sub-tickets use the parent's approval | Timeline event, status comment, audit log; check run from slice 3 |
 | Approved → implementing | Developer assigns issue to Copilot | Plan gate on the resulting PR | Copilot PR |
@@ -304,6 +323,7 @@ Proposed split, to be confirmed in Phase 0:
 | --- | --- | --- |
 | Product requirements (what and why) | Jira | Jira workflow |
 | Agreed specification (how) | `docs/spec/` in the repo | PR with code-owner review (protected path, section 6) |
+| Acceptance scenarios (Gherkin) | Approved scenarios comment on the issue; then the `.feature` file in the merged PR | `/gherkin` or edit, then re-approval |
 | Unit of work | GitHub Issue, linked to the Jira key and spec section | SCAFFOLD lifecycle (section 2) |
 
 ### Jira ↔ GitHub
@@ -353,6 +373,7 @@ The workflow is built in **vertical slices**: each slice adds one stage end to e
 - Confirm Copilot acts on `@copilot` comments posted by `github-actions[bot]`; GitHub only documents it responding to users with write access. If it doesn't, automatic rework needs an exception to section 1 (a GitHub App or service account), or the assigning developer prompts each round.
 - Confirm Copilot can't change `.github/workflows/` before turning off workflow-run approval for it.
 - Confirm the Copilot coding agent can create stacked PRs (the `gh-stack` skill in its setup steps); otherwise oversized work is always split into sub-tickets. Confirm `GITHUB_TOKEN` can create sub-issues.
+- Agree the default `gherkin` mode, when triage should require scenarios, and the BDD test runner for each pilot repo (e.g. cucumber-js, behave).
 - Agree the default limits (`max_in_flight`, `max_sub_tickets`, `max_open_prs_per_developer`, `max_rework_rounds`, PR size and exempt files) and which packages each pilot repo turns on (section 5).
 - Confirm merge queue is available on the pilot repos and whether `GITHUB_TOKEN` can set "blocked by" issue relationships (otherwise a human sets them); agree the merge queue status check timeout.
 
@@ -389,6 +410,7 @@ Each slice: build → run in the sandbox → run on the pilot repo → retrospec
 | --- | --- | --- | --- |
 | 1. Intake | Jira issue form, `triage`, labels, Projects board | Status comment, audit log and job summary, weekly usage report, `workflow.yml` with generated diagrams and the `scaffold-diagrams` check | Issue forms, labels, Projects; workflow triggers, `permissions:`, `GITHUB_TOKEN`, job summaries, `schedule`, artifacts, `workflow_dispatch` |
 | 2. Plan | `/plan`, `task-decomposer`, protected plan gate, size estimate and split into sub-tickets | Plan gate in the status comment; gate passes and fails in the audit log; time to approval in the usage report | `issue_comment` events, reusable workflows, composite actions, required checks, rulesets |
+| 2b. Scenarios | `gherkin-writer`, `/gherkin`, Gherkin field on the Request form, `scaffold:needs-gherkin` and `scaffold:gherkin-approved` with the timeline check, `gherkin` config, scenario coverage in plan rules | Scenarios gate in the status comment; drafts, edits before approval and time to approval in the usage report | Gherkin parsing in Actions, extending a released issue form |
 | 3. Implement | Copilot assignment, `tdd`/`implement` skills, protected paths, test integrity, PR size limits and exceptions, stacked PRs, circuit breaker, work-in-progress limits | PR status comment with guard checks, size and rework count; size exceptions in the usage report; work in progress per developer in the usage report | Copilot coding agent, CODEOWNERS, `pull_request` events, stacked PRs, sub-issues |
 | 4. Review | `code-review`, `ci-diagnose` | Review and diagnosis outcomes and false positives in the usage report | `pull_request` vs `pull_request_target` security, `workflow_run` |
 | 5. Collaboration | `conflict-check`, conflict flag and gate, Conflicts queue, merge order, merge queue | Conflicts in the status comment; Conflicts queue length and time to resolve, repeat flags per ticket, and false positives, in the usage report | Merge queue, `merge_group` events, `push` events, issue relationships (blocked by) |
@@ -438,5 +460,6 @@ A slice is not done until, in its own PR:
 - **Human bottleneck:** review queues grow faster than developers can clear them; work-in-progress limits, one prioritised queue and per-gate metrics (sections 8 and 11).
 - **Diagram drift:** pictures stop matching the workflow; `scaffold-diagrams` is a required check and every slice updates the diagrams (sections 10 and 11).
 - **Automatic rework may not be possible:** Copilot may ignore `@copilot` comments from Actions; Phase 0 tests this before slice 3.
+- **Rubber-stamped scenarios:** approvers approve agent drafts without reading them; the issue author can't approve, edits withdraw approval, and edits-before-approval rate is tracked in the usage report.
 - **Noisy conflict flags:** too many false positives and developers ignore the queue; deterministic shortlist first, track false positives per slice, tune `conflict-check`.
 - **Two sources of truth:** Jira and `docs/spec/` drift; agreed split and Jira keys on every issue and PR (section 9).
