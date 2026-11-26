@@ -5,6 +5,12 @@
 - name: scaffold:needs-info
   color: "fbca04"
   description: Triage needs answers from the author
+- name: scaffold:needs-gherkin
+  color: "e4e669"
+  description: Needs Gherkin scenarios approved by a listed approver
+- name: scaffold:gherkin-approved
+  color: "0052cc"
+  description: Scenarios approved by a listed approver
 - name: scaffold:ready
   color: "0e8a16"
   description: Triaged and ready for /plan
@@ -26,6 +32,9 @@
 - name: scaffold:conflict
   color: "d93f0b"
   description: Conflicts with in-flight work or the spec
+- name: scaffold:too-big
+  color: "e99695"
+  description: Needs more PRs than max_stack_prs; back to triage to split into smaller tickets
 - name: scaffold:no-template
   color: "f9d0c4"
   description: Not created from the SCAFFOLD Request template
