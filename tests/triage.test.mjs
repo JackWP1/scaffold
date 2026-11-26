@@ -72,7 +72,7 @@ test('skill body strips frontmatter', async () => {
 
 test('labels config parses with every scaffold label', async () => {
   const labels = parseLabels(await readFile(new URL('../config/labels.yml', import.meta.url), 'utf8'));
-  assert.equal(labels.length, 20);
+  assert.equal(labels.length, 17);
   assert.deepEqual(labels[0], { name: 'scaffold:triage', color: 'ededed', description: 'SCAFFOLD is triaging this issue' });
   assert.ok(labels.every((l) => /^[0-9a-f]{6}$/.test(l.color)));
 });

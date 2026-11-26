@@ -42,21 +42,21 @@ Each stage is a package that a repo can switch off; humans then do that stage by
 
 ### Labels
 
-Colour shows what kind of label it is, so a glance at an issue says whether it needs a human. Synced from `packages/core/config/labels.yml`; a core test fails if the two drift apart. Add or change labels in both places.
+Colour shows what kind of label it is, so a glance at an issue says whether it needs a human. Synced from `packages/core/config/labels.yml`; a core test fails if the two drift apart. Add or change labels in both places. A label marked with a phase isn't in `labels.yml` yet; the phase that builds its behaviour adds it and removes the marker.
 
 | Group | Meaning | Labels | Colour |
 | --- | --- | --- | --- |
 | Lifecycle | Where the issue is | `scaffold:triage` | `ededed` grey |
 | | | `scaffold:needs-info` | `fbca04` yellow |
-| | | `scaffold:needs-gherkin` | `e4e669` yellow-green |
-| | | `scaffold:gherkin-approved` | `0052cc` dark blue |
+| | | `scaffold:needs-gherkin` (slice 2b) | `e4e669` yellow-green |
+| | | `scaffold:gherkin-approved` (slice 2b) | `0052cc` dark blue |
 | | | `scaffold:ready` | `0e8a16` green |
 | | | `scaffold:planned` | `c5def5` light blue |
 | | | `scaffold:plan-approved` | `1d76db` blue |
 | Intake | Waiting for a member to accept | `scaffold:proposed` | `fef2c0` pale yellow |
 | Attention | A human must act | `scaffold:escalate` | `b60205` red |
 | | | `scaffold:conflict` | `d93f0b` orange |
-| | | `scaffold:too-big` | `e99695` pink |
+| | | `scaffold:too-big` (Phase 1b) | `e99695` pink |
 | Flag | Worth a look; doesn't block | `scaffold:no-template` | `f9d0c4` pale orange |
 | Override | A member or approver lifted a gate | `scaffold:accepted` | `d4c5f9` pale purple |
 | | | `scaffold:conflict-resolved` | `d4c5f9` pale purple |
@@ -71,7 +71,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 
 Issues that change behaviour carry acceptance scenarios in Gherkin. They are the "what done looks like" that plans, tests and reviews are checked against. An agent may draft them; a human must approve them.
 
-- **When required:** set by `gherkin` in `scaffold-config.yml` (section 5): `auto` (default) lets `triage` decide and move the issue to `scaffold:needs-gherkin` when it changes user-visible behaviour; `always` requires scenarios on every issue; `off` never does.
+- **When required:** set by `gherkin` in `scaffold-config.yml` (section 5): `auto` (recommended once `bdd` is set) lets `triage` decide and move the issue to `scaffold:needs-gherkin` when it changes user-visible behaviour; `always` requires scenarios on every issue; `off` (default) never does.
   - **`auto`:** a member can add or remove `scaffold:needs-gherkin` to override `triage`; the intake workflow listens for both.
   - **`always`:** the label can't be overridden. If it's removed, intake re-applies it and comments why. Gates require approved scenarios from the config mode, whatever the labels say. The only exception is changing `gherkin` in the config, which needs a listed approver (section 5).
   - **`off`:** the label isn't used; intake ignores it if applied and the scenarios check passes with "scenarios off".
@@ -197,10 +197,10 @@ max_in_flight: 20            # tickets in flight at once (section 8); 1–100
 max_stack_prs: 5             # PRs in one ticket's stack; more means re-triage (section 6); 1–10
 warn_open_prs_per_developer: 2  # open Copilot PRs per developer before a warning; advisory (section 8); 1–10
 max_rework_rounds: 6         # automatic rework rounds before the circuit breaker (section 6); 1–10
-gherkin: auto                # auto (triage decides), always or off (section 2, Scenarios)
-bdd:                         # runner report for the scenarios check (section 2); required unless gherkin is off
-  workflow: ci.yml           # CI workflow that runs the BDD runner on PRs
-  artifact: scaffold-bdd-report  # artifact holding the Cucumber JSON report
+gherkin: off                 # off, auto (triage decides) or always (section 2, Scenarios)
+# bdd:                       # runner report for the scenarios check (section 2); required unless gherkin is off
+#   workflow: ci.yml         # CI workflow that runs the BDD runner on PRs
+#   artifact: scaffold-bdd-report  # artifact holding the Cucumber JSON report
 pr_size:                     # section 6
   soft: { files: 10, lines: 1000 }
   hard: { files: 30, lines: 5000 }
@@ -209,7 +209,7 @@ approvers: [login]
 flow_lead: login
 ```
 
-Defaults are the values above, except `stages` (a package not listed is off) and `bdd` (no default; required unless `gherkin` is `off`). A change to `stages`, `approvers`, `gherkin`, `bdd` or any limit needs approval from a listed approver (`scaffold-config-guard`, section 4). A limit belongs to the package that enforces it. When that package is off, the limit isn't enforced and the humans doing the stage apply it; the hard size limit is a baseline check and always applies.
+Defaults are the values above, except `stages` (a package not listed is off) and `bdd` (no default; required unless `gherkin` is `off`). `gherkin` defaults to `off`, so configs written before scenarios existed stay valid; turning scenarios on means setting `gherkin` and adding `bdd` in the same config PR. A change to `stages`, `approvers`, `gherkin`, `bdd` or any limit needs approval from a listed approver (`scaffold-config-guard`, section 4). A limit belongs to the package that enforces it. When that package is off, the limit isn't enforced and the humans doing the stage apply it; the hard size limit is a baseline check and always applies.
 
 ### Handoffs
 
@@ -432,14 +432,14 @@ Restructure what slices 1 and 2 built into packages (section 5) before more is a
 4. **Drop sub-tickets:** a plan is delivered as one PR or a stack of up to `max_stack_prs`, or is `too-big`.
    - Remove the `sub-tickets` value from the `split` enum in the plan schema (`none | stack | too-big`).
    - Delete `actions/plan/subtickets.mjs`, the sub-ticket branch in the plan gate and the sub-ticket wording in `render.mjs`; update `task-decomposer`'s SKILL.md, the sub-ticket tests and `docs/DEMO.md`.
-   - Add `scaffold:too-big` and send too-big tickets back to triage; teach `triage` to propose smaller tickets on re-triage.
+   - Add `scaffold:too-big` and send too-big tickets back to triage; teach `triage` to propose smaller tickets on re-triage. Add the label to `labels.yml` in the same change as the plan rule that applies it and triage's `STATE_LABELS`, never ahead of them.
    - **Cutover:** sub-issues already created stay as ordinary issues. A plan comment with `split: sub-tickets` fails the schema; the gate rejects it with "sub-tickets removed: run `/plan` again" and the issue keeps its in-flight slot.
 5. **Config:** add `stages`, `max_stack_prs`, `warn_open_prs_per_developer` and `max_rework_rounds` to the schema, `DEFAULTS` and the template, with bounds; a package missing from `stages` is off.
    - Replace `MAX_SUB_TICKETS` in `rules.mjs` with a stack-layer rule: a `stack` plan may have at most `max_stack_prs` PRs. The `too-big` message becomes "needs more than `max_stack_prs` PRs: back to triage". Pass the limit to `task-decomposer`.
    - Extend `scaffold-config-guard` to require a listed approver's review for changes to `stages`, `approvers`, `gherkin`, `bdd` and limits.
 6. **Switches:** each reusable workflow reads `stages` first and skips the package when it's off; checks from an off package pass with "stage off: manual"; gates grandfather issues already past their entry when the package was turned on; the status comment shows manual stages.
 7. **Handoffs:** write `HANDOFF.md` for intake and plan, plus the manual plan template that produces the marked plan comment.
-8. **Checks:** a CI check that packages import only from `core`; tests for each package with its neighbours off; update `scripts/release.sh`, `tests/pins.test.mjs` and the caller template for the new action paths.
+8. **Checks:** a CI check that packages import only from `core`; tests for each package with its neighbours off; move the reusable workflows (`triage.yml`, `plan.yml`, `labels.yml`) to the new action paths; change the pin pattern in `scripts/release.sh` from `actions/` to `packages/`; update the caller template; and make `tests/pins.test.mjs` fail on any internal `uses:` path that doesn't exist at HEAD.
 9. **Catch up:** build what slice 1 listed but didn't ship: `workflow.yml`, the `scaffold-diagrams` check and the weekly usage report. The new rules depend on them.
 10. **Visibility:** update `workflow.yml`, the architecture diagram and `docs/diagrams/workflow.md` for packages and switches; release v0.5.0. `scaffold-diagrams` (step 9) must pass on this PR.
     - **Current diagram:** remove the sub-ticket steps, add `too-big` back to triage, show stages that are off as manual, and add a Phase 1b row to the history table.
@@ -455,7 +455,7 @@ Each slice: build → run in the sandbox → run on the pilot repo → retrospec
 | --- | --- | --- | --- |
 | 1. Intake | Jira issue form, `triage`, labels, Projects board | Status comment, audit log and job summary, weekly usage report, `workflow.yml` with generated diagrams and the `scaffold-diagrams` check | Issue forms, labels, Projects; workflow triggers, `permissions:`, `GITHUB_TOKEN`, job summaries, `schedule`, artifacts, `workflow_dispatch` |
 | 2. Plan | `/plan`, `task-decomposer`, protected plan gate, size estimate and stack plan | Plan gate in the status comment; gate passes and fails in the audit log; time to approval in the usage report | `issue_comment` events, reusable workflows, composite actions, required checks, rulesets |
-| 2b. Scenarios (after Phase 1b, in the intake package) | `gherkin-writer`, `/gherkin`, Gherkin field on the Request form, `scaffold:needs-gherkin` and `scaffold:gherkin-approved` with the timeline check, `gherkin` config, scenario-to-PR mapping in plan rules | Scenarios gate in the status comment; drafts, edits before approval and time to approval in the usage report | Gherkin parsing in Actions, extending a released issue form |
+| 2b. Scenarios (after Phase 1b, in the intake package) | `gherkin-writer`, `/gherkin`, Gherkin field on the Request form, `scaffold:needs-gherkin` and `scaffold:gherkin-approved` with the timeline check (added to `labels.yml` with triage's `STATE_LABELS` and caller triggers for both labels being applied or removed, in the same change), `gherkin` config, scenario-to-PR mapping in plan rules | Scenarios gate in the status comment; drafts, edits before approval and time to approval in the usage report | Gherkin parsing in Actions, extending a released issue form |
 | 3. Implement | Copilot assignment, `tdd`/`implement` skills, baseline checks in core (protected paths, test integrity, hard size limit, scenarios check with the BDD runner report), PR size limits and exceptions, stacked PRs, circuit breaker, work-in-progress limits | PR status comment with guard checks, size and rework count; size exceptions in the usage report; work in progress per developer in the usage report | Copilot coding agent, CODEOWNERS, `pull_request` events, stacked PRs |
 | 4. Review | `code-review`, `ci-diagnose` | Review and diagnosis outcomes and false positives in the usage report | `pull_request` vs `pull_request_target` security, `workflow_run` |
 | 5. Collaboration | `conflict-check`, conflict flag and gate, Conflicts queue, merge order, merge queue | Conflicts in the status comment; Conflicts queue length and time to resolve, repeat flags per ticket, and false positives, in the usage report | Merge queue, `merge_group` events, `push` events, issue relationships (blocked by) |
