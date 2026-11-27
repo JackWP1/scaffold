@@ -25,7 +25,7 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/intake/actions/triage@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
+      - uses: JackWP1/scaffold/packages/intake/actions/triage@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
         with:
           model: ${{ inputs.model }}
 
@@ -43,7 +43,7 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/intake/actions/gherkin@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
+      - uses: JackWP1/scaffold/packages/intake/actions/gherkin@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
 
   # Deterministic, so the kill switch doesn't skip it. Any edit to or deletion of a bot comment, or of a
   # member's hand-written scenarios comment: the gate works out whether it was the scenarios, even if the
@@ -64,4 +64,4 @@ jobs:
       contents: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/intake/actions/gate@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
+      - uses: JackWP1/scaffold/packages/intake/actions/gate@2794477f75c54702cbf71973707bf271db431780 # v0.6.0

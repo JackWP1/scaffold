@@ -13,4 +13,4 @@ jobs:
       issues: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/core/actions/labels@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
+      - uses: JackWP1/scaffold/packages/core/actions/labels@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
