@@ -9,7 +9,7 @@ import { RateLimited } from '../core/lib/models.mjs';
 import { readRepoFile } from '../core/lib/config.mjs';
 import { issueSteps } from '../core/lib/issue.mjs';
 import { MARKER, setGates, manualStates, PR_GATES } from '../core/lib/status.mjs';
-import { prFiles, linkedIssues } from '../core/lib/pr.mjs';
+import { prFiles, linkedIssues, pathsOf } from '../core/lib/pr.mjs';
 import { CONFLICT, CONFLICT_RESOLVED, conflictState } from '../core/lib/conflicts.mjs';
 
 export const CONFLICT_MARKER = '<!-- scaffold:conflict -->';
@@ -173,31 +173,53 @@ const reviewDecision = async (gh, repo, number) => {
   return data.repository.pullRequest.reviewDecision;
 };
 
-// Check 2: after the PR's required reviews approve it, before it gets a merge position. Compares it with
-// other approved open PRs that change the same files, and with files changed on main since it branched.
+// Every path a PR touches, a rename's old name included.
+const touchedBy = async (gh, repo, number) => [...new Set((await prFiles(gh, repo, number)).files.flatMap(pathsOf))];
+
+// PRs merged into the base branch since this PR branched that touch its files: one candidate each.
+async function mergedSince(gh, repo, pr, mine) {
+  const { merge_base_commit: mergeBase } = await gh.get(`/repos/${repo}/compare/${encodeURIComponent(pr.base.ref)}...${pr.head.sha}`).catch(() => ({}));
+  if (!mergeBase?.sha) return [];
+  const { commits = [], files = [] } = await gh.get(`/repos/${repo}/compare/${mergeBase.sha}...${encodeURIComponent(pr.base.ref)}`).catch(() => ({}));
+  if (!files.some((f) => pathsOf(f).some((p) => mine.includes(p)))) return [];
+  const found = new Map();
+  for (const c of commits.slice(-30)) {
+    const prs = await gh.get(`/repos/${repo}/commits/${c.sha}/pulls`).catch(() => []);
+    for (const merged of prs.filter((p) => p.merged_at && p.number !== pr.number)) {
+      if (found.has(merged.number) || found.size >= MAX_CANDIDATES) continue;
+      const theirs = await touchedBy(gh, repo, merged.number);
+      const shared = mine.filter((f) => theirs.includes(f));
+      if (shared.length) found.set(merged.number, { number: linkedIssues(merged.body)[0] ?? merged.number, why: `merged PR #${merged.number} changed ${shared.slice(0, 5).join(', ')} since this PR branched`, text: `Merged PR #${merged.number}: ${merged.title}\n\n${merged.body ?? ''}\n\nChanged files: ${theirs.slice(0, 100).join(', ')}` });
+    }
+  }
+  return [...found.values()];
+}
+
+// Check 2: after the PR's required reviews approve it, before it gets a merge position; again on each push
+// while it stays approved (repos that don't dismiss approvals on push). Compares it with other approved open
+// PRs and with PRs merged into the base branch since it branched, on the same files (renames included).
 export async function runCheck2(gh, repo, { event, config, loadSkill, callModel }) {
   const pr = event.pull_request;
-  if (!pr || event.review?.state?.toLowerCase() !== 'approved') return { skip: 'not an approving review' };
+  const approving = event.review?.state?.toLowerCase() === 'approved';
+  if (!pr || (!approving && event.action !== 'synchronize')) return { skip: 'not an approving review or a push' };
   if (await reviewDecision(gh, repo, pr.number) !== 'APPROVED') return { skip: 'the PR\'s required reviews haven\'t approved it yet' };
   const issue = linkedIssues(pr.body)[0];
   if (!issue) return { skip: 'the PR doesn\'t link an issue' };
-  const mine = (await prFiles(gh, repo, pr.number)).files.map((f) => f.filename);
+  const mine = await touchedBy(gh, repo, pr.number);
   const candidates = [];
   for await (const page of gh.pages(`/repos/${repo}/pulls?state=open`)) {
     for (const other of page) {
       if (other.number === pr.number || other.draft || candidates.length >= MAX_CANDIDATES) continue;
       if (await reviewDecision(gh, repo, other.number) !== 'APPROVED') continue;
-      const theirs = (await prFiles(gh, repo, other.number)).files.map((f) => f.filename);
+      const theirs = await touchedBy(gh, repo, other.number);
       const shared = mine.filter((f) => theirs.includes(f));
       if (!shared.length) continue;
       const otherIssue = linkedIssues(other.body)[0];
       candidates.push({ number: otherIssue ?? other.number, why: `PR #${other.number} also changes ${shared.slice(0, 5).join(', ')}`, text: `PR #${other.number}: ${other.title}\n\n${other.body ?? ''}\n\nChanged files: ${theirs.slice(0, 100).join(', ')}` });
     }
   }
-  // Changes merged to main since the PR branched, on the same files.
-  const { files: mainFiles = [] } = await gh.get(`/repos/${repo}/compare/${pr.base.sha}...${pr.base.ref}`).catch(() => ({}));
-  const merged = mainFiles.map((f) => f.filename).filter((f) => mine.includes(f));
-  const work = `PR #${pr.number} for #${issue}: ${pr.title}\n\n${pr.body ?? ''}\n\nChanged files: ${mine.slice(0, 200).join(', ')}${merged.length ? `\n\nAlso changed on ${pr.base.ref} since this PR branched: ${merged.join(', ')}` : ''}`;
+  for (const m of await mergedSince(gh, repo, pr, mine)) if (candidates.length < MAX_CANDIDATES && !candidates.some((c) => c.number === m.number)) candidates.push(m);
+  const work = `PR #${pr.number} for #${issue}: ${pr.title}\n\n${pr.body ?? ''}\n\nChanged files: ${mine.slice(0, 200).join(', ')}`;
   return judge(gh, repo, {
     issue, work, candidates, check: 2, config, loadSkill, callModel, prNumber: pr.number, sha: pr.head.sha,
     spec: await specText(gh, repo, specRefs(`${pr.body ?? ''}\n${mine.join('\n')}`), pr.base.sha),

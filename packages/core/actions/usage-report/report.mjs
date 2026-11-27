@@ -2,6 +2,7 @@
 // Runs per job come from the Actions API; skill and gate outcomes from the repo's issue events, which
 // record every label SCAFFOLD or a human applied. Posted as a comment on one standing report issue.
 import { stageOn, PACKAGES, RELEASED } from '../../lib/config.mjs';
+import { conflictState } from '../../lib/conflicts.mjs';
 
 export const REPORT_MARKER = '<!-- scaffold:usage-report -->';
 const BOT = 'github-actions[bot]';
@@ -49,7 +50,9 @@ const COPILOT = ['Copilot', 'copilot-swe-agent[bot]'];
 // `comments` are issue and PR comments in the window (rework rounds, diagnoses); `reviewComments` are PR
 // review comments in the window (code-review); `openPrs` the open PRs now. A 👎 reaction on a code-review
 // comment or a diagnosis marks it a false positive.
-export function summarise({ runs, jobs, events, comments = [], reviewComments = [], reviews = [], openPrs = [], conflictQueue = 0 }) {
+// `approvers` decides which conflict resolutions count (as conflictState does); `conflictQueue` is the number
+// of open issues whose conflict is open now, from their timelines.
+export function summarise({ runs, jobs, events, comments = [], reviewComments = [], reviews = [], openPrs = [], conflictQueue = 0, approvers = [] }) {
   const perJob = {};
   for (const run of runs) {
     for (const j of jobs[run.id] ?? []) {
@@ -96,7 +99,8 @@ export function summarise({ runs, jobs, events, comments = [], reviewComments = 
     collaboration: (() => {
       const flags = events.filter((e) => byBot(e, 'labeled', 'scaffold:conflict'));
       const perIssue = flags.reduce((m, f) => m.set(f.issue?.number, (m.get(f.issue?.number) ?? 0) + 1), new Map());
-      const hours = events.filter((e) => e.event === 'labeled' && e.label?.name === 'scaffold:conflict-resolved' && e.actor?.type === 'User').flatMap((r) => {
+      const valid = (e) => e.event === 'labeled' && e.label?.name === 'scaffold:conflict-resolved' && e.actor?.type === 'User' && approvers.includes(e.actor.login?.toLowerCase());
+      const hours = events.filter(valid).flatMap((r) => {
         const flag = flags.filter((f) => f.issue?.number === r.issue?.number && f.created_at <= r.created_at).at(-1);
         return flag ? [(Date.parse(r.created_at) - Date.parse(flag.created_at)) / 3_600_000] : [];
       });
@@ -212,9 +216,20 @@ export async function postReport(gh, repo, { now = new Date(), config, configErr
   for await (const page of gh.pages(`/repos/${repo}/pulls/comments?since=${encodeURIComponent(since)}`)) reviewComments.push(...page);
   const openPrs = [];
   for await (const page of gh.pages(`/repos/${repo}/pulls?state=open`)) openPrs.push(...page);
+  // Open conflicts now, from each candidate issue's timeline: removing the label by hand doesn't clear one.
+  const events = await issueEvents(gh, repo, since);
+  const candidates = new Set(events.filter((e) => e.event === 'labeled' && e.label?.name === 'scaffold:conflict').map((e) => e.issue?.number));
+  for await (const page of gh.pages(`/repos/${repo}/issues?state=open&labels=${encodeURIComponent('scaffold:conflict')}`)) for (const i of page) if (!i.pull_request) candidates.add(i.number);
   let conflictQueue = 0;
-  for await (const page of gh.pages(`/repos/${repo}/issues?state=open&labels=${encodeURIComponent('scaffold:conflict')}`)) conflictQueue += page.filter((i) => !i.pull_request).length;
-  const numbers = summarise({ runs, jobs, events: await issueEvents(gh, repo, since), comments, reviewComments, reviews, openPrs, conflictQueue });
+  for (const number of [...candidates].filter(Boolean).slice(0, 200)) {
+    const issue = await gh.get(`/repos/${repo}/issues/${number}`);
+    if (issue.state !== 'open' || issue.pull_request) continue;
+    const timeline = [];
+    for await (const page of gh.pages(`/repos/${repo}/issues/${number}/events`)) timeline.push(...page);
+    timeline.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id);
+    if (conflictState({ events: timeline, approvers: config?.approvers ?? [] }).open) conflictQueue++;
+  }
+  const numbers = summarise({ runs, jobs, events, comments, reviewComments, reviews, openPrs, conflictQueue, approvers: config?.approvers ?? [] });
   const body = renderReport({ from: since.slice(0, 10), to: now.toISOString().slice(0, 10), numbers, config, configError });
 
   let issue;

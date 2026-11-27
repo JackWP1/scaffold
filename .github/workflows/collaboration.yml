@@ -34,9 +34,9 @@ jobs:
           mode: check-1
           model: ${{ inputs.model }}
 
-  # conflict-check 2 and merge positions: an approving review.
+  # conflict-check 2 and merge positions: an approving review, or a push to a PR that stays approved.
   check-2:
-    if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
+    if: (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') || (github.event_name == 'pull_request' && github.event.action == 'synchronize')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:

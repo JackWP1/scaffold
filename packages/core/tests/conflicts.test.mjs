@@ -17,6 +17,12 @@ test('no flag: no conflict; a flag stays open until a listed approver resolves i
   assert.match(state([flag(), resolve('mallory', '2026-11-20T11:00:00Z')]).reason, /not a listed approver/);
 });
 
+test('order comes from the timeline, not timestamps: a same-second resolution before the flag doesn\'t count', () => {
+  const same = '2026-11-20T10:00:00Z';
+  assert.equal(state([resolve('alice', same), flag(same)]).open, true);
+  assert.equal(state([flag(same), resolve('alice', same)]).open, false);
+});
+
 test('a resolution before the latest flag, a removed resolution, or removing the flag by hand don\'t clear it', () => {
   assert.equal(state([flag('2026-11-20T10:00:00Z'), resolve('alice', '2026-11-20T11:00:00Z'), flag('2026-11-20T12:00:00Z')]).open, true);
   assert.equal(state([flag(), resolve('alice', '2026-11-20T11:00:00Z'), ev('unlabeled', 'scaffold:conflict-resolved', person('bob'), '2026-11-20T12:00:00Z')]).open, true);

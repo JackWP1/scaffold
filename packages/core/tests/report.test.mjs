@@ -49,9 +49,10 @@ test('summarise counts conflicts: flagged, repeats, resolved and hours to resolv
     ev('labeled', 'scaffold:conflict-resolved', alice, 7, '2026-11-20T14:00:00Z'),
     ev('labeled', 'scaffold:conflict', bot, 7, '2026-11-21T10:00:00Z'),
     ev('labeled', 'scaffold:conflict', bot, 8, '2026-11-21T10:00:00Z'),
+    ev('labeled', 'scaffold:conflict-resolved', { login: 'mallory', type: 'User' }, 8, '2026-11-21T11:00:00Z'),
   ];
   const comments = [{ user: bot, body: '<!-- scaffold:conflict -->\nx', reactions: { '-1': 1 } }, { user: bot, body: '<!-- scaffold:conflict -->\ny', reactions: {} }];
-  const n = summarise({ runs: [], jobs: {}, events, comments, conflictQueue: 2 });
+  const n = summarise({ runs: [], jobs: {}, events, comments, conflictQueue: 2, approvers: ['alice'] });
   assert.deepEqual(n.collaboration, { flagged: 3, resolved: 1, medianHoursToResolve: 4, repeatFlagged: 1, falsePositives: 1, queueNow: 2 });
   assert.match(renderReport({ from: 'a', to: 'b', numbers: n, config: configFrom('') }), /\| Collaboration: median hours from flag to resolution \| 4\.0 \|/);
 });

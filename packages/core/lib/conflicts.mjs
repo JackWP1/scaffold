@@ -11,10 +11,12 @@ const BOT = 'github-actions[bot]';
 // until a listed approver applies scaffold:conflict-resolved after it (and doesn't remove it again).
 // Removing scaffold:conflict by hand doesn't clear it.
 export function conflictState({ events, approvers }) {
-  const flag = events.filter((e) => e.event === 'labeled' && e.label?.name === CONFLICT && e.actor?.login === BOT).at(-1);
-  if (!flag) return { open: false };
+  // `events` is in timeline order (issueSteps sorts by time, then id): what follows the flag is what came after.
+  const at = events.findLastIndex((e) => e.event === 'labeled' && e.label?.name === CONFLICT && e.actor?.login === BOT);
+  if (at < 0) return { open: false };
+  const flag = events[at];
   const resolution = checkApproval({
-    events: events.filter((e) => Date.parse(e.created_at) >= Date.parse(flag.created_at)),
+    events: events.slice(at + 1),
     label: CONFLICT_RESOLVED,
     approvers,
     comment: { body: '', updated_at: flag.created_at },

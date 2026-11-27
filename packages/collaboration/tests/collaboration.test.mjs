@@ -102,8 +102,38 @@ test('check 2: waits for the review decision; a clean result is recorded for the
   const r = await runCheck2(g, 'o/r', { event: ev, config, loadSkill: async () => { throw new Error('no model call expected'); }, callModel: null });
   assert.match(r.lines[1], /nothing overlaps: no model call/);
   assert.ok(posts(g).some(([n, b]) => n === '4' && b.startsWith(`${CHECK2_MARKER} abc clean -->`)));
+  assert.match((await runCheck2(g, 'o/r', { event: { action: 'synchronize', pull_request: pr }, config, loadSkill: async () => { throw new Error('no model'); } })).lines[1], /nothing overlaps/, 'a push to an approved PR re-runs check 2');
   g.graphql = graphqlFor({});
   assert.match((await runCheck2(g, 'o/r', { event: ev, config })).skip, /haven't approved it yet/);
+  assert.match((await runCheck2(g, 'o/r', { event: { action: 'labeled', pull_request: pr }, config })).skip, /not an approving review or a push/);
+});
+
+test('check 2: renames and PRs merged since branching are candidates the model can name', async () => {
+  const pr = { number: 4, body: 'Fixes #7', title: 'Login', head: { sha: 'abc', ref: 'feat' }, base: { sha: 'tip', ref: 'main' } };
+  const g = fakeGh({
+    '/repos/o/r/pulls?state=open': [pr, { number: 5, body: 'Fixes #8', title: 'Rename', head: { ref: 'x' } }],
+    '/repos/o/r/pulls/4/files': [{ filename: 'src/a.js' }],
+    '/repos/o/r/pulls/5/files': [{ filename: 'src/b.js', previous_filename: 'src/a.js' }],
+    '/repos/o/r/pulls/6/files': [{ filename: 'src/a.js' }],
+    '/repos/o/r/compare/main...abc': { merge_base_commit: { sha: 'base1' } },
+    '/repos/o/r/compare/base1...main': { files: [{ filename: 'src/a.js' }], commits: [{ sha: 'c1' }] },
+    '/repos/o/r/commits/c1/pulls': [{ number: 6, merged_at: '2026-11-20T00:00:00Z', title: 'Merged', body: 'Fixes #9' }],
+    '/repos/o/r/issues/4/comments': (p) => (p.includes('page=') ? [] : {}),
+    '/repos/o/r/issues/7/comments': (p) => (p.includes('page=') ? [] : { html_url: 'c' }),
+    '/repos/o/r/issues/7/labels': null,
+    '/repos/o/r/issues/7': issue(7, ['scaffold:plan-approved']),
+    '/repos/o/r/contents/': new Error('GET: 404 Not Found'),
+  });
+  g.graphql = graphqlFor({ 4: 'APPROVED', 5: 'APPROVED' });
+  const prompts = [];
+  await runCheck2(g, 'o/r', {
+    event: { action: 'submitted', review: { state: 'approved' }, pull_request: pr }, config,
+    loadSkill: async () => ({ system: 'S', schema, version: '0.1.0', model: 'deep' }),
+    callModel: async ({ user }) => { prompts.push(user); return { summary: 'x', findings: [{ with: [9], kind: 'regression-risk', spec: [], explanation: 'merged first' }] }; },
+  });
+  assert.match(prompts[0], /### #8 \(shortlisted: PR #5 also changes src\/a\.js\)/, 'a rename\'s old name overlaps');
+  assert.match(prompts[0], /### #9 \(shortlisted: merged PR #6 changed src\/a\.js since this PR branched\)/);
+  assert.deepEqual(labelCalls(g), ['7+scaffold:conflict'], 'the merged work can be named in a finding');
 });
 
 test('merge order: blockers, then priority, then earliest approval; a stack stays bottom-up', () => {
