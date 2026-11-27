@@ -8,7 +8,7 @@ import { MARKER, setGates, manualStates } from '../core/lib/status.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
 import { stageOn } from '../core/lib/config.mjs';
 import { parseGherkin, scenariosText, SCENARIOS_MARKER } from '../core/lib/gherkin.mjs';
-import { checkScenarios, scenarioComments } from '../core/lib/scenarios.mjs';
+import { checkScenarios, scenarioComments, scenariosRequired } from '../core/lib/scenarios.mjs';
 import { parseProblem, APPROVED, NEEDS, APPROVE_NEXT, isTriaged } from './scenarios.mjs';
 
 const PLANNED = ['scaffold:planned', 'scaffold:plan-approved'];
@@ -88,10 +88,16 @@ export async function runScenariosGate(gh, repo, { event, config, configError })
   }
 
   if (event.label.name === APPROVED) {
-    const required = config?.gherkin === 'always' || labels.includes(NEEDS);
+    // The label being on the issue makes scenarios required under `auto`, so a rejected approval leaves
+    // them required; an invalid config fails closed. A plan approved against them goes too.
+    const required = Boolean(configError) || scenariosRequired(config, labels);
     const fail = async (reason, extra) => {
-      await setLabels(required && triaged ? [NEEDS] : [], [APPROVED, ...(required ? ['scaffold:ready'] : [])]);
-      await updateStatus({ Scenarios: `❌ not approved: ${reason}` }, `${APPROVE_NEXT.replace(/\.$/, '')} again once the problem is fixed.`);
+      const hadPlanApproval = required && labels.includes('scaffold:plan-approved');
+      await setLabels(required && triaged ? [NEEDS] : [], [APPROVED, ...(required ? ['scaffold:ready', 'scaffold:plan-approved'] : [])]);
+      await updateStatus(
+        { Scenarios: `❌ not approved: ${reason}`, ...(hadPlanApproval ? { Approval: '⏳ withdrawn: the scenarios approval failed' } : {}) },
+        `${APPROVE_NEXT.replace(/\.$/, '')} again once the problem is fixed.`,
+      );
       return done(`fail: ${reason}`, extra);
     };
     if (configError) return fail(`\`.github/scaffold-config.yml\` is invalid: ${escapeForComment(configError)}`);
@@ -116,6 +122,15 @@ export async function runScenariosGate(gh, repo, { event, config, configError })
   // scaffold:needs-gherkin applied or removed by hand. Under `always` it can't be overridden; under
   // `auto` a member (write access) can, to overrule triage (PLAN.md section 2, Scenarios).
   if (!triaged) return { skip: 'not triaged yet: triage sets scaffold:needs-gherkin' };
+  if (configError) {
+    // Fail closed: scenarios stay required until the config is fixed.
+    if (event.action === 'unlabeled') await setLabels([NEEDS], ['scaffold:ready']);
+    await updateStatus(
+      { Scenarios: `⛔ \`.github/scaffold-config.yml\` is invalid: ${escapeForComment(configError)}` },
+      'fix `.github/scaffold-config.yml`, then add or remove `scaffold:needs-gherkin` again.',
+    );
+    return done('invalid config: override refused');
+  }
   const member = config?.gherkin === 'auto' && await hasWriteAccess(event.sender);
   if (event.action === 'unlabeled') {
     if (labels.includes(APPROVED)) return { skip: 'scenarios already approved' };

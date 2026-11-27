@@ -1,6 +1,7 @@
 // The planned → approved gate (PLAN.md section 6, slice 2), with the client injected so tests can fake it.
-// Runs when scaffold:plan-approved is applied, when any bot comment is edited or deleted, and when a
-// scenarios comment is (a member may write it by hand when intake is off). No model call.
+// Runs when scaffold:plan-approved is applied, when any bot comment is edited or deleted, when a
+// scenarios comment is (a member may write it by hand when intake is off), and when a person removes
+// scaffold:gherkin-approved. No model call.
 //
 // `/plan` admission runs in a different concurrency group, so it can change this issue while the gate
 // runs. The gate reads the issue fresh, and after writing checks whether an admission came after the
@@ -27,13 +28,15 @@ const admittedAfter = (events, approvalId) => {
 export async function runGate(gh, repo, { event, schema, config, configError }) {
   if (event.issue.pull_request) return { skip: 'pull request' };
   if (event.action === 'labeled' && event.label?.name !== 'scaffold:plan-approved') return { skip: 'label is not scaffold:plan-approved' };
+  const revoked = event.action === 'unlabeled' && event.label?.name === 'scaffold:gherkin-approved';
+  if (event.action === 'unlabeled' && !revoked) return { skip: 'label is not scaffold:gherkin-approved' };
   // An edit counts if the comment was the plan before or after it, so removing or moving the marker can't hide it.
   const edited = ['edited', 'deleted'].includes(event.action);
   const was = (marker) => edited && [event.comment?.body, event.changes?.body?.from].some((b) => b?.startsWith(marker));
   const touched = was(PLAN_MARKER);
   // A changed scenarios comment voids an approved plan made against it (PLAN.md section 2, Scenarios),
   // with intake on or off: the approval is re-checked below and removed if it no longer holds.
-  const scenariosTouched = !touched && was(SCENARIOS_MARKER);
+  const scenariosTouched = (!touched && was(SCENARIOS_MARKER)) || revoked;
   if (edited && !touched && !scenariosTouched) return { skip: 'comment is not the plan' };
 
   const issue = await gh.get(`/repos/${repo}/issues/${event.issue.number}`);
@@ -43,7 +46,8 @@ export async function runGate(gh, repo, { event, schema, config, configError }) 
   const updateStatus = async (states, next) => upsertStatus(setGates((await findComment(MARKER))?.body, { ...others, ...states }, next));
   const approvedLabel = labels.includes('scaffold:plan-approved');
   if (scenariosTouched && !approvedLabel) return { skip: 'scenarios changed; no approved plan to withdraw' };
-  if (scenariosTouched && config && !scenariosRequired(config, labels)) return { skip: 'scenarios changed but aren\'t required' };
+  const timeline = configError ? [] : await events();
+  if (scenariosTouched && config && !scenariosRequired(config, labels, timeline)) return { skip: 'scenarios changed but aren\'t required' };
 
   const plans = await findComments(PLAN_MARKER);
   const planComment = plans[0];
@@ -66,8 +70,7 @@ export async function runGate(gh, repo, { event, schema, config, configError }) 
   }
   if (!approvedLabel) return { skip: 'scaffold:plan-approved is not applied' };
 
-  const timeline = configError ? [] : await events();
-  const scenarios = !configError && scenariosRequired(config, labels)
+  const scenarios = !configError && scenariosRequired(config, labels, timeline)
     ? checkScenarios({ events: timeline, issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issue.number) })
     : null;
   const result = configError

@@ -10,9 +10,19 @@ export const GHERKIN_APPROVED = 'scaffold:gherkin-approved';
 export const NEEDS_GHERKIN = 'scaffold:needs-gherkin';
 
 // Whether an issue needs approved scenarios before it is planned: always under `gherkin: always`;
-// under `auto`, once triage or a member has asked for them (either label is on the issue).
-export const scenariosRequired = (config, labels) => config?.gherkin === 'always'
-  || (config?.gherkin === 'auto' && labels.some((l) => [NEEDS_GHERKIN, GHERKIN_APPROVED].includes(l)));
+// under `auto`, once triage or a member has asked for them (either label is on the issue), or when a
+// person revoked the approval and nothing has reset that since (a re-triage, or a member removing
+// scaffold:needs-gherkin). The timeline covers the moment before the intake gate re-applies
+// scaffold:needs-gherkin, and intake being off. SCAFFOLD's own removals always come with
+// scaffold:needs-gherkin or a re-triage, so only a person's removal counts.
+export function scenariosRequired(config, labels, events = []) {
+  if (config?.gherkin === 'always') return true;
+  if (config?.gherkin !== 'auto') return false;
+  if (labels.some((l) => [NEEDS_GHERKIN, GHERKIN_APPROVED].includes(l))) return true;
+  const last = events.filter((e) => (e.event === 'labeled' && [NEEDS_GHERKIN, GHERKIN_APPROVED, 'scaffold:triage'].includes(e.label?.name))
+    || (e.event === 'unlabeled' && (e.label?.name === NEEDS_GHERKIN || (e.label?.name === GHERKIN_APPROVED && e.actor?.type === 'User')))).at(-1);
+  return last?.event === 'unlabeled' && last.label.name === GHERKIN_APPROVED;
+}
 
 const BOT = 'github-actions[bot]';
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];

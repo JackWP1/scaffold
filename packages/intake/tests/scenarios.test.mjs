@@ -321,3 +321,19 @@ test('gate: editing a member\'s hand-written scenarios comment withdraws approva
   assert.deepEqual(labelCalls, ['-scaffold:gherkin-approved', '-scaffold:ready', '+scaffold:needs-gherkin']);
   assert.match(status, /✏️ scenarios edited: approval withdrawn/);
 });
+
+test('gate: a rejected approval on a ready issue leaves scenarios required and withdraws plan approval', async () => {
+  const ready = await gate({ labels: ['scaffold:ready', 'scaffold:gherkin-approved'], events: [applied('author')], event: labelled('labeled', 'scaffold:gherkin-approved') });
+  assert.deepEqual(ready.labelCalls, ['-scaffold:gherkin-approved', '-scaffold:ready', '+scaffold:needs-gherkin']);
+  const planned = await gate({ labels: ['scaffold:planned', 'scaffold:plan-approved', 'scaffold:gherkin-approved'], events: [applied('author')], event: labelled('labeled', 'scaffold:gherkin-approved') });
+  assert.deepEqual(planned.labelCalls, ['-scaffold:gherkin-approved', '-scaffold:plan-approved', '+scaffold:needs-gherkin']);
+  assert.match(planned.status, /\| Approval \| ⏳ withdrawn: the scenarios approval failed \|/);
+});
+
+test('gate: with an invalid config, scaffold:needs-gherkin overrides fail closed', async () => {
+  const removed = await gate({ configError: 'bad', labels: [], event: labelled('unlabeled', 'scaffold:needs-gherkin') });
+  assert.deepEqual(removed.labelCalls, ['+scaffold:needs-gherkin']);
+  assert.match(removed.status, /⛔ `.github\/scaffold-config.yml` is invalid: bad/);
+  const added = await gate({ configError: 'bad', labels: ['scaffold:ready', 'scaffold:needs-gherkin'], event: labelled('labeled', 'scaffold:needs-gherkin') });
+  assert.deepEqual(added.labelCalls, []);
+});

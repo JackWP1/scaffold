@@ -25,7 +25,7 @@ stages:
   plan:
     workflow: plan.yml
     skills: [task-decomposer]
-    triggers: [issue_comment.created, issue_comment.edited, issue_comment.deleted, issues.labeled]
+    triggers: [issue_comment.created, issue_comment.edited, issue_comment.deleted, issues.labeled, issues.unlabeled]
     labels: [scaffold:planned, scaffold:plan-approved, scaffold:too-big]
     gates: [Ready → planned, Planned → approved, Planned → too big]
 

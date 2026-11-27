@@ -34,9 +34,10 @@ jobs:
       copilot-requests: write
     uses: JackWP1/scaffold/.github/workflows/triage.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
 
-  # Plan package: `/plan` comments, scaffold:plan-approved, and edits to or deletion of the plan comment.
+  # Plan package: `/plan` comments, scaffold:plan-approved, edits to or deletion of the plan or scenarios
+  # comment, and scaffold:gherkin-approved removed (an approved plan is re-checked).
   plan:
-    if: github.event_name == 'issue_comment' || (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved')
+    if: github.event_name == 'issue_comment' || (github.event_name == 'issues' && ((github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved') || (github.event.action == 'unlabeled' && github.event.label.name == 'scaffold:gherkin-approved')))
     permissions:
       issues: write
       contents: read

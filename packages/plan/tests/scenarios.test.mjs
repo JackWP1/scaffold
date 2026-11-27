@@ -181,3 +181,34 @@ test('with intake off, editing the hand-written scenarios comment withdraws an a
   assert.deepEqual(calls, ['-scaffold:plan-approved', '+scaffold:planned']);
   assert.match((await run(['scaffold:planned'])).out.skip, /no approved plan to withdraw/);
 });
+
+test('under auto, a person revoking the approval keeps scenarios required until something resets it', () => {
+  const human = { login: 'bob', type: 'User' };
+  const ev = (event, name, actor = human) => ({ event, label: { name }, actor });
+  const revoked = [ev('labeled', 'scaffold:gherkin-approved'), ev('unlabeled', 'scaffold:gherkin-approved')];
+  assert.equal(scenariosRequired(AUTO, ['scaffold:ready'], revoked), true);
+  assert.equal(scenariosRequired(AUTO, ['scaffold:ready'], [...revoked, ev('labeled', 'scaffold:triage')]), false, 're-triage resets');
+  assert.equal(scenariosRequired(AUTO, ['scaffold:ready'], [...revoked, ev('labeled', 'scaffold:needs-gherkin'), ev('unlabeled', 'scaffold:needs-gherkin')]), false, 'member override');
+  assert.equal(scenariosRequired(AUTO, ['scaffold:ready'], [ev('unlabeled', 'scaffold:gherkin-approved', { login: 'github-actions[bot]', type: 'Bot' })]), false, 'SCAFFOLD\'s removals don\'t count');
+});
+
+test('/plan in the moment after a person revokes the approval is still refused', async () => {
+  const issue = { number: 1, user: { login: 'carol' }, labels: [{ name: 'scaffold:ready' }] };
+  const comment = { id: 50, body: '/plan', author_association: 'MEMBER', user: { type: 'User' } };
+  const removed = { id: 4, event: 'unlabeled', label: { name: 'scaffold:gherkin-approved' }, actor: { login: 'bob', type: 'User' }, created_at: '2026-11-18T11:00:00Z' };
+  const r = await admit(gh({ labels: [], comments: [scenariosComment()], events: [gherkinApproved, removed] }), 'o/r', { issue, comment, config: AUTO });
+  assert.equal(r.outcome, 'refused');
+  assert.match(r.reason, /was removed after it was applied/);
+});
+
+test('with intake off, removing scaffold:gherkin-approved withdraws an approved plan', async () => {
+  const body = renderPlan(one(['S1', 'S2']), { problems: [], skillVersion: '0.3.0', model: 'm', limits, maxStack: 5, scenariosHash: commentHash(manualScenarios()) });
+  const planComment = { id: 5, user: bot, body, updated_at: '2026-11-18T11:00:00Z', html_url: 'u' };
+  const removed = { id: 9, event: 'unlabeled', label: { name: 'scaffold:gherkin-approved' }, actor: { login: 'bob', type: 'User' }, created_at: '2026-11-18T13:00:00Z' };
+  const g = gh({ labels: ['scaffold:plan-approved'], comments: [scenariosComment(), planComment], events: [gherkinApproved, planApproved, removed] });
+  const out = await runGate(g, 'o/r', { event: { action: 'unlabeled', label: { name: 'scaffold:gherkin-approved' }, issue: { number: 1 } }, schema, config: AUTO });
+  assert.match(out.lines.join('\n'), /fail: the scenarios aren't approved: `scaffold:gherkin-approved` was removed after it was applied/);
+  assert.deepEqual(labelCalls(g), ['-scaffold:plan-approved', '+scaffold:planned']);
+  const other = await runGate(gh({ labels: [], comments: [], events: [] }), 'o/r', { event: { action: 'unlabeled', label: { name: 'scaffold:ready' }, issue: { number: 1 } }, schema, config: AUTO });
+  assert.match(other.skip, /label is not scaffold:gherkin-approved/);
+});

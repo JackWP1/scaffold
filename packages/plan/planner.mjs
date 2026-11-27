@@ -56,9 +56,10 @@ export async function runPlan(gh, repo, { event, issueNumber, commentId, config,
   }
   // Re-checked here as well as at admission: the scenarios may have changed since (PLAN.md section 5).
   let scenarios = null;
-  if (scenariosRequired(config, labels)) {
+  const timeline = config.gherkin === 'auto' ? await events() : [];
+  if (scenariosRequired(config, labels, timeline)) {
     scenarios = checkScenarios({
-      events: await events(), issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issue.number),
+      events: config.gherkin === 'auto' ? timeline : await events(), issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issue.number),
     });
     if (!scenarios.ok) {
       return failed(`the scenarios aren't approved: ${scenarios.reason}`, `Scenarios not approved: ${scenarios.reason}`, 'a listed approver approves the scenarios (`scaffold:gherkin-approved`), then a member comments `/plan` again.');

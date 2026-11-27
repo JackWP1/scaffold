@@ -63,9 +63,10 @@ export async function admit(gh, repo, { issue, comment, config, configError }) {
     );
   }
   // Approved scenarios come first when required, checked on the timeline, not by label (PLAN.md section 5).
-  if (scenariosRequired(config, labels)) {
+  const timeline = config.gherkin === 'auto' ? await events() : [];
+  if (scenariosRequired(config, labels, timeline)) {
     const s = checkScenarios({
-      events: await events(), issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issue.number),
+      events: config.gherkin === 'auto' ? timeline : await events(), issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issue.number),
     });
     if (!s.ok) {
       return refuse(
