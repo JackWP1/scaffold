@@ -135,7 +135,8 @@ flowchart TD
   class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize done
   class ownerreview,closed planned
   class ci,review,diagnose,readygate done
-  class check1,check2,conflicts1,conflicts2,order,merge,mq,mainonly planned
+  class check1,check2,conflicts1,conflicts2,order,merge,mq done
+  class mainonly planned
 ```
 
 Visibility is part of every slice rather than a stage of its own: each slice adds its steps to the status comment, audit log, usage report and these diagrams (PLAN.md section 11).
@@ -187,6 +188,12 @@ flowchart TD
   planreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews plan"}
   gate{{"Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs;<br/>scenarios still approved and unchanged,<br/>each mapped"}}
   approved["scaffold:plan-approved"]
+  conflict1["<span style='font-size:2em'>🤖</span> conflict-check 1<br/>in-flight tickets with overlapping<br/>affected paths or spec sections"]
+  conflictflag["scaffold:conflict<br/>one conflict comment links every ticket;<br/>plan gate and merge-order blocked"]
+  resolveconflict{"<span style='font-size:2em'>🧑</span><br/>Flow lead and owners resolve;<br/>listed approver applies<br/>scaffold:conflict-resolved"}
+  conflict2["<span style='font-size:2em'>🤖</span> conflict-check 2<br/>approved PRs changing the same files,<br/>changes merged since branching"]
+  mergeorder{{"Merge position<br/>blockers, stacks bottom-up,<br/>priority, earliest approval"}}
+  mergequeue{{"Merge queue<br/>scaffold-merge-order fails a PR<br/>that jumps the order, unless<br/>the flow lead overrides it"}}
   implon{{"implement stage on?<br/>stages in scaffold-config.yml"}}
   pick{"<span style='font-size:2em'>🧑</span><br/>Developer picks up ticket<br/>packages/implement/HANDOFF.md"}
   code["Developer writes code"]
@@ -204,7 +211,7 @@ flowchart TD
   ci{{"CI"}}
   review{"<span style='font-size:2em'>🧑</span><br/>Peer review"}
   test{"<span style='font-size:2em'>🧑</span><br/>Ticket tested"}
-  merge["Developer merges"]
+  merge{"<span style='font-size:2em'>🧑</span><br/>Developer adds the PR<br/>to the merge queue<br/>when it's next"}
   closed["Issue and Jira ticket closed"]
 
   jira --> open
@@ -252,7 +259,12 @@ flowchart TD
   gate -- passes --> approved
   plancomment -- plan comment deleted<br/>or its marker removed:<br/>approval withdrawn --> ready
   approved -- plan comment edited:<br/>approval removed --> planreview
-  approved --> implon
+  approved --> conflict1
+  conflict1 -- no conflict --> implon
+  conflict1 -- conflict --> conflictflag
+  conflictflag --> resolveconflict
+  resolveconflict -- resolved before implementation --> implon
+  resolveconflict -- resolved before merge order --> mergeorder
   implon -- no --> pick
   pick --> code
   code --> pr
@@ -278,10 +290,15 @@ flowchart TD
   escalate --> review
   reviewgate -- passes:<br/>review requested --> review
   review -- changes requested --> code
-  review -- approves --> test
+  review -- approves --> conflict2
+  conflict2 -- conflict --> conflictflag
+  conflict2 -- no conflict --> mergeorder
+  mergeorder --> test
   test -- fails: changes requested --> code
   test -- passes --> merge
-  merge --> closed
+  merge --> mergequeue
+  mergequeue -- jumps the order --> merge
+  mergequeue -- passes --> closed
 
   linkStyle default stroke-width:3px
 
@@ -289,8 +306,8 @@ flowchart TD
   classDef manual fill:#4b5563,color:#fff
   class ks,kh,ka,kai scaffold
   class km manual
-  class intakeon,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,scengate,ready,planon,plancmd,limit,decompose,plansize,toobig,retriage,plancomment,planreview,gate,approved,implon,assign,copilot,pr,baseline,implchecks,sizecmd,codereview,cidiagnose,reviewgate,rework,escalate scaffold
-  class jira,open,manualtriage,split,manualplan,pick,code,ci,review,test,merge,closed manual
+  class intakeon,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,scengate,ready,planon,plancmd,limit,decompose,plansize,toobig,retriage,plancomment,planreview,gate,approved,conflict1,conflictflag,resolveconflict,conflict2,mergeorder,mergequeue,implon,assign,copilot,pr,baseline,implchecks,sizecmd,codereview,cidiagnose,reviewgate,rework,escalate,merge scaffold
+  class jira,open,manualtriage,split,manualplan,pick,code,ci,review,test,closed manual
 ```
 <!-- end of generated diagram -->
 
@@ -307,3 +324,4 @@ One row per slice, added in the slice's retrospective PR. Earlier versions of bo
 | 2b | 2026-11-27 | Scenarios, in the intake package: `gherkin` config (`off`, `auto`, `always`; `bdd` required unless off), Request form Gherkin field, triage routes to `scaffold:needs-gherkin`, `gherkin-writer` drafts in the same run or on `/gherkin`, marked scenarios comment numbered S1..Sn, protected scenarios gate; edits and redrafts withdraw approvals. Plan re-checks the approval and maps each scenario to a PR; the plan gate fails if the scenarios changed. Proposed: scenarios steps added to intake, marked done |
 | 3 | 2026-11-27 | Implement: core baseline PR checks on every PR (protected paths with the caller pin-bump exception, hard size limit, test integrity lifted by `scaffold:test-change-approved`, scenarios check reading the BDD runner report); implement package switched by `stages`: plan gate re-check, PR size with `/size-exception` and `scaffold:size-exception`, review gate waiting for every check, automatic `@copilot` rework rounds, circuit breaker with `scaffold:escalate`, advisory work in progress; PR status comment. Proposed: implement steps marked done; the review gate stays planned until slice 4 adds `code-review` threads |
 | 4 | 2026-11-27 | Review: `code-review` (deep tier) posts one COMMENT-only review per head commit, inline where it can; the review gate waits for its threads to be resolved and lists open ones in the rework round. `ci-diagnose` (standard tier) explains failed runs of the workflows in `ci_workflows` in one PR comment, waiting for them on `pull_request` instead of `workflow_run` (which would need names in the protected caller file). 👎 on either counts as a false positive in the usage report. Proposed: review steps marked done |
+| 5 | 2026-11-27 | Collaboration: `conflict-check` (deep tier) after plan approval and after an approving review, each on a deterministic shortlist (no overlap, no model call); `scaffold:conflict` and one conflict comment, cleared only by a listed approver's `scaffold:conflict-resolved` after the flag; the plan gate holds while a conflict is open. Merge order (blockers, stacks bottom-up, priority, earliest approval) and `scaffold-merge-order` in the merge queue, with the flow lead's `/order-override`. Every required check runs on `merge_group`. Proposed: collaboration steps done; re-running a failed merge-queue PR against just main stays planned |

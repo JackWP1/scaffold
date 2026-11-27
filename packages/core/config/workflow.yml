@@ -135,6 +135,23 @@ diagram:
       text: Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs;<br/>scenarios still approved and unchanged,<br/>each mapped
     approved:
       text: scaffold:plan-approved
+    conflict1:
+      kind: ai
+      text: conflict-check 1<br/>in-flight tickets with overlapping<br/>affected paths or spec sections
+    conflictflag:
+      text: scaffold:conflict<br/>one conflict comment links every ticket;<br/>plan gate and merge-order blocked
+    resolveconflict:
+      kind: human
+      text: Flow lead and owners resolve;<br/>listed approver applies<br/>scaffold:conflict-resolved
+    conflict2:
+      kind: ai
+      text: conflict-check 2<br/>approved PRs changing the same files,<br/>changes merged since branching
+    mergeorder:
+      kind: check
+      text: Merge position<br/>blockers, stacks bottom-up,<br/>priority, earliest approval
+    mergequeue:
+      kind: check
+      text: Merge queue<br/>scaffold-merge-order fails a PR<br/>that jumps the order, unless<br/>the flow lead overrides it
     implon:
       kind: check
       text: implement stage on?<br/>stages in scaffold-config.yml
@@ -188,8 +205,8 @@ diagram:
       owner: manual
       text: Ticket tested
     merge:
-      owner: manual
-      text: Developer merges
+      kind: human
+      text: Developer adds the PR<br/>to the merge queue<br/>when it's next
     closed:
       owner: manual
       text: Issue and Jira ticket closed
@@ -239,7 +256,12 @@ diagram:
     - gate -- passes --> approved
     - plancomment -- plan comment deleted<br/>or its marker removed:<br/>approval withdrawn --> ready
     - approved -- plan comment edited:<br/>approval removed --> planreview
-    - approved --> implon
+    - approved --> conflict1
+    - conflict1 -- no conflict --> implon
+    - conflict1 -- conflict --> conflictflag
+    - conflictflag --> resolveconflict
+    - resolveconflict -- resolved before implementation --> implon
+    - resolveconflict -- resolved before merge order --> mergeorder
     - implon -- no --> pick
     - pick --> code
     - code --> pr
@@ -265,7 +287,12 @@ diagram:
     - escalate --> review
     - reviewgate -- passes:<br/>review requested --> review
     - review -- changes requested --> code
-    - review -- approves --> test
+    - review -- approves --> conflict2
+    - conflict2 -- conflict --> conflictflag
+    - conflict2 -- no conflict --> mergeorder
+    - mergeorder --> test
     - test -- fails: changes requested --> code
     - test -- passes --> merge
-    - merge --> closed
+    - merge --> mergequeue
+    - mergequeue -- jumps the order --> merge
+    - mergequeue -- passes --> closed

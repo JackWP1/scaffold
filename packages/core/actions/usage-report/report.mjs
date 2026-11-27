@@ -49,7 +49,7 @@ const COPILOT = ['Copilot', 'copilot-swe-agent[bot]'];
 // `comments` are issue and PR comments in the window (rework rounds, diagnoses); `reviewComments` are PR
 // review comments in the window (code-review); `openPrs` the open PRs now. A 👎 reaction on a code-review
 // comment or a diagnosis marks it a false positive.
-export function summarise({ runs, jobs, events, comments = [], reviewComments = [], reviews = [], openPrs = [] }) {
+export function summarise({ runs, jobs, events, comments = [], reviewComments = [], reviews = [], openPrs = [], conflictQueue = 0 }) {
   const perJob = {};
   for (const run of runs) {
     for (const j of jobs[run.id] ?? []) {
@@ -93,6 +93,23 @@ export function summarise({ runs, jobs, events, comments = [], reviewComments = 
     plan: { admitted: count('labeled', 'scaffold:planned'), tooBig: count('labeled', 'scaffold:too-big') },
     scenarios: { needed: count('labeled', 'scaffold:needs-gherkin'), ...approvalStats('scaffold:gherkin-approved', 'scaffold:needs-gherkin') },
     gate: approvalStats('scaffold:plan-approved', 'scaffold:planned'),
+    collaboration: (() => {
+      const flags = events.filter((e) => byBot(e, 'labeled', 'scaffold:conflict'));
+      const perIssue = flags.reduce((m, f) => m.set(f.issue?.number, (m.get(f.issue?.number) ?? 0) + 1), new Map());
+      const hours = events.filter((e) => e.event === 'labeled' && e.label?.name === 'scaffold:conflict-resolved' && e.actor?.type === 'User').flatMap((r) => {
+        const flag = flags.filter((f) => f.issue?.number === r.issue?.number && f.created_at <= r.created_at).at(-1);
+        return flag ? [(Date.parse(r.created_at) - Date.parse(flag.created_at)) / 3_600_000] : [];
+      });
+      const conflictComments = comments.filter(byScaffold('<!-- scaffold:conflict -->'));
+      return {
+        flagged: flags.length,
+        resolved: hours.length,
+        medianHoursToResolve: median(hours),
+        repeatFlagged: [...perIssue.values()].filter((n) => n > 1).length,
+        falsePositives: conflictComments.filter(thumbsDown).length,
+        queueNow: conflictQueue,
+      };
+    })(),
     review: {
       codeReviewComments: reviewComments.filter(byScaffold('<!-- scaffold:code-review -->')).length,
       codeReviewFalsePositives: reviewComments.filter(byScaffold('<!-- scaffold:code-review -->')).filter(thumbsDown).length,
@@ -152,6 +169,12 @@ export function renderReport({ from, to, numbers, config, configError }) {
     `| Review: CI diagnoses | ${n.review.diagnoses} |`,
     `| Review: CI diagnoses marked wrong (👎) | ${n.review.diagnosisFalsePositives} |`,
     `| Implement: automatic rework rounds | ${n.implement.reworkRounds} |`,
+    `| Collaboration: conflicts flagged | ${n.collaboration.flagged} |`,
+    `| Collaboration: tickets flagged more than once | ${n.collaboration.repeatFlagged} |`,
+    `| Collaboration: conflicts resolved | ${n.collaboration.resolved} |`,
+    `| Collaboration: median hours from flag to resolution | ${hrs(n.collaboration.medianHoursToResolve)} |`,
+    `| Collaboration: conflict comments marked wrong (👎) | ${n.collaboration.falsePositives} |`,
+    `| Collaboration: Conflicts queue now (open \`scaffold:conflict\`) | ${n.collaboration.queueNow} |`,
     `| Implement: circuit breaker tripped (\`scaffold:escalate\`) | ${n.implement.escalated} |`,
     `| Implement: size exceptions granted | ${n.implement.sizeExceptions} |`,
     `| Baseline: test changes approved | ${n.implement.testChangesApproved} |`,
@@ -189,7 +212,9 @@ export async function postReport(gh, repo, { now = new Date(), config, configErr
   for await (const page of gh.pages(`/repos/${repo}/pulls/comments?since=${encodeURIComponent(since)}`)) reviewComments.push(...page);
   const openPrs = [];
   for await (const page of gh.pages(`/repos/${repo}/pulls?state=open`)) openPrs.push(...page);
-  const numbers = summarise({ runs, jobs, events: await issueEvents(gh, repo, since), comments, reviewComments, reviews, openPrs });
+  let conflictQueue = 0;
+  for await (const page of gh.pages(`/repos/${repo}/issues?state=open&labels=${encodeURIComponent('scaffold:conflict')}`)) conflictQueue += page.filter((i) => !i.pull_request).length;
+  const numbers = summarise({ runs, jobs, events: await issueEvents(gh, repo, since), comments, reviewComments, reviews, openPrs, conflictQueue });
   const body = renderReport({ from: since.slice(0, 10), to: now.toISOString().slice(0, 10), numbers, config, configError });
 
   let issue;

@@ -87,9 +87,9 @@ flowchart TD
   class ticket,intake,ready,limit,plan,impl,merged existing
   class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,mainonly,rework,reapprove,flag,queue,resolve,resolved,resume,blocked,closed s5
 
-  class ticket,ready,impl,merged planned
-  class intake,limit,plan done
-  class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,mainonly,rework,reapprove,flag,queue,resolve,resolved,resume,blocked,closed planned
+  class intake,limit,plan,ticket,ready,impl,merged done
+  class find1,check1,ok1,find2,check2,ok2,order,enqueue,mq,flag,resolve,resolved,resume,blocked,closed,rework,reapprove done
+  class mainonly,queue planned
 ```
 
 ## History
@@ -98,3 +98,4 @@ flowchart TD
 | --- | --- | --- |
 | 0 | 2026-11-13 | Proposed collaboration workflow drawn |
 | 2 | 2026-11-18 | Intake, in-flight limit and plan (with affected paths) marked done |
+| 5 | 2026-11-27 | Both conflict checks, flag and resolution, merge order and the `scaffold-merge-order` check in the merge queue marked done; sequencing reads "Blocked by #n". Still planned: re-running a PR that failed in the merge queue against just main (it leaves the queue and goes back through rework today), and the Projects "Conflicts" view (`GITHUB_TOKEN` can't write Projects: filter on `scaffold:conflict` instead) |
