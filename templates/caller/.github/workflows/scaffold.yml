@@ -4,7 +4,7 @@
 name: SCAFFOLD
 on:
   issues:
-    types: [opened, edited, reopened, labeled]
+    types: [opened, edited, reopened, labeled, unlabeled]
   issue_comment:
     types: [created, edited, deleted]
   pull_request:
@@ -24,9 +24,10 @@ on:
 permissions: {}
 
 jobs:
-  # Intake package.
+  # Intake package: triage, and the scenarios gate (scaffold:gherkin-approved and scaffold:needs-gherkin
+  # applied or removed; edits to or deletion of the scenarios comment).
   triage:
-    if: github.event_name == 'issues'
+    if: github.event_name == 'issues' || (github.event_name == 'issue_comment' && github.event.action != 'created')
     permissions:
       issues: write
       contents: read
@@ -35,7 +36,7 @@ jobs:
 
   # Plan package: `/plan` comments, scaffold:plan-approved, and edits to or deletion of the plan comment.
   plan:
-    if: github.event_name == 'issue_comment' || (github.event_name == 'issues' && github.event.label.name == 'scaffold:plan-approved')
+    if: github.event_name == 'issue_comment' || (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved')
     permissions:
       issues: write
       contents: read

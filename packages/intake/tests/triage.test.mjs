@@ -24,6 +24,7 @@ const good = {
   questions: ['Which Safari version?'],
   brief: { goal: 'Login works on Safari', acceptance_criteria: ['Clicking login signs in'], affected_areas: [], out_of_scope: [] },
   proposed_tickets: [],
+  scenarios_needed: false,
 };
 
 test('valid triage output passes', () => {
@@ -102,12 +103,12 @@ test('template check headings are all in the Request form', async () => {
 
 // runTriage against a fake issue. `reply` is the model's output (or an Error); `prompts` collects user prompts.
 const bot = { login: 'github-actions[bot]' };
-async function triageRun({ labels = [], config = BOTH, configError, reply = { ...good, decision: 'ready', questions: [] }, comments = [], association = 'MEMBER' } = {}) {
+async function triageRun({ labels = [], config = BOTH, configError, reply = { ...good, decision: 'ready', questions: [] }, comments = [], association = 'MEMBER', body = 'B' } = {}) {
   const gh = fakeGh({ '/repos/o/r/issues/1/comments': comments, '/repos/o/r/issues/1/labels': null });
   const prompts = [];
   const event = {
     action: 'opened',
-    issue: { number: 1, title: 'T', body: 'B', author_association: association, labels: labels.map((name) => ({ name })) },
+    issue: { number: 1, title: 'T', body, author_association: association, labels: labels.map((name) => ({ name })) },
   };
   const summary = await runTriage(gh, 'o/r', {
     event,
@@ -122,7 +123,8 @@ async function triageRun({ labels = [], config = BOTH, configError, reply = { ..
   });
   const labelCalls = gh.calls.filter(([, path]) => path.includes('/labels')).map(([m, path, body]) => (m === 'DELETE' ? `-${decodeURIComponent(path.split('/').pop())}` : body.labels.map((l) => `+${l}`).join(' ')));
   const status = gh.calls.filter(([m, path]) => m !== 'GET' && (path.endsWith('/comments') || path.includes('/issues/comments/'))).at(-1)?.[2]?.body;
-  return { summary, labelCalls, status, prompts };
+  const posted = gh.calls.filter(([m, path]) => m !== 'GET' && (path.endsWith('/comments') || path.includes('/issues/comments/'))).map(([, , b]) => b.body);
+  return { summary, labelCalls, status, prompts, posted };
 }
 
 test('with plan off, a ready issue shows the plan stage as manual and points at HANDOFF.md', async () => {

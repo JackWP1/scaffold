@@ -10,7 +10,8 @@ const list = (items) => items.map((i) => `- ${e(i)}`).join('\n');
 const footer = ({ skillVersion, model }) => `<sub>triage v${skillVersion} · ${model} · AI-generated: check before acting</sub>`;
 
 // `config` decides how the plan stage is shown: with plan off, its rows are manual (PLAN.md section 5).
-export function renderTriage(out, meta, { config } = {}) {
+// `scenarios` ({ state, next }) is set when the issue needs approved scenarios before it is ready.
+export function renderTriage(out, meta, { config, scenarios } = {}) {
   if (out.decision === 'needs-info' && !out.proposed_tickets?.length) {
     return [
       MARKER,
@@ -43,15 +44,27 @@ export function renderTriage(out, meta, { config } = {}) {
       footer(meta),
     ].join('\n');
   }
+  // With gherkin off, `manual` already shows the row as not used.
+  const scenarioRow = config?.gherkin === 'off' ? {} : {
+    Scenarios: scenarios?.state ?? (config?.gherkin === 'auto' ? '➖ not needed (triage decided; a member can add `scaffold:needs-gherkin`)' : '➖ not needed'),
+  };
+  const next = scenarios
+    ? `**Next:** ${scenarios.next}`
+    : planOn
+      ? '**Next:** a member comments `/plan` to get a plan.'
+      : '**Next:** plan by hand: see `packages/plan/HANDOFF.md`.';
   const parts = [
     MARKER,
     '### SCAFFOLD status',
     '',
-    gateTable({ ...manual, Triage: '✅ ready', ...(planOn ? { Plan: '⏳ waiting for `/plan`' } : {}) }),
+    gateTable({
+      ...manual,
+      Triage: scenarios ? '✅ triaged: scenarios needed' : '✅ ready',
+      ...scenarioRow,
+      ...(planOn ? { Plan: scenarios ? '⏳ waiting for approved scenarios' : '⏳ waiting for `/plan`' } : {}),
+    }),
     '',
-    planOn
-      ? '**Next:** a member comments `/plan` to get a plan.'
-      : '**Next:** plan by hand: see `packages/plan/HANDOFF.md`.',
+    next,
     '',
     `**Summary:** ${e(out.summary)}`,
     `**Type:** ${out.type} · **Suggested priority:** ${out.priority}`,

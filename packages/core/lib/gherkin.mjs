@@ -15,9 +15,9 @@ export const scenarioTag = (issue, n) => `@scaffold-${issue}-S${n}`;
 const squash = (s) => s.trim().replace(/\s+/g, ' ');
 const tableRow = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map(squash).join(' | ');
 
-// Returns { feature, background, scenarios, errors }. Each scenario is { name, tags, steps, examples },
+// Returns { feature, background, scenarios, errors }. Each scenario is { name, line, tags, steps, examples },
 // where steps are normalised lines (keyword, text, then any doc string or table rows) and examples
-// are normalised table rows. Errors name the 1-based line.
+// are normalised table rows; `line` is the 0-based line of its `Scenario:`. Errors name the 1-based line.
 export function parseGherkin(text) {
   const out = { feature: null, background: [], scenarios: [], errors: [] };
   const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
@@ -57,7 +57,7 @@ export function parseGherkin(text) {
     }
     const scenario = line.match(SCENARIO);
     if (scenario) {
-      current = { name: squash(scenario[2]), outline: scenario[1].startsWith('Scenario '), tags, steps: [], examples: [] };
+      current = { name: squash(scenario[2]), line: i, outline: scenario[1].startsWith('Scenario '), tags, steps: [], examples: [] };
       out.scenarios.push(current);
       section = 'scenario';
       tags = [];
@@ -110,4 +110,31 @@ export function parseGherkin(text) {
 // the scenario's name and tags don't change it; any step or example change does.
 export function scenarioHash(scenario) {
   return createHash('sha256').update([...scenario.steps, '--', ...scenario.examples].join('\n')).digest('hex').slice(0, 16);
+}
+
+// The intake package's scenarios comment (handover contract, PLAN.md section 5). Plan and the scenarios
+// check read it by marker; the Gherkin is the first ```gherkin fence in it.
+export const SCENARIOS_MARKER = '<!-- scaffold:scenarios -->';
+const FENCE = /^(`{3,})gherkin\n([\s\S]*?)\n\1$/m;
+
+export function scenariosText(body) {
+  return body?.startsWith(SCENARIOS_MARKER) ? body.match(FENCE)?.[2] ?? null : null;
+}
+
+// Numbers each scenario S1, S2, … by tagging it `@scaffold-<issue>-S<n>`, replacing any such tags
+// already there. Returns { text, scenarios, errors }; text is null when the Gherkin doesn't parse.
+export function tagScenarios(text, issue) {
+  const stripped = String(text ?? '').replace(/\r\n?/g, '\n').split('\n').flatMap((l) => {
+    if (!l.trim().startsWith('@')) return [l];
+    const kept = l.replace(/(^|\s)@scaffold-\d+-S\d+(?=\s|$)/g, '$1').replace(/\s+$/, '');
+    return kept.trim() ? [kept.replace(/^(\s*)\s*/, '$1')] : [];
+  });
+  const parsed = parseGherkin(stripped.join('\n'));
+  if (parsed.errors.length) return { text: null, scenarios: [], errors: parsed.errors };
+  const out = [...stripped];
+  for (const [n, s] of [...parsed.scenarios.entries()].reverse()) {
+    const indent = out[s.line].match(/^\s*/)[0];
+    out.splice(s.line, 0, `${indent}${scenarioTag(issue, n + 1)}`);
+  }
+  return { text: out.join('\n').trim(), scenarios: parseGherkin(out.join('\n')).scenarios, errors: [] };
 }

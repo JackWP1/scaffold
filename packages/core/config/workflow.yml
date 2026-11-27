@@ -19,9 +19,9 @@ stages:
   intake:
     workflow: triage.yml
     skills: [triage]
-    triggers: [issues.opened, issues.edited, issues.reopened, issues.labeled]
+    triggers: [issues.opened, issues.edited, issues.reopened, issues.labeled, issues.unlabeled, issue_comment.edited, issue_comment.deleted]
     labels: [scaffold:triage, scaffold:needs-info, scaffold:needs-gherkin, scaffold:gherkin-approved, scaffold:ready, scaffold:proposed, scaffold:accepted, scaffold:no-template, priority:high, priority:medium, priority:low]
-    gates: [Triaged → ready]
+    gates: [Triaged → ready, Scenarios → approved]
   plan:
     workflow: plan.yml
     skills: [task-decomposer]

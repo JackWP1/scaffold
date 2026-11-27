@@ -1,0 +1,20 @@
+name: SCAFFOLD scenarios gate
+description: Check a scaffold:gherkin-approved label against the issue timeline and .github/scaffold-config.yml, and handle scenario edits and scaffold:needs-gherkin overrides. Skipped when the intake stage is off.
+inputs:
+  github-token:
+    description: Token with issues:write and contents:read
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    # Reads `stages` first (PLAN.md section 5): when intake is off, the gate is manual.
+    - id: stage
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/../../../core/bin/stage.mjs" intake
+    - if: steps.stage.outputs.state != 'off'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/main.mjs"

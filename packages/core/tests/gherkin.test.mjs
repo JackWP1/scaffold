@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGherkin, scenarioHash, scenarioTag, MAX_SCENARIOS } from '../lib/gherkin.mjs';
+import { parseGherkin, scenarioHash, scenarioTag, tagScenarios, scenariosText, SCENARIOS_MARKER, MAX_SCENARIOS } from '../lib/gherkin.mjs';
 
 const FEATURE = `# login
 @auth
@@ -34,7 +34,7 @@ test('parses a feature with background, tags, outlines, doc strings and examples
   assert.equal(g.feature, 'Login');
   assert.deepEqual(g.background, ['Given a user "ada" exists']);
   assert.equal(g.scenarios.length, 2);
-  assert.deepEqual(g.scenarios[0], { name: 'Correct password', tags: ['@happy'], steps: ['When ada signs in with "secret"', 'Then she sees her dashboard'], examples: [] });
+  assert.deepEqual(g.scenarios[0], { name: 'Correct password', line: 9, tags: ['@happy'], steps: ['When ada signs in with "secret"', 'Then she sees her dashboard'], examples: [] });
   assert.deepEqual(g.scenarios[1].steps.slice(2), ['And the attempt is logged:', '  failed login for ada']);
   assert.deepEqual(g.scenarios[1].examples, ['password | message', 'wrong | Wrong password']);
 });
@@ -74,4 +74,22 @@ test('rejects text that is not valid scenarios', () => {
 
 test('scenario tags tie an issue scenario to its feature file', () => {
   assert.equal(scenarioTag(42, 3), '@scaffold-42-S3');
+});
+
+test('scenarios are numbered by tag, replacing old SCAFFOLD tags but not the author\'s', () => {
+  const { text, scenarios, errors } = tagScenarios(FEATURE.replace('@happy', '@happy @scaffold-7-S9'), 42);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(scenarios.map((s) => s.tags), [['@happy', '@scaffold-42-S1'], ['@scaffold-42-S2']]);
+  assert.match(text, /  @happy\n  @scaffold-42-S1\n  Scenario: Correct password/);
+  assert.doesNotMatch(text, /S9/);
+  assert.deepEqual(scenarios.map(scenarioHash), parseGherkin(FEATURE).scenarios.map(scenarioHash));
+  assert.equal(tagScenarios(text, 42).text, text);
+  assert.deepEqual(tagScenarios('Feature: f', 1), { text: null, scenarios: [], errors: ['no scenarios'] });
+});
+
+test('the scenarios comment holds its Gherkin in the first gherkin fence', () => {
+  const body = `${SCENARIOS_MARKER}\n### Scenarios\n\n\`\`\`\`gherkin\nFeature: f\n\`\`\`\nScenario: s\n\`\`\`\`\n\nmore`;
+  assert.equal(scenariosText(body), 'Feature: f\n```\nScenario: s');
+  assert.equal(scenariosText('no marker\n```gherkin\nx\n```'), null);
+  assert.equal(scenariosText(SCENARIOS_MARKER), null);
 });

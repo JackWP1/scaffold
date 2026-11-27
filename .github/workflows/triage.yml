@@ -1,4 +1,4 @@
-# Reusable intake workflow (slice 1): triage. Called from a repo's thin caller workflow.
+# Reusable intake workflow: triage (slice 1) and the scenarios gate (slice 2b). Called from a repo's thin caller workflow.
 # The action reads `stages` first and does nothing else when intake is off (PLAN.md section 5).
 name: SCAFFOLD triage
 on:
@@ -13,7 +13,7 @@ permissions: {}
 
 jobs:
   triage:
-    if: vars.SCAFFOLD_ENABLED != 'false' && !github.event.issue.pull_request && (github.event.action != 'labeled' || contains(fromJSON('["scaffold:accepted","scaffold:triage"]'), github.event.label.name))
+    if: vars.SCAFFOLD_ENABLED != 'false' && github.event_name == 'issues' && !github.event.issue.pull_request && github.event.action != 'unlabeled' && (github.event.action != 'labeled' || contains(fromJSON('["scaffold:accepted","scaffold:triage"]'), github.event.label.name))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
@@ -28,3 +28,23 @@ jobs:
       - uses: JackWP1/scaffold/packages/intake/actions/triage@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
         with:
           model: ${{ inputs.model }}
+
+  # Deterministic, so the kill switch doesn't skip it. Any edit to or deletion of a bot comment: the gate
+  # works out whether it was the scenarios, even if the edit removed the marker.
+  gate:
+    if: >-
+      !github.event.issue.pull_request && (
+        (github.event_name == 'issues' && contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && contains(fromJSON('["scaffold:gherkin-approved","scaffold:needs-gherkin"]'), github.event.label.name)) ||
+        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && github.event.comment.user.login == 'github-actions[bot]')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-scenarios-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/intake/actions/gate@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0

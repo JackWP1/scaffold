@@ -6,7 +6,8 @@ import { validate } from '../core/lib/validate.mjs';
 import { RateLimited } from '../core/lib/models.mjs';
 import { issueSteps } from '../core/lib/issue.mjs';
 import { renderTriage, renderNotice } from './render.mjs';
-import { usesTemplate } from './template.mjs';
+import { usesTemplate, formGherkin } from './template.mjs';
+import { renderScenarios, parseProblem, SCENARIOS_MARKER } from './scenarios.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 // Re-triage resets the lifecycle, so a planned or approved issue needs /plan again (PLAN.md section 8).
@@ -15,6 +16,10 @@ export const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold
 const PLAN_MARKER = '<!-- scaffold:plan -->';
 
 const heading = '### SCAFFOLD triage';
+const APPROVE_NEXT = 'a listed approver reviews the scenarios and applies `scaffold:gherkin-approved`.';
+
+// Whether a ready issue needs approved scenarios first (PLAN.md section 2, Scenarios).
+export const scenariosRequired = (mode, triageSays) => mode === 'always' || (mode === 'auto' && triageSays);
 
 // Returns the job summary (markdown). `config` is null when `configError` is set.
 export async function runTriage(gh, repo, { event, config, configError, loadSkill, callModel }) {
@@ -23,9 +28,10 @@ export async function runTriage(gh, repo, { event, config, configError, loadSkil
   const skip = (reason) => `${heading}\nSkipped: ${reason}`;
   if (issue.pull_request) return skip('pull request');
   if (event.action === 'edited') return skip('edits do not re-run triage; add scaffold:triage instead');
+  if (event.action === 'unlabeled') return skip('removing a label does not re-run triage');
   if (event.action === 'labeled' && !['scaffold:accepted', 'scaffold:triage'].includes(event.label?.name)) return skip('label is not scaffold:accepted or scaffold:triage');
 
-  const { setLabels, upsertStatus, acceptedByMember, findComment } = issueSteps(gh, repo, issue.number, labels);
+  const { setLabels, upsertStatus, upsertComment, acceptedByMember, findComment } = issueSteps(gh, repo, issue.number, labels);
   const trusted = TRUSTED.includes(issue.author_association)
     || (labels.includes('scaffold:accepted') && await acceptedByMember(event.action === 'labeled' && event.label.name === 'scaffold:accepted' ? event.sender : undefined));
   if (!trusted) {
@@ -78,18 +84,36 @@ export async function runTriage(gh, repo, { event, config, configError, loadSkil
   if (out.decision === 'ready') out.questions = [];
   if (!tooBig) out.proposed_tickets = [];
   const split = out.proposed_tickets.length > 0;
+  const needsScenarios = !split && out.decision === 'ready' && scenariosRequired(config.gherkin, out.scenarios_needed);
 
-  const add = [split ? 'scaffold:too-big' : `scaffold:${out.decision}`];
+  // The author's scenarios go in the scenarios comment for approval; gherkin-writer drafts them otherwise.
+  async function scenarios() {
+    const fromForm = formGherkin(issue.body);
+    if (fromForm) {
+      const r = renderScenarios(fromForm, { issue: issue.number, source: 'the issue\'s Scenarios (Gherkin) field', approvers: config.approvers });
+      if (r.errors) {
+        return { state: `⚠️ the Scenarios (Gherkin) field doesn't parse: ${parseProblem(r.errors)}`, next: 'fix the issue\'s Scenarios (Gherkin) field, then add the `scaffold:triage` label.' };
+      }
+      const c = await upsertComment(SCENARIOS_MARKER, r.body);
+      return { state: `📝 [${r.count} scenario${r.count === 1 ? '' : 's'}](${c.html_url}): waiting for a listed approver`, next: APPROVE_NEXT };
+    }
+    const existing = await findComment(SCENARIOS_MARKER);
+    if (existing) return { state: `📝 [scenarios](${existing.html_url}): waiting for a listed approver`, next: APPROVE_NEXT };
+    return { state: '⏳ no scenarios yet', next: 'write scenarios in the issue\'s Scenarios (Gherkin) field, then add the `scaffold:triage` label.' };
+  }
+  const scenarioState = needsScenarios ? await scenarios() : undefined;
+
+  const add = [split ? 'scaffold:too-big' : needsScenarios ? 'scaffold:needs-gherkin' : `scaffold:${out.decision}`];
   if (!labels.some((l) => l.startsWith('priority:'))) add.push(`priority:${out.priority}`);
   if (!usesTemplate(issue.body)) add.push('scaffold:no-template');
   await setLabels(add, [...STATE_LABELS, 'scaffold:no-template']);
-  await upsertStatus(renderTriage(out, { skillVersion, model }, { config }));
+  await upsertStatus(renderTriage(out, { skillVersion, model }, { config, scenarios: scenarioState }));
 
   return [
     heading,
     '| Skill | Version | Model | Input hash | Decision |',
     '| --- | --- | --- | --- | --- |',
-    `| triage | ${skillVersion} | ${model} | \`${inputHash}\` | ${split ? `too big: ${out.proposed_tickets.length} smaller tickets proposed` : out.decision} |`,
+    `| triage | ${skillVersion} | ${model} | \`${inputHash}\` | ${split ? `too big: ${out.proposed_tickets.length} smaller tickets proposed` : needsScenarios ? 'needs-gherkin' : out.decision} |`,
     '',
     '<details><summary>Validated output</summary>',
     '',
