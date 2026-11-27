@@ -9,7 +9,7 @@ import { RateLimited } from '../core/lib/models.mjs';
 import { readRepoFile } from '../core/lib/config.mjs';
 import { issueSteps } from '../core/lib/issue.mjs';
 import { MARKER, setGates, manualStates, PR_GATES } from '../core/lib/status.mjs';
-import { prFiles, linkedIssues, pathsOf } from '../core/lib/pr.mjs';
+import { prFiles, linkedIssues, pathsOf, matchesAny } from '../core/lib/pr.mjs';
 import { CONFLICT, CONFLICT_RESOLVED, conflictState } from '../core/lib/conflicts.mjs';
 
 export const CONFLICT_MARKER = '<!-- scaffold:conflict -->';
@@ -30,17 +30,38 @@ const planData = (body) => {
   }
 };
 
-// A path or glob as a directory-ish prefix: everything before the first wildcard.
-const prefix = (p) => p.replace(/^\.?\//, '').split(/[*?[{]/)[0];
-// Two path lists overlap when a prefix of one contains a prefix of the other (or they're the same file).
+const clean = (p) => p.replace(/^\.?\//, '');
+const isGlob = (p) => /[*?[{]/.test(p);
+// The fixed part of a path or glob: everything before the first wildcard (may end mid-name, e.g. src/foo).
+const prefix = (p) => clean(p).split(/[*?[{]/)[0];
+// A glob's fixed ending after its last wildcard, e.g. `.js` in `**/*.js`.
+const suffix = (p) => clean(p).split(/[*?]/).at(-1);
+
+// Two path or glob lists overlap (conservatively: a false overlap only costs a model call, a missed one
+// skips the check). Returns the overlapping entries from `a`.
 export function pathsOverlap(a, b) {
-  const pa = a.map(prefix).filter(Boolean);
-  const pb = b.map(prefix).filter(Boolean);
-  const within = (x, y) => x === y || (y.endsWith('/') ? x.startsWith(y) : x.startsWith(`${y}/`));
-  return pa.filter((x) => pb.some((y) => within(x, y) || within(y, x)));
+  const one = (x, y) => {
+    const [px, py] = [prefix(x), prefix(y)];
+    // A concrete path against a glob: the glob decides.
+    if (!isGlob(x) && isGlob(y)) return matchesAny(clean(x), [clean(y)]);
+    if (isGlob(x) && !isGlob(y)) return matchesAny(clean(y), [clean(x)]);
+    if (!isGlob(x) && !isGlob(y)) {
+      const [cx, cy] = [clean(x), clean(y)];
+      return cx === cy || cx.startsWith(cy.endsWith('/') ? cy : `${cy}/`) || cy.startsWith(cx.endsWith('/') ? cx : `${cx}/`);
+    }
+    // Two globs: overlap when their fixed beginnings could meet and their fixed endings agree.
+    const begins = px.startsWith(py) || py.startsWith(px);
+    const [sx, sy] = [suffix(x), suffix(y)];
+    return begins && (!sx || !sy || sx.endsWith(sy) || sy.endsWith(sx));
+  };
+  return a.filter((x) => b.some((y) => one(x, y)));
 }
 
-export const specRefs = (text) => [...new Set([...String(text ?? '').matchAll(/\bdocs\/spec\/[\w./-]+/g)].map(([m]) => m.replace(/[.)]+$/, '')))];
+// Spec files named in text. Only plain path segments: `.` or `..` (e.g. docs/spec/../../.github/x)
+// would read files outside docs/spec and send them to a model.
+export const specRefs = (text) => [...new Set([...String(text ?? '').matchAll(/\bdocs\/spec\/[\w./-]+/g)]
+  .map(([m]) => m.replace(/[.)]+$/, ''))
+  .filter((p) => p.split('/').every((seg) => seg && seg !== '.' && seg !== '..')))];
 
 // The ticket's affected paths and spec references, from its plan (or the issue when there's no plan).
 async function ticketScope(gh, repo, number) {

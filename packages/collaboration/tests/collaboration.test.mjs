@@ -15,11 +15,17 @@ const issue = (number, labels = ['scaffold:planned'], body = '') => ({ number, t
 const labelCalls = (g) => g.calls.filter(([, p]) => p.includes('/labels')).map(([m, p, b]) => (m === 'DELETE' ? `${p.split('/')[5]}-${decodeURIComponent(p.split('/').pop())}` : `${p.split('/')[5]}+${b.labels.join(',')}`));
 const posts = (g) => g.calls.filter(([m, p]) => m !== 'GET' && p.includes('/comments')).map(([, p, b]) => [p.split('/')[5], b.body]);
 
-test('overlap is by path prefix, globs cut at the first wildcard; spec references are found in text', () => {
-  assert.deepEqual(pathsOverlap(['src/auth/**', 'docs/x.md'], ['src/auth/login.js']), ['src/auth/']);
-  assert.deepEqual(pathsOverlap(['src/auth'], ['src/author.js']), [], 'a prefix must end at a directory');
+test('overlap: directories, globs and files; spec references are plain paths under docs/spec', () => {
+  assert.deepEqual(pathsOverlap(['src/auth/**', 'docs/x.md'], ['src/auth/login.js']), ['src/auth/**']);
+  assert.deepEqual(pathsOverlap(['src/auth'], ['src/author.js']), [], 'a directory must end at a slash');
+  assert.deepEqual(pathsOverlap(['src/auth'], ['src/auth/login.js']), ['src/auth']);
   assert.deepEqual(pathsOverlap(['src/a.js'], ['src/a.js']), ['src/a.js']);
+  assert.deepEqual(pathsOverlap(['**/*.js'], ['src/x.js']), ['**/*.js'], 'a wildcard-only glob still matches');
+  assert.deepEqual(pathsOverlap(['src/foo*.js'], ['src/foobar.js']), ['src/foo*.js'], 'a wildcard mid-name');
+  assert.deepEqual(pathsOverlap(['**/*.js'], ['lib/**/*.js']), ['**/*.js'], 'two globs with the same ending');
+  assert.deepEqual(pathsOverlap(['**/*.js'], ['**/*.css']), [], 'two globs with different endings');
   assert.deepEqual(specRefs('See docs/spec/login.md. And (docs/spec/api/users.md)'), ['docs/spec/login.md', 'docs/spec/api/users.md']);
+  assert.deepEqual(specRefs('docs/spec/../../.github/workflows/x.yml and docs/spec/./a.md'), [], 'no . or .. segments');
 });
 
 function check1Gh({ others = [[8, ['src/auth/**']], [9, ['web/**']]], mine = ['src/auth/login.js'], comments = {} } = {}) {

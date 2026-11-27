@@ -19,6 +19,8 @@ jobs:
     permissions:
       contents: read
       issues: read
+      # In the merge queue it reads the PR being merged.
+      pull-requests: read
     outputs:
       row: ${{ steps.check.outputs.row }}
     steps:
