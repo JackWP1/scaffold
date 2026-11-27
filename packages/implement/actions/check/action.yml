@@ -1,11 +1,11 @@
 name: SCAFFOLD implement
-description: The implement package's PR jobs. Checks (plan gate, PR size) pass with "stage off: manual" when implement is off.
+description: The implement package's PR jobs. Checks (plan gate, PR size, review gate) pass with "stage off: manual" when implement is off.
 inputs:
   mode:
-    description: scaffold-plan-gate, scaffold-pr-size, status or size-command
+    description: scaffold-plan-gate, scaffold-pr-size, scaffold-review-gate, status or size-command
     required: true
   github-token:
-    description: Token with contents:read, pull-requests:read and issues:write
+    description: Token with contents:read, pull-requests:read and issues:write; the review gate also needs checks:read and pull-requests:write
     default: ${{ github.token }}
 outputs:
   row:

@@ -7,13 +7,36 @@ import { prFiles } from '../core/lib/pr.mjs';
 import { issueSteps } from '../core/lib/issue.mjs';
 import { MARKER, setGates } from '../core/lib/status.mjs';
 import { planGate, sizeCheck, SIZE_COMMAND, SIZE_EXCEPTION } from './checks.mjs';
+import { reviewGate, COPILOT } from './review.mjs';
 
-export const PR_GATES = ['Plan gate', 'Size', 'Review gate', 'Rework'];
-export const CHECKS = { 'scaffold-plan-gate': planGate, 'scaffold-pr-size': sizeCheck };
+export const PR_GATES = ['Plan gate', 'Size', 'Review gate', 'Rework', 'Work in progress'];
+export const CHECKS = { 'scaffold-plan-gate': planGate, 'scaffold-pr-size': sizeCheck, 'scaffold-review-gate': reviewGate };
+// Rows the status job writes from the parallel checks' outputs. The review gate writes its own rows:
+// it waits for the others, so it finishes last.
 export const ROWS = { 'scaffold-plan-gate': 'Plan gate', 'scaffold-pr-size': 'Size' };
 
+// Advisory work-in-progress limit (PLAN.md section 8): open Copilot PRs per assigned developer.
+export async function workInProgress(gh, repo, pr, config) {
+  if (!COPILOT.includes(pr.user?.login)) return '➖ not a Copilot PR';
+  const devs = (pr.assignees ?? []).map((a) => a.login).filter((l) => !COPILOT.includes(l));
+  if (!devs.length) return '➖ no developer assigned';
+  const counts = Object.fromEntries(devs.map((d) => [d, 0]));
+  for await (const page of gh.pages(`/repos/${repo}/pulls?state=open`)) {
+    for (const p of page) {
+      if (!COPILOT.includes(p.user?.login)) continue;
+      for (const a of p.assignees ?? []) if (a.login in counts) counts[a.login]++;
+    }
+  }
+  const warn = config.warn_open_prs_per_developer;
+  const list = (ds) => ds.map((d) => `\`${d}\`: ${counts[d]}`).join(', ');
+  const over = devs.filter((d) => counts[d] > warn);
+  return over.length
+    ? `⚠️ open Copilot PRs: ${list(over)} (advisory: \`warn_open_prs_per_developer\` is ${warn})`
+    : `✅ open Copilot PRs: ${list(devs)}`;
+}
+
 // Returns { ok, outcome, row, lines }.
-export async function runImplementCheck(gh, repo, { check, pr }) {
+export async function runImplementCheck(gh, repo, { check, pr, wait }) {
   const lines = (r) => [`### ${check}`, `${r.ok ? '✅' : '❌'} ${r.outcome}`, ...(r.details?.length ? ['', ...r.details] : [])];
   const { config, configError } = await tryLoadConfig(gh, repo, pr.base.sha);
   if (configError) {
@@ -21,7 +44,11 @@ export async function runImplementCheck(gh, repo, { check, pr }) {
     return { ...r, lines: lines(r) };
   }
   const { files, truncated } = check === 'scaffold-pr-size' ? await prFiles(gh, repo, pr.number) : {};
-  const r = await CHECKS[check]({ gh, repo, pr, files, truncated, config });
+  const r = await CHECKS[check]({ gh, repo, pr, files, truncated, config, wait });
+  if (r.rows) {
+    const { findComment, upsertStatus } = issueSteps(gh, repo, pr.number, []);
+    await upsertStatus(setGates((await findComment(MARKER))?.body, r.rows, undefined, PR_GATES));
+  }
   return { ...r, lines: lines(r) };
 }
 
@@ -30,7 +57,11 @@ export async function writeStatus(gh, repo, { pr, rows }) {
   const { findComment, upsertStatus } = issueSteps(gh, repo, pr.number, []);
   const states = Object.fromEntries(Object.entries(ROWS).map(([, gate]) => [gate, rows[gate] || '⚠️ check didn\'t finish: re-run it']));
   const failing = Object.entries(states).filter(([, s]) => !s.startsWith('✅')).map(([g]) => g);
-  const next = failing.length ? `fix the failing rows (${failing.join(', ')}); the checks re-run on each push.` : 'the review gate runs once CI has finished (coming in this slice).';
+  const { config } = await tryLoadConfig(gh, repo, pr.base.sha);
+  if (config) states['Work in progress'] = await workInProgress(gh, repo, pr, config);
+  const next = failing.length
+    ? `fix the failing rows (${failing.join(', ')}); the checks re-run on each push.`
+    : 'the review gate requests human review once every check has passed.';
   await upsertStatus(setGates((await findComment(MARKER))?.body, states, next, PR_GATES));
   return states;
 }

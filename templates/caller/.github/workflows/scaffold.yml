@@ -44,14 +44,16 @@ jobs:
       copilot-requests: write
     uses: JackWP1/scaffold/.github/workflows/plan.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
-  # Implement package: plan gate and PR size checks on PRs, and `/size-exception` comments on PRs.
-  # Make `implement / scaffold-plan-gate` and `implement / scaffold-pr-size` required checks.
+  # Implement package: plan gate, PR size and review gate checks on PRs, automatic rework, and
+  # `/size-exception` comments on PRs. Make `implement / scaffold-plan-gate`, `implement / scaffold-pr-size`
+  # and `implement / scaffold-review-gate` required checks.
   implement:
     if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
     permissions:
+      checks: read
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     uses: JackWP1/scaffold/.github/workflows/implement.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
   # Core, always on: make `config-guard / scaffold-config-guard` a required check in the ruleset.

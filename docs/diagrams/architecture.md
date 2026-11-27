@@ -108,6 +108,7 @@ flowchart LR
   subgraph w_implement_yml["implement.yml"]
     w_implement_yml_scaffold_plan_gate["scaffold-plan-gate"]
     w_implement_yml_scaffold_pr_size["scaffold-pr-size"]
+    w_implement_yml_scaffold_review_gate["scaffold-review-gate"]
     w_implement_yml_status["status"]
     w_implement_yml_scaffold_plan_gate --> w_implement_yml_status
     w_implement_yml_scaffold_pr_size --> w_implement_yml_status
@@ -144,6 +145,7 @@ flowchart LR
   w_config_guard_yml_scaffold_config_guard --> a_packages_core_actions_config_guard["packages/core/actions/config-guard"]
   w_implement_yml_scaffold_plan_gate --> a_packages_implement_actions_check["packages/implement/actions/check"]
   w_implement_yml_scaffold_pr_size --> a_packages_implement_actions_check["packages/implement/actions/check"]
+  w_implement_yml_scaffold_review_gate --> a_packages_implement_actions_check["packages/implement/actions/check"]
   w_implement_yml_status --> a_packages_implement_actions_check["packages/implement/actions/check"]
   w_implement_yml_size_command --> a_packages_implement_actions_check["packages/implement/actions/check"]
   w_labels_yml_labels --> a_packages_core_actions_labels["packages/core/actions/labels"]

@@ -47,6 +47,26 @@ jobs:
         with:
           mode: scaffold-pr-size
 
+  # Waits for the PR's other checks on the head commit, then passes, asks Copilot for a rework round or
+  # trips the circuit breaker (PLAN.md section 6). Writes its own status rows: it finishes last.
+  scaffold-review-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: scaffold-review-gate-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      checks: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/implement/actions/check@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
+        with:
+          mode: scaffold-review-gate
+
   # The checks run in parallel, so this one job writes their rows to the PR status comment.
   status:
     needs: [scaffold-plan-gate, scaffold-pr-size]
