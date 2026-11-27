@@ -18,17 +18,23 @@ const events = [
   ev('labeled', 'scaffold:plan-approved', alice, 3, '2026-11-20T11:00:00Z'),
   ev('unlabeled', 'scaffold:plan-approved', bot, 3, '2026-11-20T11:00:05Z'),
   ev('labeled', 'scaffold:too-big', bot, 4, '2026-11-21T10:00:00Z'),
+  ev('labeled', 'scaffold:needs-gherkin', bot, 5, '2026-11-21T10:00:00Z'),
+  ev('labeled', 'scaffold:gherkin-approved', alice, 5, '2026-11-21T12:00:00Z'),
+  ev('unlabeled', 'scaffold:gherkin-approved', bot, 5, '2026-11-21T13:00:00Z'),
+  ev('labeled', 'scaffold:needs-gherkin', bot, 5, '2026-11-21T13:00:00Z'),
+  ev('labeled', 'scaffold:gherkin-approved', alice, 5, '2026-11-21T16:00:00Z'),
 ];
 const runs = [{ id: 1 }, { id: 2 }];
 const jobs = {
   1: [{ name: 'triage / triage', conclusion: 'success' }, { name: 'plan / admit', conclusion: 'skipped' }],
-  2: [{ name: 'plan / admit', conclusion: 'success' }, { name: 'plan / plan (1, 50)', conclusion: 'failure' }],
+  2: [{ name: 'plan / admit', conclusion: 'success' }, { name: 'plan / plan (1, 50)', conclusion: 'failure' }, { name: 'triage / gherkin', conclusion: 'success' }],
 };
 
 test('summarise counts jobs, skill outcomes and gate passes', () => {
   const n = summarise({ runs, jobs, events });
-  assert.deepEqual(n.perJob, { 'triage / triage': { runs: 1, failed: 0 }, 'plan / admit': { runs: 1, failed: 0 }, 'plan / plan': { runs: 1, failed: 1 } });
-  assert.deepEqual(n.skills, { triage: 1, 'task-decomposer': 1 });
+  assert.deepEqual(n.perJob, { 'triage / triage': { runs: 1, failed: 0 }, 'plan / admit': { runs: 1, failed: 0 }, 'plan / plan': { runs: 1, failed: 1 }, 'triage / gherkin': { runs: 1, failed: 0 } });
+  assert.deepEqual(n.skills, { triage: 1, 'gherkin-writer': 1, 'task-decomposer': 1 });
+  assert.deepEqual(n.scenarios, { needed: 2, applied: 2, passed: 1, failed: 1, medianHours: 3 });
   assert.deepEqual(n.triage, { ready: 1, needsInfo: 1, proposed: 0 });
   assert.deepEqual(n.plan, { admitted: 2, tooBig: 1 });
   assert.deepEqual(n.gate, { applied: 2, passed: 1, failed: 1, medianHours: 4 });

@@ -9,8 +9,9 @@ const CALLER = '.github/workflows/scaffold.yml';
 const MAX_RUNS = 300;
 const DAY = 86_400_000;
 
-// Caller job name (e.g. `plan / plan (12, 345)`) → the skill it runs, if any.
-const SKILLS = { 'triage / triage': 'triage', 'plan / plan': 'task-decomposer' };
+// Caller job name (e.g. `plan / plan (12, 345)`) → the skill it runs, if any. gherkin-writer also runs
+// inside a triage job when it drafts in the same run; those drafts show in `scenarios.needed`.
+const SKILLS = { 'triage / triage': 'triage', 'triage / gherkin': 'gherkin-writer', 'plan / plan': 'task-decomposer' };
 
 async function callerRuns(gh, repo, since) {
   const runs = [];
@@ -54,26 +55,33 @@ export function summarise({ runs, jobs, events }) {
   const byBot = (e, event, label) => e.event === event && e.label?.name === label && e.actor?.login === BOT;
   const count = (event, label) => events.filter((e) => byBot(e, event, label)).length;
 
-  // Plan approvals: a person applies the label; the gate removes it if the approval is invalid.
-  const approvals = events.filter((e) => e.event === 'labeled' && e.label?.name === 'scaffold:plan-approved' && e.actor?.type === 'User');
-  let passed = 0;
-  const hours = [];
-  for (const a of approvals) {
-    const issue = a.issue?.number;
-    const later = events.filter((e) => e.issue?.number === issue && e.created_at >= a.created_at && e.id !== a.id);
-    if (later.some((e) => byBot(e, 'unlabeled', 'scaffold:plan-approved'))) continue;
-    passed++;
-    const planned = events.filter((e) => e.issue?.number === issue && byBot(e, 'labeled', 'scaffold:planned') && e.created_at <= a.created_at).at(-1);
-    if (planned) hours.push((Date.parse(a.created_at) - Date.parse(planned.created_at)) / 3_600_000);
+  // Approvals: a person applies `label`; its gate removes it if the approval is invalid, or later when
+  // the approved comment changes. Hours run from SCAFFOLD applying `from` to the approval.
+  function approvalStats(label, from) {
+    const approvals = events.filter((e) => e.event === 'labeled' && e.label?.name === label && e.actor?.type === 'User');
+    let passed = 0;
+    const hours = [];
+    for (const a of approvals) {
+      const issue = a.issue?.number;
+      const later = events.filter((e) => e.issue?.number === issue && e.created_at >= a.created_at && e.id !== a.id);
+      if (later.some((e) => byBot(e, 'unlabeled', label))) continue;
+      passed++;
+      const start = events.filter((e) => e.issue?.number === issue && byBot(e, 'labeled', from) && e.created_at <= a.created_at).at(-1);
+      if (start) hours.push((Date.parse(a.created_at) - Date.parse(start.created_at)) / 3_600_000);
+    }
+    return { applied: approvals.length, passed, failed: approvals.length - passed, medianHours: median(hours) };
   }
   return {
     perJob,
     skills: Object.fromEntries(Object.entries(SKILLS).map(([job, skill]) => [skill, perJob[job]?.runs ?? 0])),
     triage: { ready: count('labeled', 'scaffold:ready'), needsInfo: count('labeled', 'scaffold:needs-info'), proposed: count('labeled', 'scaffold:proposed') },
     plan: { admitted: count('labeled', 'scaffold:planned'), tooBig: count('labeled', 'scaffold:too-big') },
-    gate: { applied: approvals.length, passed, failed: approvals.length - passed, medianHours: median(hours) },
+    scenarios: { needed: count('labeled', 'scaffold:needs-gherkin'), ...approvalStats('scaffold:gherkin-approved', 'scaffold:needs-gherkin') },
+    gate: approvalStats('scaffold:plan-approved', 'scaffold:planned'),
   };
 }
+
+const hrs = (h) => (h === null ? '-' : h.toFixed(1));
 
 export function renderReport({ from, to, numbers, config, configError }) {
   const n = numbers;
@@ -98,12 +106,17 @@ export function renderReport({ from, to, numbers, config, configError }) {
     `| Triage: ready | ${n.triage.ready} |`,
     `| Triage: needs info | ${n.triage.needsInfo} |`,
     `| Triage: proposed (non-member) | ${n.triage.proposed} |`,
+    `| Scenarios: needed (\`scaffold:needs-gherkin\` applied, incl. withdrawals) | ${n.scenarios.needed} |`,
+    `| Scenarios gate: approvals applied | ${n.scenarios.applied} |`,
+    `| Scenarios gate: passed | ${n.scenarios.passed} |`,
+    `| Scenarios gate: failed, or withdrawn by an edit or redraft | ${n.scenarios.failed} |`,
+    `| Scenarios gate: median hours from needed to approval | ${hrs(n.scenarios.medianHours)} |`,
     `| Plan: admitted | ${n.plan.admitted} |`,
     `| Plan: too big, back to triage | ${n.plan.tooBig} |`,
     `| Plan gate: approvals applied | ${n.gate.applied} |`,
     `| Plan gate: passed | ${n.gate.passed} |`,
     `| Plan gate: failed or withdrawn | ${n.gate.failed} |`,
-    `| Plan gate: median hours from admission to approval | ${n.gate.medianHours === null ? '-' : n.gate.medianHours.toFixed(1)} |`,
+    `| Plan gate: median hours from admission to approval | ${hrs(n.gate.medianHours)} |`,
     '',
     '| Stage | State |',
     '| --- | --- |',
