@@ -10,7 +10,7 @@ import { usesTemplate } from './template.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 // Re-triage resets the lifecycle, so a planned or approved issue needs /plan again (PLAN.md section 8).
-export const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:ready', 'scaffold:proposed', 'scaffold:planned', 'scaffold:plan-approved', 'scaffold:too-big'];
+export const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:needs-gherkin', 'scaffold:gherkin-approved', 'scaffold:ready', 'scaffold:proposed', 'scaffold:planned', 'scaffold:plan-approved', 'scaffold:too-big'];
 // The plan package's marked comment (handover contract, PLAN.md section 5): read, never imported.
 const PLAN_MARKER = '<!-- scaffold:plan -->';
 

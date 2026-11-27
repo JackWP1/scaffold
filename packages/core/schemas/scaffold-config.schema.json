@@ -3,7 +3,7 @@
   "title": ".github/scaffold-config.yml",
   "type": "object",
   "additionalProperties": false,
-  "required": ["stages", "approvers", "max_in_flight", "max_stack_prs", "warn_open_prs_per_developer", "max_rework_rounds", "pr_size"],
+  "required": ["stages", "approvers", "gherkin", "max_in_flight", "max_stack_prs", "warn_open_prs_per_developer", "max_rework_rounds", "pr_size"],
   "properties": {
     "stages": {
       "type": "object",
@@ -18,6 +18,16 @@
     },
     "approvers": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 39 } },
     "flow_lead": { "type": "string", "maxLength": 39 },
+    "gherkin": { "type": "string", "enum": ["off", "auto", "always"] },
+    "bdd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workflow", "artifact"],
+      "properties": {
+        "workflow": { "type": "string", "maxLength": 200 },
+        "artifact": { "type": "string", "maxLength": 200 }
+      }
+    },
     "max_in_flight": { "type": "integer", "minimum": 1, "maximum": 100 },
     "max_stack_prs": { "type": "integer", "minimum": 1, "maximum": 10 },
     "warn_open_prs_per_developer": { "type": "integer", "minimum": 1, "maximum": 10 },

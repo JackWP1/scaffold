@@ -20,7 +20,7 @@ stages:
     workflow: triage.yml
     skills: [triage]
     triggers: [issues.opened, issues.edited, issues.reopened, issues.labeled]
-    labels: [scaffold:triage, scaffold:needs-info, scaffold:ready, scaffold:proposed, scaffold:accepted, scaffold:no-template, priority:high, priority:medium, priority:low]
+    labels: [scaffold:triage, scaffold:needs-info, scaffold:needs-gherkin, scaffold:gherkin-approved, scaffold:ready, scaffold:proposed, scaffold:accepted, scaffold:no-template, priority:high, priority:medium, priority:low]
     gates: [Triaged → ready]
   plan:
     workflow: plan.yml

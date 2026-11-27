@@ -8,7 +8,7 @@ import { configFrom } from '../../core/lib/config.mjs';
 import { loadSkill } from '../../core/lib/skills.mjs';
 import { fakeGh } from '../../core/tests/fake-github.mjs';
 import { renderTriage, MARKER } from '../render.mjs';
-import { usesTemplate } from '../template.mjs';
+import { usesTemplate, formGherkin } from '../template.mjs';
 import { runTriage, STATE_LABELS } from '../triage.mjs';
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
@@ -179,4 +179,20 @@ test('a failed model call on a too-big ticket keeps it too big', async () => {
 
 test('re-triage clears every lifecycle label, including scaffold:too-big', () => {
   for (const l of ['scaffold:planned', 'scaffold:plan-approved', 'scaffold:too-big', 'scaffold:ready']) assert.ok(STATE_LABELS.includes(l), l);
+});
+
+test('scenarios come from the Request form\'s Gherkin field, if filled in', () => {
+  const body = (gherkin) => `### Jira key\n\nABC-1\n\n### Done when\n\nok\n\n### Scenarios (Gherkin)\n\n${gherkin}\n`;
+  assert.equal(formGherkin(body('```gherkin\nFeature: f\nScenario: s\n  Given x\n```')), 'Feature: f\nScenario: s\n  Given x');
+  assert.equal(formGherkin(`${body('Feature: f')}\n### Later field\n\nz`), 'Feature: f');
+  assert.equal(formGherkin(body('_No response_')), null);
+  assert.equal(formGherkin('### Jira key\n\nABC-1'), null);
+  assert.equal(formGherkin(undefined), null);
+});
+
+test('the Gherkin field is in the Request form and optional', async () => {
+  const form = await readFile(new URL('../templates/request.yml', import.meta.url), 'utf8');
+  const field = form.slice(form.indexOf('id: gherkin'));
+  assert.match(field, /label: Scenarios \(Gherkin\)/);
+  assert.doesNotMatch(field, /required: true/);
 });

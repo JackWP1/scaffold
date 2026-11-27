@@ -48,8 +48,8 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | --- | --- | --- | --- |
 | Lifecycle | Where the issue is | `scaffold:triage` | `ededed` grey |
 | | | `scaffold:needs-info` | `fbca04` yellow |
-| | | `scaffold:needs-gherkin` (slice 2b) | `e4e669` yellow-green |
-| | | `scaffold:gherkin-approved` (slice 2b) | `0052cc` dark blue |
+| | | `scaffold:needs-gherkin` | `e4e669` yellow-green |
+| | | `scaffold:gherkin-approved` | `0052cc` dark blue |
 | | | `scaffold:ready` | `0e8a16` green |
 | | | `scaffold:planned` | `c5def5` light blue |
 | | | `scaffold:plan-approved` | `1d76db` blue |
