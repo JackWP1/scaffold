@@ -31,7 +31,7 @@ jobs:
       issues: write
       contents: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/triage.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
+    uses: JackWP1/scaffold/.github/workflows/triage.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
 
   # Plan package: `/plan` comments, scaffold:plan-approved, and edits to or deletion of the plan comment.
   plan:
@@ -40,7 +40,7 @@ jobs:
       issues: write
       contents: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/plan.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
+    uses: JackWP1/scaffold/.github/workflows/plan.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
 
   # Core, always on: make `config-guard / scaffold-config-guard` a required check in the ruleset.
   config-guard:
@@ -48,7 +48,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
+    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
 
   # Core, always on: weekly, or run manually (Actions → SCAFFOLD → Run workflow → usage-report).
   usage-report:
@@ -57,11 +57,11 @@ jobs:
       actions: read
       contents: read
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
+    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
 
   # Run manually (Actions → SCAFFOLD → Run workflow → labels) to create the labels.
   labels:
     if: github.event_name == 'workflow_dispatch' && inputs.task == 'labels'
     permissions:
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/labels.yml@00473cd22cf1cefae6dfe6b0abf17fb3e3c9fb88 # v0.4.0
+    uses: JackWP1/scaffold/.github/workflows/labels.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
