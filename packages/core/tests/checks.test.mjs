@@ -37,12 +37,14 @@ test('protected paths: scaffold-config.yml has its own check; other protected fi
   assert.equal(protectedPaths([file('.github/scaffold-config.yml'), file('.github/CODEOWNERS')]).ok, false);
 });
 
+const A = 'a'.repeat(40);
+const B = 'b'.repeat(40);
 const bump = [
   '@@ -31,3 +31,3 @@',
-  '-    uses: JackWP1/scaffold/.github/workflows/triage.yml@aaaa # v0.5.0',
-  '+    uses: JackWP1/scaffold/.github/workflows/triage.yml@bbbb # v0.6.0',
-  '-    uses: ukncsc/scaffold/.github/workflows/plan.yml@aaaa',
-  '+    uses: ukncsc/scaffold/.github/workflows/plan.yml@bbbb # v0.6.0',
+  `-    uses: JackWP1/scaffold/.github/workflows/triage.yml@${A} # v0.5.0`,
+  `+    uses: JackWP1/scaffold/.github/workflows/triage.yml@${B} # v0.6.0`,
+  `-    uses: ukncsc/scaffold/.github/workflows/plan.yml@${A}`,
+  `+    uses: ukncsc/scaffold/.github/workflows/plan.yml@${B} # v0.6.0`,
 ].join('\n');
 
 test('protected paths: a caller change that only moves SCAFFOLD pins passes; anything else fails', () => {
@@ -51,7 +53,10 @@ test('protected paths: a caller change that only moves SCAFFOLD pins passes; any
   assert.equal(protectedPaths([caller(bump)]).ok, true);
   for (const patch of [
     `${bump}\n+    permissions: write-all`,
-    bump.replace('plan.yml@bbbb', 'evil.yml@bbbb'),
+    bump.replace(`plan.yml@${B}`, `evil.yml@${B}`),
+    bump.replace(`plan.yml@${B}`, 'plan.yml@main'),
+    bump.replace(`plan.yml@${B}`, 'plan.yml@v0.6.0'),
+    bump.replace(`plan.yml@${B}`, `plan.yml@${B.slice(0, 7)}`),
     bump.replace('+    uses: JackWP1/scaffold', '+    uses: attacker/scaffold'),
     undefined,
   ]) assert.equal(protectedPaths([caller(patch)]).ok, false, patch);

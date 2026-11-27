@@ -6,14 +6,17 @@ import { CONFIG_PATH } from '../lib/config.mjs';
 export const PROTECTED = ['.github/**', 'CODEOWNERS', 'PRECEDENTS.md', 'docs/spec/**'];
 export const CALLER_PATH = '.github/workflows/scaffold.yml';
 
-const PIN = new RegExp(`^(\\s*(?:-\\s+)?uses:\\s*(?:${SCAFFOLD_OWNERS.join('|')})/scaffold/\\S+)@\\S+(?:\\s+#.*)?$`);
+const PIN = new RegExp(`^(\\s*(?:-\\s+)?uses:\\s*(?:${SCAFFOLD_OWNERS.join('|')})/scaffold/\\S+)@(\\S+)(?:\\s+#.*)?$`);
+const SHA = /^[0-9a-f]{40}$/;
 
 // A change to the caller that only moves SCAFFOLD pins: every changed line is a SCAFFOLD `uses:` line,
-// and the removed and added lines are the same once refs are taken out (a Dependabot bump).
+// the removed and added lines are the same once refs are taken out (a Dependabot bump), and every new
+// ref is a full commit SHA, so a PR can't swap a pin for a branch or tag (PLAN.md section 5).
 export function pinOnly(file) {
   if (file.status !== 'modified' || file.patch === undefined) return false;
   const { added, removed } = patchLines(file.patch);
   if (!added.length || added.length !== removed.length) return false;
+  if (!added.every((l) => SHA.test(l.match(PIN)?.[2] ?? ''))) return false;
   const norm = (lines) => lines.map((l) => l.match(PIN)?.[1]).sort();
   const a = norm(added);
   const r = norm(removed);
