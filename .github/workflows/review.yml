@@ -27,7 +27,7 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/review/actions/review@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+      - uses: JackWP1/scaffold/packages/review/actions/review@00cae4a12b66ea2ddb205ef2d18e78caa7a7781f # v0.9.0
         with:
           mode: code-review
           model: ${{ inputs.model }}
@@ -52,7 +52,7 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/review/actions/review@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+      - uses: JackWP1/scaffold/packages/review/actions/review@00cae4a12b66ea2ddb205ef2d18e78caa7a7781f # v0.9.0
         with:
           mode: ci-diagnose
         env:
