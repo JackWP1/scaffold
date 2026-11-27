@@ -52,3 +52,21 @@ jobs:
       - uses: JackWP1/scaffold/packages/core/actions/pr-check@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
         with:
           check: scaffold-test-integrity
+
+  # Waits for the repo's BDD workflow (`bdd.workflow`) to finish on the head commit, then reads its report.
+  scaffold-scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: scaffold-scenarios-check-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
+        with:
+          check: scaffold-scenarios

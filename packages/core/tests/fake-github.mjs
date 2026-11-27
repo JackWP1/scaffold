@@ -14,6 +14,7 @@ export function fakeGh(routes = {}) {
     post: async (p, b) => respond('POST', p, b),
     patch: async (p, b) => respond('PATCH', p, b),
     delete: async (p) => respond('DELETE', p),
+    download: async (p) => respond('DOWNLOAD', p),
     async *pages(p) {
       for (let page = 1; ; page++) {
         const items = respond('GET', `${p}?page=${page}`);

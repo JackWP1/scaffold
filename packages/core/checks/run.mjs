@@ -9,6 +9,7 @@ import { issueSteps } from '../lib/issue.mjs';
 import { approvedScenarios } from '../lib/scenarios.mjs';
 import { protectedPaths, hardSize } from './baseline.mjs';
 import { testFindings, featureFindings } from './integrity.mjs';
+import { scenariosCheck } from './scenarios.mjs';
 
 export const TEST_CHANGE_APPROVED = 'scaffold:test-change-approved';
 
@@ -45,8 +46,9 @@ export const CHECKS = {
   'scaffold-protected-paths': async ({ files }) => protectedPaths(files),
   'scaffold-hard-size': async ({ files, truncated, config }) => hardSize(files, config.pr_size, { truncated }),
   'scaffold-test-integrity': testIntegrity,
+  'scaffold-scenarios': scenariosCheck,
 };
-const NEEDS_CONFIG = ['scaffold-hard-size', 'scaffold-test-integrity'];
+const NEEDS_CONFIG = ['scaffold-hard-size', 'scaffold-test-integrity', 'scaffold-scenarios'];
 
 // Returns { ok, outcome, lines } for the job summary.
 export async function runCheck(gh, repo, { check, pr, event }) {
@@ -55,7 +57,7 @@ export async function runCheck(gh, repo, { check, pr, event }) {
   if (!run) return result(false, `unknown check \`${check}\``);
   const { config, configError } = NEEDS_CONFIG.includes(check) ? await tryLoadConfig(gh, repo, pr.base.sha) : {};
   if (configError) return result(false, `\`.github/scaffold-config.yml\` on the base branch is invalid: ${escapeForComment(configError)}`);
-  const { files, truncated } = await prFiles(gh, repo, pr.number);
+  const { files, truncated } = check === 'scaffold-scenarios' ? {} : await prFiles(gh, repo, pr.number);
   const r = await run({ gh, repo, pr, files, truncated, config, event });
   return result(r.ok, r.outcome, r.details);
 }
