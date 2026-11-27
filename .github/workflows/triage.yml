@@ -25,6 +25,6 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/intake/actions/triage@b46968e98f2af84ad5a5aac3c1b6497b80064967 # v0.4.0
+      - uses: JackWP1/scaffold/packages/intake/actions/triage@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
         with:
           model: ${{ inputs.model }}
