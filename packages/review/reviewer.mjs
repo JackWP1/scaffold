@@ -68,7 +68,8 @@ export async function runCodeReview(gh, repo, { event, config, loadSkill, callMo
     if (page.some((r) => r.user?.login === BOT && r.body?.includes(runMarker(pr.head.sha)))) return { skip: `already reviewed ${pr.head.sha.slice(0, 7)}` };
   }
 
-  const { files } = await prFiles(gh, repo, pr.number);
+  // GitHub lists at most 3000 files: past that, the review says it didn't see them all.
+  const { files, truncated: tooMany } = await prFiles(gh, repo, pr.number);
   const diff = diffText(files);
   const issue = linkedIssues(pr.body)[0];
   const parts = [
@@ -77,6 +78,7 @@ export async function runCodeReview(gh, repo, { event, config, loadSkill, callMo
     wrapUntrusted('untrusted_diff', diff.text, MAX_DIFF_CHARS),
   ];
   // File names come from the PR, so they stay inside an untrusted wrapper.
+  if (tooMany) parts.push('The PR changes more than 3000 files: only the first 3000 are listed, and the rest are not reviewed.');
   if (diff.truncated.length) parts.push('These files are left out of the diff because it\'s too long:', wrapUntrusted('untrusted_left_out_files', diff.truncated.slice(0, 50).join('\n')));
   if (issue) {
     const meta = await gh.get(`/repos/${repo}/issues/${issue}`);
@@ -120,13 +122,14 @@ export async function runCodeReview(gh, repo, { event, config, loadSkill, callMo
     heading,
     '| Skill | Version | Model | Input hash | Comments | Inline | Diff truncated |',
     '| --- | --- | --- | --- | --- | --- | --- |',
-    `| code-review | ${version} | ${model} | \`${inputHash}\` | ${out.comments.length} | ${inline.length} | ${diff.truncated.length} files |`,
+    `| code-review | ${version} | ${model} | \`${inputHash}\` | ${out.comments.length} | ${inline.length} | ${diff.truncated.length} files${tooMany ? '; over 3000 files, the rest unlisted' : ''} |`,
   ];
   // A clean review is posted too: it records that this commit was reviewed, so it isn't reviewed again.
   const body = [
     runMarker(pr.head.sha),
     `**SCAFFOLD code-review** of ${pr.head.sha.slice(0, 7)}: ${e(out.summary)}${out.comments.length ? '' : ' No comments.'}`,
     '',
+    ...(tooMany || diff.truncated.length ? [`⚠️ Partial review: ${tooMany ? 'the PR changes more than 3000 files, so only the first 3000 were listed; ' : ''}${diff.truncated.length} file${diff.truncated.length === 1 ? '' : 's'} left out of the diff because it's too long. A human reviews the rest.`, ''] : []),
     ...(other.length ? ['Comments on files this PR doesn\'t change:', '', ...other.map((c) => `- \`${e(c.path)}:${c.line}\` **${c.axis} · ${c.severity}**: ${e(c.body)}`), ''] : []),
     ...(out.comments.length ? ['Resolve each thread once it\'s handled (or reply why not); the review gate waits for them. React 👎 to a comment that is wrong: the usage report counts it as a false positive.', ''] : []),
     `<sub>code-review v${version} · ${model} · AI-generated: check before acting</sub>`,

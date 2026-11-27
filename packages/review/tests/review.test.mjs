@@ -213,3 +213,15 @@ test('redaction replaces token-shaped strings before a diagnosis is posted', asy
   assert.equal(redact('secret_token = "abcd1234efgh"'), 'secret_token = "<REDACTED>"');
   assert.equal(redact('token count: 12'), 'token count: 12', 'short values are left alone');
 });
+
+test('code-review says when a review is partial: too many files, or files left out of the diff', async () => {
+  // GitHub pages 100 files at a time and stops at 3000.
+  const files = (path) => {
+    const page = Number(path.match(/page=(\d+)/)?.[1] ?? 1);
+    return page > 30 ? [] : Array.from({ length: 100 }, (_, i) => ({ filename: `f${(page - 1) * 100 + i}.js`, status: 'modified', patch: '@@ -1 +1 @@\n+y' }));
+  };
+  const { posted, prompts, lines } = await review({ gh: reviewGh({ files }), reply: { summary: 'ok', comments: [] } });
+  assert.match(prompts[0], /more than 3000 files: only the first 3000 are listed/);
+  assert.match(posted[0].body, /⚠️ Partial review: the PR changes more than 3000 files/);
+  assert.match(lines.at(-1), /over 3000 files, the rest unlisted/);
+});
