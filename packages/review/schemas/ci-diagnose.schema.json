@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ci-diagnose output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "cause", "category", "confidence", "evidence", "fix"],
+  "properties": {
+    "summary": { "type": "string", "maxLength": 300 },
+    "cause": { "type": "string", "maxLength": 1000 },
+    "category": { "type": "string", "enum": ["code", "test", "flaky", "environment", "config", "unknown"] },
+    "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+    "evidence": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["job", "excerpt"],
+        "properties": {
+          "job": { "type": "string", "maxLength": 200 },
+          "excerpt": { "type": "string", "maxLength": 800 }
+        }
+      }
+    },
+    "fix": { "type": "string", "maxLength": 1000 }
+  }
+}

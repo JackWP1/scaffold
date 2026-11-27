@@ -62,7 +62,7 @@ test('summarise counts rework rounds, escalations, exceptions and open Copilot P
 test('the report lists stages, flagging released packages that are off', () => {
   const body = renderReport({ from: 'a', to: 'b', numbers: summarise({ runs: [], jobs: {}, events: [] }), config: configFrom('stages:\n  intake: true') });
   assert.ok(body.startsWith(REPORT_MARKER));
-  assert.ok(body.includes('| intake | on |') && body.includes('| plan | **off (manual)** |') && body.includes('| review | off (not released) |'));
+  assert.ok(body.includes('| intake | on |') && body.includes('| plan | **off (manual)** |') && body.includes('| collaboration | off (not released) |'));
   assert.ok(body.includes('| Plan gate: median hours from admission to approval | - |'));
   assert.ok(renderReport({ from: 'a', to: 'b', numbers: summarise({ runs: [], jobs: {}, events: [] }), configError: 'x' }).includes('| plan | ⛔ config invalid |'));
 });

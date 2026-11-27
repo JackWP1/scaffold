@@ -53,9 +53,9 @@ test('review gate: a failing check on a Copilot PR asks for one rework round per
   const g = gh({ runs });
   const r = await reviewGate({ gh: g, repo: 'o/r', pr: copilotPr, config, wait: noWait });
   assert.equal(r.ok, false);
-  assert.match(r.outcome, /2 failing checks: rework round 1 of 2 asked/);
+  assert.match(r.outcome, /2 checks failing: rework round 1 of 2 asked/);
   const [comment] = posts(g, '/comments');
-  assert.match(comment.body, /^<!-- scaffold:rework abcdef1234 -->\n@copilot Rework round 1 of 2: these checks failed on abcdef1/);
+  assert.match(comment.body, /^<!-- scaffold:rework abcdef1234 -->\n@copilot Rework round 1 of 2: on abcdef1, 2 checks failing\. Fix each and push\./);
   assert.match(comment.body, /- \*\*checks \/ scaffold-pr-size\*\*: failure: over the soft limit @​team/);
   assert.match(comment.body, /Split it into a stack of PRs, each within the limit and no more than 5 in all/);
   assert.deepEqual(r.rows.Rework, '1 of 2 rounds');
@@ -95,4 +95,20 @@ test('work in progress: warns per assigned developer over warn_open_prs_per_deve
   const pr = { ...copilotPr, assignees: [{ login: 'dev' }, { login: 'ann' }, { login: 'Copilot' }] };
   assert.equal(await workInProgress(g, 'o/r', pr, configFrom('')), '⚠️ open Copilot PRs: `dev`: 3 (advisory: `warn_open_prs_per_developer` is 2)');
   assert.equal(await workInProgress(g, 'o/r', pr, configFrom('warn_open_prs_per_developer: 3')), '✅ open Copilot PRs: `dev`: 3, `ann`: 1');
+});
+
+test('review gate: with review on, open code-review threads fail it and go in the rework round', async () => {
+  const withReview = configFrom('stages:\n  implement: true\n  review: true\napprovers: [alice]\nmax_rework_rounds: 2');
+  const g = gh();
+  g.graphql = async () => ({ repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [
+    { isResolved: false, isOutdated: false, path: 'src/a.js', line: 3, comments: { nodes: [{ author: { login: 'github-actions' }, body: '<!-- scaffold:code-review -->\n**standards · blocking**\n\nNull check missing', url: 'https://x/1' }] } },
+  ] } } } });
+  const r = await reviewGate({ gh: g, repo: 'o/r', pr: copilotPr, config: withReview, wait: noWait });
+  assert.equal(r.ok, false);
+  assert.equal(r.rows['Review gate'], '❌ 1 code-review thread open');
+  const [comment] = posts(g, '/comments');
+  assert.match(comment.body, /on abcdef1, 1 code-review thread open\. Fix each and push; reply on each code-review thread/);
+  assert.match(comment.body, /- \*\*code-review thread\*\* on `src\/a\.js:3`: Null check missing \(https:\/\/x\/1\)/);
+  const off = await reviewGate({ gh: g, repo: 'o/r', pr: copilotPr, config, wait: noWait });
+  assert.equal(off.ok, true, 'review off: threads aren\'t waited for');
 });

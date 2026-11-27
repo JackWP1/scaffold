@@ -13,7 +13,7 @@ core:
   workflows: [labels.yml, config-guard.yml, usage-report.yml, checks.yml]
   checks: [scaffold-config-guard, scaffold-protected-paths, scaffold-hard-size, scaffold-test-integrity, scaffold-scenarios]
   labels: [scaffold:test-change-approved]
-  triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request.edited, pull_request.labeled, pull_request.unlabeled, pull_request_review.submitted, pull_request_review.dismissed, schedule, workflow_dispatch]
+  triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request.edited, pull_request.labeled, pull_request.unlabeled, pull_request.ready_for_review, pull_request_review.submitted, pull_request_review.dismissed, schedule, workflow_dispatch]
 
 # Packages, in workflow order. Each is switched by `stages` in scaffold-config.yml.
 stages:
@@ -33,9 +33,15 @@ stages:
     workflow: implement.yml
     skills: []
     checks: [scaffold-plan-gate, scaffold-pr-size, scaffold-review-gate]
-    triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request.edited, pull_request.labeled, pull_request.unlabeled, issue_comment.created]
+    triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request.edited, pull_request.labeled, pull_request.unlabeled, pull_request.ready_for_review, issue_comment.created]
     labels: [scaffold:size-exception, scaffold:escalate]
     gates: [Approved → implementing, Oversized PR → exception, Review gate fails → rework, Copilot PR → human review]
+  review:
+    workflow: review.yml
+    skills: [code-review, ci-diagnose]
+    triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request.ready_for_review]
+    labels: []
+    gates: [Copilot PR → human review]
 
 # The Current diagram. kind: human (a person must act), check (automated), ai (model step) or state.
 # owner: scaffold (a package or core runs it) or manual. Edges use Mermaid syntax: a --> b or a -- label --> b.

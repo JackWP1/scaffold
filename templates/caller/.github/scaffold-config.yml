@@ -7,7 +7,7 @@ stages:
   intake: true
   plan: true
   implement: true
-  review: false           # not released yet (slice 4)
+  review: true
   collaboration: false    # not released yet (slice 5)
 
 # GitHub logins that can approve plans and scenarios (scaffold:plan-approved, scaffold:gherkin-approved). The issue author can't approve their own issue.
@@ -24,6 +24,9 @@ gherkin: off
 # bdd:
 #   workflow: ci.yml
 #   artifact: scaffold-bdd-report
+
+# CI workflows whose failures ci-diagnose explains on the PR (review package), e.g. [ci.yml].
+ci_workflows: []
 
 # Tickets in flight at once, from /plan until merged, closed, too big or back to Ready; 1–100.
 max_in_flight: 20

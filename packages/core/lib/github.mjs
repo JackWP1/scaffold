@@ -32,9 +32,16 @@ export function github(token, api = process.env.GITHUB_API_URL || 'https://api.g
     if (!target.ok) throw new Error(`GET ${path}: ${target.status}`);
     return Buffer.from(await target.arrayBuffer());
   }
+  // GraphQL (e.g. review threads, which REST doesn't expose). Throws on GraphQL errors.
+  async function graphql(query, variables) {
+    const { data, errors } = await request('POST', '/graphql', { query, variables });
+    if (errors?.length) throw new Error(`GraphQL: ${errors.map((e) => e.message).join('; ')}`);
+    return data;
+  }
   return {
     request,
     download,
+    graphql,
     pages,
     get: (p) => request('GET', p),
     post: (p, b) => request('POST', p, b),
