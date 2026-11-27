@@ -155,11 +155,17 @@ diagram:
     sizecmd:
       kind: human
       text: Developer comments /size-exception reason;<br/>listed approver applies<br/>scaffold:size-exception
+    codereview:
+      kind: ai
+      text: code-review<br/>COMMENT-only review:<br/>standards, spec, scenarios
+    cidiagnose:
+      kind: ai
+      text: ci-diagnose<br/>explains failed ci_workflows runs<br/>in one PR comment
     reviewgate:
       kind: check
-      text: Review gate<br/>waits for every check<br/>on the head commit
+      text: Review gate<br/>waits for every check on the head commit;<br/>code-review threads resolved
     rework:
-      text: Automatic rework round<br/>@copilot comment lists the failures;<br/>no human approval
+      text: Automatic rework round<br/>@copilot comment lists failing checks<br/>and open code-review threads;<br/>no human approval
     escalate:
       text: scaffold:escalate<br/>circuit breaker:<br/>max_rework_rounds used
     ci:
@@ -236,6 +242,10 @@ diagram:
     - pr --> baseline
     - pr --> ci
     - pr --> implchecks
+    - pr --> codereview
+    - codereview -- threads to resolve --> reviewgate
+    - ci -- fails --> cidiagnose
+    - cidiagnose --> reviewgate
     - implchecks -- over the soft limit --> sizecmd
     - sizecmd --> implchecks
     - baseline --> reviewgate

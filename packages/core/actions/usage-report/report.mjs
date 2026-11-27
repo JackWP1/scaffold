@@ -11,7 +11,8 @@ const DAY = 86_400_000;
 
 // Caller job name (e.g. `plan / plan (12, 345)`) → the skill it runs, if any. gherkin-writer also runs
 // inside a triage job when it drafts in the same run; those drafts show in `scenarios.needed`.
-const SKILLS = { 'triage / triage': 'triage', 'triage / gherkin': 'gherkin-writer', 'plan / plan': 'task-decomposer' };
+// ci-diagnose's job runs on every PR event and calls the model only on a failure: see `review.diagnoses`.
+const SKILLS = { 'triage / triage': 'triage', 'triage / gherkin': 'gherkin-writer', 'plan / plan': 'task-decomposer', 'review / scaffold-code-review': 'code-review' };
 
 async function callerRuns(gh, repo, since) {
   const runs = [];
@@ -43,8 +44,10 @@ const median = (xs) => {
 const COPILOT = ['Copilot', 'copilot-swe-agent[bot]'];
 
 // Pure: turns runs, jobs and issue events into report numbers. `jobs` maps run id → its jobs;
-// `comments` are issue and PR comments in the window (for rework rounds); `openPrs` the open PRs now.
-export function summarise({ runs, jobs, events, comments = [], openPrs = [] }) {
+// `comments` are issue and PR comments in the window (rework rounds, diagnoses); `reviewComments` are PR
+// review comments in the window (code-review); `openPrs` the open PRs now. A 👎 reaction on a code-review
+// comment or a diagnosis marks it a false positive.
+export function summarise({ runs, jobs, events, comments = [], reviewComments = [], openPrs = [] }) {
   const perJob = {};
   for (const run of runs) {
     for (const j of jobs[run.id] ?? []) {
@@ -56,6 +59,8 @@ export function summarise({ runs, jobs, events, comments = [], openPrs = [] }) {
     }
   }
   const byBot = (e, event, label) => e.event === event && e.label?.name === label && e.actor?.login === BOT;
+  const byScaffold = (marker) => (c) => c.user?.login === BOT && c.body?.startsWith(marker);
+  const thumbsDown = (c) => (c.reactions?.['-1'] ?? 0) > 0;
   const count = (event, label) => events.filter((e) => byBot(e, event, label)).length;
 
   // Approvals: a person applies `label`; its gate removes it if the approval is invalid, or later when
@@ -82,6 +87,12 @@ export function summarise({ runs, jobs, events, comments = [], openPrs = [] }) {
     plan: { admitted: count('labeled', 'scaffold:planned'), tooBig: count('labeled', 'scaffold:too-big') },
     scenarios: { needed: count('labeled', 'scaffold:needs-gherkin'), ...approvalStats('scaffold:gherkin-approved', 'scaffold:needs-gherkin') },
     gate: approvalStats('scaffold:plan-approved', 'scaffold:planned'),
+    review: {
+      codeReviewComments: reviewComments.filter(byScaffold('<!-- scaffold:code-review -->')).length,
+      codeReviewFalsePositives: reviewComments.filter(byScaffold('<!-- scaffold:code-review -->')).filter(thumbsDown).length,
+      diagnoses: comments.filter(byScaffold('<!-- scaffold:ci-diagnosis')).length,
+      diagnosisFalsePositives: comments.filter(byScaffold('<!-- scaffold:ci-diagnosis')).filter(thumbsDown).length,
+    },
     implement: {
       reworkRounds: comments.filter((c) => c.user?.login === BOT && c.body?.startsWith('<!-- scaffold:rework')).length,
       escalated: count('labeled', 'scaffold:escalate'),
@@ -130,6 +141,10 @@ export function renderReport({ from, to, numbers, config, configError }) {
     `| Plan gate: passed | ${n.gate.passed} |`,
     `| Plan gate: failed or withdrawn | ${n.gate.failed} |`,
     `| Plan gate: median hours from admission to approval | ${hrs(n.gate.medianHours)} |`,
+    `| Review: code-review comments | ${n.review.codeReviewComments} |`,
+    `| Review: code-review comments marked wrong (👎) | ${n.review.codeReviewFalsePositives} |`,
+    `| Review: CI diagnoses | ${n.review.diagnoses} |`,
+    `| Review: CI diagnoses marked wrong (👎) | ${n.review.diagnosisFalsePositives} |`,
     `| Implement: automatic rework rounds | ${n.implement.reworkRounds} |`,
     `| Implement: circuit breaker tripped (\`scaffold:escalate\`) | ${n.implement.escalated} |`,
     `| Implement: size exceptions granted | ${n.implement.sizeExceptions} |`,
@@ -143,7 +158,7 @@ export function renderReport({ from, to, numbers, config, configError }) {
     '| --- | --- |',
     ...stageRows,
     '',
-    '<sub>Model cost and false positives are not measured yet: record false positives by replying to this comment.</sub>',
+    '<sub>Model cost is not measured yet. False positives count 👎 reactions on code-review comments and diagnoses; for other skills, reply to this comment.</sub>',
   ].join('\n');
 }
 
@@ -155,9 +170,11 @@ export async function postReport(gh, repo, { now = new Date(), config, configErr
   for (const run of runs) jobs[run.id] = (await gh.get(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`)).jobs ?? [];
   const comments = [];
   for await (const page of gh.pages(`/repos/${repo}/issues/comments?since=${encodeURIComponent(since)}`)) comments.push(...page);
+  const reviewComments = [];
+  for await (const page of gh.pages(`/repos/${repo}/pulls/comments?since=${encodeURIComponent(since)}`)) reviewComments.push(...page);
   const openPrs = [];
   for await (const page of gh.pages(`/repos/${repo}/pulls?state=open`)) openPrs.push(...page);
-  const numbers = summarise({ runs, jobs, events: await issueEvents(gh, repo, since), comments, openPrs });
+  const numbers = summarise({ runs, jobs, events: await issueEvents(gh, repo, since), comments, reviewComments, openPrs });
   const body = renderReport({ from: since.slice(0, 10), to: now.toISOString().slice(0, 10), numbers, config, configError });
 
   let issue;
