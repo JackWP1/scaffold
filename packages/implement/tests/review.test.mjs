@@ -33,7 +33,7 @@ test('waiting: until every SCAFFOLD check has reported and nothing is running; l
   assert.deepEqual(runs.filter((r) => r.name === 'ci / test').map((r) => r.conclusion), ['success']);
   assert.ok(!runs.some((r) => r.name.endsWith('scaffold-review-gate')));
   const { pending } = await waitForChecks(gh({ runs: [run('ci / test', null, 'queued')] }), 'o/r', 'abcdef1234', noWait);
-  assert.deepEqual(pending.slice(0, 2), ['ci / test', 'scaffold-protected-paths']);
+  assert.deepEqual(pending.slice(0, 2), ['ci / test', 'scaffold-config-guard']);
 });
 
 test('review gate: every check passed: ready for human review, requested from the issue\'s developer', async () => {

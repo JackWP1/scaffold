@@ -15,7 +15,7 @@ export const ESCALATE = 'scaffold:escalate';
 const REWORK = '<!-- scaffold:rework';
 const BOT = 'github-actions[bot]';
 // SCAFFOLD's own PR checks: the gate waits until each has reported, so it can't pass before CI starts.
-export const SCAFFOLD_CHECKS = ['scaffold-protected-paths', 'scaffold-hard-size', 'scaffold-test-integrity', 'scaffold-scenarios', 'scaffold-plan-gate', 'scaffold-pr-size'];
+export const SCAFFOLD_CHECKS = ['scaffold-config-guard', 'scaffold-protected-paths', 'scaffold-hard-size', 'scaffold-test-integrity', 'scaffold-scenarios', 'scaffold-plan-gate', 'scaffold-pr-size'];
 // Jobs that aren't checks of the PR: the gate itself and the status writer.
 const IGNORED = ['scaffold-review-gate', 'status'];
 const PASSING = ['success', 'neutral', 'skipped'];

@@ -24,23 +24,30 @@ export function planMapping(body) {
   }
 }
 
-// Tagged scenarios of `issue` in the feature files at `ref`: tag → [hash, …] (a tag may appear more than once).
-async function taggedScenarios(gh, repo, ref, paths, issue) {
-  const found = new Map();
+// Scenarios in the feature files at `ref`: `tags` maps each of `issue`'s tags to [hash, …] (a tag may
+// appear more than once); `untagged` lists the others as `path: name`.
+async function scenariosAt(gh, repo, ref, paths, issue) {
+  const tags = new Map();
+  const untagged = new Set();
   const prefix = `@scaffold-${issue}-S`;
   for (const path of paths) {
     const { scenarios } = parseGherkin((await readRepoFile(gh, repo, path, ref)) ?? '');
     for (const s of scenarios) {
-      for (const t of s.tags.filter((x) => x.startsWith(prefix))) found.set(t, [...(found.get(t) ?? []), scenarioHash(s)]);
+      const mine = s.tags.filter((x) => x.startsWith(prefix));
+      for (const t of mine) tags.set(t, [...(tags.get(t) ?? []), scenarioHash(s)]);
+      if (!mine.length) untagged.add(`${path}: ${s.name}`);
     }
   }
-  return found;
+  return { tags, untagged };
 }
 
-// Feature files in the repo at `ref` (from the git tree), capped so a huge repo can't stall the check.
+// Feature files in the repo at `ref` (from the git tree). Over MAX_FEATURES fails the check rather
+// than skipping files, so nothing escapes it.
+export const MAX_FEATURES = 500;
 async function featurePaths(gh, repo, ref) {
   const { tree = [], truncated } = await gh.get(`/repos/${repo}/git/trees/${ref}?recursive=1`);
-  return { paths: tree.filter((t) => t.type === 'blob' && t.path.endsWith('.feature')).map((t) => t.path).slice(0, 200), truncated };
+  const paths = tree.filter((t) => t.type === 'blob' && t.path.endsWith('.feature')).map((t) => t.path);
+  return { paths, truncated: truncated || paths.length > MAX_FEATURES };
 }
 
 const byNumber = (list) => [...list].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
@@ -65,12 +72,14 @@ export async function scenariosCheck({ gh, repo, pr, config, report = bddReport 
 
   // Scenarios at the head, and those new in this PR (not at its base, which for a stacked PR is the PR below).
   const { paths: headPaths, truncated } = await featurePaths(gh, repo, pr.head.sha);
-  if (truncated) return fail('the repo tree is too big to list its feature files');
-  const head = await taggedScenarios(gh, repo, pr.head.sha, headPaths, issue);
+  if (truncated) return fail(`the repo has too many files to check its feature files (more than ${MAX_FEATURES} \`.feature\` files, or a truncated tree)`);
+  const { tags: head } = await scenariosAt(gh, repo, pr.head.sha, headPaths, issue);
   const { files } = await prFiles(gh, repo, pr.number);
   const features = files.filter((f) => f.filename.endsWith('.feature') && f.status !== 'removed');
-  const base = await taggedScenarios(gh, repo, pr.base.sha, features.map((f) => f.previous_filename ?? f.filename), issue);
-  const touched = await taggedScenarios(gh, repo, pr.head.sha, features.map((f) => f.filename), issue);
+  const base = await scenariosAt(gh, repo, pr.base.sha, features.map((f) => f.previous_filename ?? f.filename), issue);
+  const touched = await scenariosAt(gh, repo, pr.head.sha, features.map((f) => f.filename), issue);
+  // Untagged scenarios this PR adds aren't approved: every new scenario must be one of the issue's.
+  const baseNames = new Set([...base.untagged].map((u) => u.replace(/^[^:]*: /, '')));
 
   const problems = [];
   for (const [tag, hashes] of head) {
@@ -78,7 +87,10 @@ export async function scenariosCheck({ gh, repo, pr, config, report = bddReport 
     else if (hashes.some((h) => h !== approved.map.get(tag))) problems.push(`\`${tag}\` doesn't match the approved text`);
     if (hashes.length > 1) problems.push(`\`${tag}\` is used by more than one scenario`);
   }
-  const added = [...touched.keys()].filter((t) => !base.has(t));
+  for (const u of touched.untagged) {
+    if (!baseNames.has(u.replace(/^[^:]*: /, ''))) problems.push(`new scenario \`${u.replace(/`/g, '')}\` has no \`@scaffold-${issue}-S<n>\` tag: only approved scenarios can be added`);
+  }
+  const added = [...touched.tags.keys()].filter((t) => !base.tags.has(t));
   const plan = (await steps.findComments(PLAN_MARKER)).map((c) => planMapping(c.body)).find(Boolean);
   const all = [...approved.map.keys()];
   let expected;

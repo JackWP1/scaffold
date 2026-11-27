@@ -16,7 +16,8 @@ if (CHECKS[mode]) {
     await summary([`### ${mode}`, 'Skipped: not a pull request event']);
   } else {
     const r = await runImplementCheck(gh, repo, { check: mode, pr: event.pull_request });
-    await appendFile(process.env.GITHUB_OUTPUT ?? '/dev/null', `row=${r.row.replace(/\n/g, ' ')}\n`);
+    // The review gate writes its own rows (r.rows); the parallel checks pass theirs to the status job.
+    if (r.row) await appendFile(process.env.GITHUB_OUTPUT ?? '/dev/null', `row=${r.row.replace(/\n/g, ' ')}\n`);
     await summary(r.lines);
     if (!r.ok) {
       console.log(`::error::${r.outcome}`);

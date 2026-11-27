@@ -132,6 +132,15 @@ test('scenarios check: in a stack, the scenarios a PR adds pick its sub-task; th
   assert.match(wrong.details[0], /the scenarios this PR adds \(S1,S2\) aren't one PR's list in the plan: 1: S1; 2: S2/);
 });
 
+test('scenarios check: a new untagged scenario fails; existing untagged ones are fine', async () => {
+  const extra = `${TAGGED}\n  Scenario: sneaky\n    Given anything`;
+  const added = await check({ head: extra });
+  assert.equal(added.ok, false);
+  assert.ok(added.details.some((d) => /new scenario `features\/login.feature: sneaky` has no `@scaffold-7-S<n>` tag/.test(d)));
+  const existing = await check({ head: extra, base: 'Feature: Login\n  Scenario: sneaky\n    Given anything' });
+  assert.equal(existing.ok, true, existing.details.join());
+});
+
 test('plan mapping reads the plan comment\'s data, and is null without it', () => {
   assert.deepEqual(planMapping(plan('stack', [['S2', 'S1']])), { split: 'stack', subtasks: [{ id: '1', scenarios: ['S1', 'S2'] }] });
   assert.equal(planMapping('<!-- scaffold:plan -->\nwritten by hand'), null);

@@ -49,6 +49,12 @@ test('plan gate: fails without a link, label, valid approver or unchanged plan',
   }
 });
 
+test('plan gate: with plan on, a member\'s hand-written plan comment doesn\'t count', async () => {
+  const r = await planGate({ gh: gh({ plans: [{ user: { login: 'dave' }, author_association: 'MEMBER', body: '<!-- scaffold:plan -->\nby hand', updated_at: '2026-11-20T11:00:00Z' }] }), repo: 'o/r', pr, config: PLAN_ON });
+  assert.equal(r.ok, false);
+  assert.match(r.outcome, /#7 has no plan comment/);
+});
+
 test('plan gate: with plan off, only that a listed approver applied the label', async () => {
   const r = await planGate({ gh: gh({ plans: [] }), repo: 'o/r', pr, config: PLAN_OFF });
   assert.equal(r.ok, true, r.outcome);
@@ -73,14 +79,22 @@ test('PR size: within the soft limit passes; over it needs a valid exception', a
   assert.equal(over.ok, false);
   assert.match(over.outcome, /11 files \/ 110 lines is over the soft limit \(10 files \/ 1000 lines\)/);
   assert.match(over.details[0], /\/size-exception <reason>/);
+  const request = { body: '/size-exception generated | fixtures', author_association: 'MEMBER', created_at: '2026-11-20T11:00:00Z' };
   const granted = await sizeCheck({
-    gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception')], prComments: [{ body: '/size-exception generated | fixtures', author_association: 'MEMBER' }] }),
+    gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception')], prComments: [request] }),
     repo: 'o/r', pr, files: files(11), config: PLAN_ON,
   });
   assert.equal(granted.ok, true, granted.outcome);
   assert.equal(granted.row, '✅ 11 files / 110 lines: exception by `alice`: generated \\| fixtures');
-  const byAuthor = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception', 'Copilot')] }), repo: 'o/r', pr, files: files(11), config: PLAN_ON });
-  assert.match(byAuthor.outcome, /exception isn't valid|isn't valid: the issue author/);
+  const byAuthor = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception', 'Copilot')], prComments: [request] }), repo: 'o/r', pr, files: files(11), config: PLAN_ON });
+  assert.match(byAuthor.outcome, /isn't valid: the issue author can't approve/);
+  const unasked = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception')] }), repo: 'o/r', pr, files: files(11), config: PLAN_ON });
+  assert.match(unasked.outcome, /was applied but nobody asked for one/);
+  const early = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception')], prComments: [{ ...request, created_at: '2026-11-20T13:00:00Z' }] }), repo: 'o/r', pr, files: files(11), config: PLAN_ON });
+  assert.match(early.outcome, /changed after it was approved/, 'the label must come after the request');
+  const breaker = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception', 'scaffold:escalate'], prEvents: [label('scaffold:escalate', 'github-actions[bot]', '2026-11-20T11:00:00Z'), label('scaffold:size-exception')] }), repo: 'o/r', pr, files: files(11), config: PLAN_ON });
+  assert.equal(breaker.ok, true, breaker.outcome);
+  assert.match(breaker.row, /circuit breaker tripped/);
   const hard = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception')] }), repo: 'o/r', pr, files: files(31), config: PLAN_ON });
   assert.equal(hard.ok, false, 'an exception never lifts the hard limit');
 });
