@@ -23,6 +23,9 @@ const events = [
   ev('unlabeled', 'scaffold:gherkin-approved', bot, 5, '2026-11-21T13:00:00Z'),
   ev('labeled', 'scaffold:needs-gherkin', bot, 5, '2026-11-21T13:00:00Z'),
   ev('labeled', 'scaffold:gherkin-approved', alice, 5, '2026-11-21T16:00:00Z'),
+  ev('labeled', 'scaffold:needs-gherkin', bot, 6, '2026-11-21T10:00:00Z'),
+  ev('labeled', 'scaffold:gherkin-approved', alice, 6, '2026-11-21T11:00:00Z'),
+  ev('unlabeled', 'scaffold:gherkin-approved', alice, 6, '2026-11-21T12:00:00Z'),
 ];
 const runs = [{ id: 1 }, { id: 2 }];
 const jobs = {
@@ -34,7 +37,7 @@ test('summarise counts jobs, skill outcomes and gate passes', () => {
   const n = summarise({ runs, jobs, events });
   assert.deepEqual(n.perJob, { 'triage / triage': { runs: 1, failed: 0 }, 'plan / admit': { runs: 1, failed: 0 }, 'plan / plan': { runs: 1, failed: 1 }, 'triage / gherkin': { runs: 1, failed: 0 } });
   assert.deepEqual(n.skills, { triage: 1, 'gherkin-writer': 1, 'task-decomposer': 1 });
-  assert.deepEqual(n.scenarios, { needed: 2, applied: 2, passed: 1, failed: 1, medianHours: 3 });
+  assert.deepEqual(n.scenarios, { needed: 3, applied: 3, passed: 1, failed: 2, medianHours: 3 });
   assert.deepEqual(n.triage, { ready: 1, needsInfo: 1, proposed: 0 });
   assert.deepEqual(n.plan, { admitted: 2, tooBig: 1 });
   assert.deepEqual(n.gate, { applied: 2, passed: 1, failed: 1, medianHours: 4 });

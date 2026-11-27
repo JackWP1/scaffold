@@ -56,7 +56,8 @@ export function summarise({ runs, jobs, events }) {
   const count = (event, label) => events.filter((e) => byBot(e, event, label)).length;
 
   // Approvals: a person applies `label`; its gate removes it if the approval is invalid, or later when
-  // the approved comment changes. Hours run from SCAFFOLD applying `from` to the approval.
+  // the approved comment changes. A person removing it withdraws it too (checkApproval), so any later
+  // removal counts. Hours run from SCAFFOLD applying `from` to the approval.
   function approvalStats(label, from) {
     const approvals = events.filter((e) => e.event === 'labeled' && e.label?.name === label && e.actor?.type === 'User');
     let passed = 0;
@@ -64,7 +65,7 @@ export function summarise({ runs, jobs, events }) {
     for (const a of approvals) {
       const issue = a.issue?.number;
       const later = events.filter((e) => e.issue?.number === issue && e.created_at >= a.created_at && e.id !== a.id);
-      if (later.some((e) => byBot(e, 'unlabeled', label))) continue;
+      if (later.some((e) => e.event === 'unlabeled' && e.label?.name === label)) continue;
       passed++;
       const start = events.filter((e) => e.issue?.number === issue && byBot(e, 'labeled', from) && e.created_at <= a.created_at).at(-1);
       if (start) hours.push((Date.parse(a.created_at) - Date.parse(start.created_at)) / 3_600_000);
