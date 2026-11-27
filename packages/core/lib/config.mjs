@@ -19,7 +19,8 @@ export const PACKAGES = ['intake', 'plan', 'implement', 'review', 'collaboration
 export const RELEASED = ['intake', 'plan', 'implement', 'review', 'collaboration'];
 
 // Settings whose change needs a listed approver's review (scaffold-config-guard, PLAN.md section 4).
-export const PROTECTED = ['stages', 'approvers', 'gherkin', 'bdd', 'ci_workflows', 'max_in_flight', 'max_stack_prs', 'warn_open_prs_per_developer', 'max_rework_rounds', 'pr_size'];
+// flow_lead too: it can let a PR jump the merge order (`/order-override`).
+export const PROTECTED = ['stages', 'approvers', 'flow_lead', 'gherkin', 'bdd', 'ci_workflows', 'max_in_flight', 'max_stack_prs', 'warn_open_prs_per_developer', 'max_rework_rounds', 'pr_size'];
 
 export const DEFAULTS = {
   stages: {},

@@ -73,7 +73,7 @@ Use the second account from step 5 as the issue author where the author matters.
 | 6 | Under `stages:`, set `intake: false` and `plan: true`, then open an issue | No triage. Apply `scaffold:ready` and `priority:medium` by hand, then `/plan`: planned as usual, Triage row ✋ manual |
 | 7 | Under `stages:`, set `implement: true` | Config invalid: `/plan` refused with "not released yet"; `scaffold-config-guard` fails the PR |
 | 8 | Open a PR that changes `max_in_flight` | `scaffold-config-guard` fails until a listed approver other than the PR author approves the latest commit |
-| 9 | Open a PR that changes only `flow_lead` | `scaffold-config-guard` passes without an approver |
+| 9 | Open a PR that only edits comments in `scaffold-config.yml` | `scaffold-config-guard` passes without an approver. Changing `flow_lead` needs one (since slice 5: the flow lead can override the merge order) |
 | 10 | On an issue planned under v0.4.0 as sub-tickets, apply `scaffold:plan-approved` | Label removed: "sub-tickets removed: run `/plan` again"; `scaffold:planned` kept |
 | 11 | Actions → SCAFFOLD → Run workflow → `usage-report` | "SCAFFOLD usage report" issue created once; a comment with runs per skill and job, gate outcomes, hours to approval and stages |
 
