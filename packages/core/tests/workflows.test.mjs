@@ -25,11 +25,11 @@ test('every package action reads stages first and runs nothing else when its sta
 });
 
 test('reusable workflows call package actions, and jobs reading config can read contents', async () => {
-  for (const wf of ['triage', 'plan', 'labels', 'config-guard', 'usage-report', 'checks']) {
+  for (const wf of ['triage', 'plan', 'labels', 'config-guard', 'usage-report', 'checks', 'implement']) {
     const yaml = await read(`.github/workflows/${wf}.yml`);
-    for (const [, path] of yaml.matchAll(/uses: JackWP1\/scaffold\/(\S+)@/g)) assert.match(path, /^packages\/(core|intake|plan)\/actions\//, wf);
+    for (const [, path] of yaml.matchAll(/uses: JackWP1\/scaffold\/(\S+)@/g)) assert.match(path, /^packages\/(core|intake|plan|implement)\/actions\//, wf);
   }
-  for (const wf of ['triage', 'plan']) {
+  for (const wf of ['triage', 'plan', 'implement']) {
     const yaml = await read(`.github/workflows/${wf}.yml`);
     for (const job of yaml.split(/\n {2}(?=[a-z-]+:\n)/).slice(1)) assert.match(job, /contents: read/, `${wf}: ${job.split(':')[0]}`);
   }
@@ -54,7 +54,7 @@ test('the caller listens for every event a package needs, and grants what each r
   assert.match(caller, /schedule:\n\s+- cron:/);
   assert.doesNotMatch(caller, /pull_request_target/);
   const perms = (yaml, job) => [...(yaml.split(new RegExp(`\\n {2}${job}:\\n`))[1].split(/\n {2}[a-z-]+:\n/)[0].matchAll(/^ {6}([a-z-]+): (read|write)$/gm))].map(([, k, v]) => `${k}: ${v}`).sort();
-  for (const [job, wf] of [['triage', 'triage'], ['plan', 'plan'], ['config-guard', 'config-guard'], ['checks', 'checks'], ['usage-report', 'usage-report'], ['labels', 'labels']]) {
+  for (const [job, wf] of [['triage', 'triage'], ['plan', 'plan'], ['config-guard', 'config-guard'], ['checks', 'checks'], ['implement', 'implement'], ['usage-report', 'usage-report'], ['labels', 'labels']]) {
     const reusable = await read(`.github/workflows/${wf}.yml`);
     const asked = new Set([...reusable.matchAll(/^ {6}([a-z-]+): (read|write)$/gm)].map(([, k, v]) => `${k}: ${v}`));
     const granted = perms(caller, job);

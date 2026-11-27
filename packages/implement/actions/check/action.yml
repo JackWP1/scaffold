@@ -1,0 +1,31 @@
+name: SCAFFOLD implement
+description: The implement package's PR jobs. Checks (plan gate, PR size) pass with "stage off: manual" when implement is off.
+inputs:
+  mode:
+    description: scaffold-plan-gate, scaffold-pr-size, status or size-command
+    required: true
+  github-token:
+    description: Token with contents:read, pull-requests:read and issues:write
+    default: ${{ github.token }}
+outputs:
+  row:
+    description: The PR status comment row for a check
+    value: ${{ steps.run.outputs.row }}
+runs:
+  using: composite
+  steps:
+    # Reads `stages` first (PLAN.md section 5): when implement is off, the job passes as manual.
+    - id: stage
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/../../../core/bin/stage.mjs" implement
+    - if: steps.stage.outputs.state != 'off'
+      id: run
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SCAFFOLD_MODE: ${{ inputs.mode }}
+        ROW_SCAFFOLD_PLAN_GATE: ${{ env.ROW_SCAFFOLD_PLAN_GATE }}
+        ROW_SCAFFOLD_PR_SIZE: ${{ env.ROW_SCAFFOLD_PR_SIZE }}
+      run: node "$GITHUB_ACTION_PATH/main.mjs"

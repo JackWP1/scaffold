@@ -6,7 +6,7 @@
 # plain values; no "#" inside values.
 
 # Labels SCAFFOLD defines for later slices, so labels.yml and this file stay in step.
-reserved_labels: [scaffold:escalate, scaffold:conflict, scaffold:conflict-resolved, scaffold:size-exception, scaffold:order-override, scaffold:diagram-unchanged]
+reserved_labels: [scaffold:conflict, scaffold:conflict-resolved, scaffold:order-override, scaffold:diagram-unchanged]
 
 # Core: always on. Its workflows run whatever `stages` says.
 core:
@@ -29,6 +29,13 @@ stages:
     triggers: [issue_comment.created, issue_comment.edited, issue_comment.deleted, issues.labeled, issues.unlabeled]
     labels: [scaffold:planned, scaffold:plan-approved, scaffold:too-big]
     gates: [Ready → planned, Planned → approved, Planned → too big]
+  implement:
+    workflow: implement.yml
+    skills: []
+    checks: [scaffold-plan-gate, scaffold-pr-size]
+    triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request.edited, pull_request.labeled, pull_request.unlabeled, issue_comment.created]
+    labels: [scaffold:size-exception, scaffold:escalate]
+    gates: [Approved → implementing, Oversized PR → exception]
 
 # The Current diagram. kind: human (a person must act), check (automated), ai (model step) or state.
 # owner: scaffold (a package or core runs it) or manual. Edges use Mermaid syntax: a --> b or a -- label --> b.

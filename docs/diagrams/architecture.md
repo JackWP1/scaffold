@@ -90,6 +90,7 @@ flowchart LR
   subgraph caller["Caller: .github/workflows/scaffold.yml"]
     c_triage["triage"]
     c_plan["plan"]
+    c_implement["implement"]
     c_config_guard["config-guard"]
     c_checks["checks"]
     c_usage_report["usage-report"]
@@ -103,6 +104,14 @@ flowchart LR
   end
   subgraph w_config_guard_yml["config-guard.yml"]
     w_config_guard_yml_scaffold_config_guard["scaffold-config-guard"]
+  end
+  subgraph w_implement_yml["implement.yml"]
+    w_implement_yml_scaffold_plan_gate["scaffold-plan-gate"]
+    w_implement_yml_scaffold_pr_size["scaffold-pr-size"]
+    w_implement_yml_status["status"]
+    w_implement_yml_scaffold_plan_gate --> w_implement_yml_status
+    w_implement_yml_scaffold_pr_size --> w_implement_yml_status
+    w_implement_yml_size_command["size-command"]
   end
   subgraph w_labels_yml["labels.yml"]
     w_labels_yml_labels["labels"]
@@ -123,6 +132,7 @@ flowchart LR
   end
   c_triage --> w_triage_yml
   c_plan --> w_plan_yml
+  c_implement --> w_implement_yml
   c_config_guard --> w_config_guard_yml
   c_checks --> w_checks_yml
   c_usage_report --> w_usage_report_yml
@@ -132,6 +142,10 @@ flowchart LR
   w_checks_yml_scaffold_test_integrity --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
   w_checks_yml_scaffold_scenarios --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
   w_config_guard_yml_scaffold_config_guard --> a_packages_core_actions_config_guard["packages/core/actions/config-guard"]
+  w_implement_yml_scaffold_plan_gate --> a_packages_implement_actions_check["packages/implement/actions/check"]
+  w_implement_yml_scaffold_pr_size --> a_packages_implement_actions_check["packages/implement/actions/check"]
+  w_implement_yml_status --> a_packages_implement_actions_check["packages/implement/actions/check"]
+  w_implement_yml_size_command --> a_packages_implement_actions_check["packages/implement/actions/check"]
   w_labels_yml_labels --> a_packages_core_actions_labels["packages/core/actions/labels"]
   w_plan_yml_admit --> a_packages_plan_actions_plan["packages/plan/actions/plan"]
   w_plan_yml_plan --> a_packages_plan_actions_plan["packages/plan/actions/plan"]

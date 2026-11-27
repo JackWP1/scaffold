@@ -3,6 +3,18 @@ import { MARKER } from './status.mjs';
 
 const WRITERS = ['admin', 'maintain', 'push', 'write'];
 const BOT = 'github-actions[bot]';
+const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+
+// Comments starting with `marker` from SCAFFOLD or from a member: a marked comment a member writes by hand
+// from a manual template when its package is off. More than one should fail the caller's check, so an
+// extra one can block a gate but never pass it.
+export async function markedComments(gh, repo, number, marker) {
+  const found = [];
+  for await (const page of gh.pages(`/repos/${repo}/issues/${number}/comments`)) {
+    found.push(...page.filter((c) => c.body?.startsWith(marker) && (c.user?.login === BOT || TRUSTED.includes(c.author_association))));
+  }
+  return found;
+}
 
 export function issueSteps(gh, repo, number, labels) {
   const base = `/repos/${repo}/issues/${number}`;

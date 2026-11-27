@@ -4,7 +4,7 @@
 import { checkApproval } from './approval.mjs';
 import { escapeForComment } from './text.mjs';
 import { parseGherkin, scenariosText, scenarioTag, scenarioHash, SCENARIOS_MARKER } from './gherkin.mjs';
-import { issueSteps } from './issue.mjs';
+import { issueSteps, markedComments } from './issue.mjs';
 
 export { SCENARIOS_MARKER };
 export const GHERKIN_APPROVED = 'scaffold:gherkin-approved';
@@ -25,18 +25,9 @@ export function scenariosRequired(config, labels, events = []) {
   return last?.event === 'unlabeled' && last.label.name === GHERKIN_APPROVED;
 }
 
-const BOT = 'github-actions[bot]';
-const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
-
 // Comments marked as the scenarios: SCAFFOLD's, or a member's written by hand from the manual template
 // when intake is off. More than one fails the check, so an extra one can block but never pass it.
-export async function scenarioComments(gh, repo, number) {
-  const found = [];
-  for await (const page of gh.pages(`/repos/${repo}/issues/${number}/comments`)) {
-    found.push(...page.filter((c) => c.body?.startsWith(SCENARIOS_MARKER) && (c.user?.login === BOT || TRUSTED.includes(c.author_association))));
-  }
-  return found;
-}
+export const scenarioComments = (gh, repo, number) => markedComments(gh, repo, number, SCENARIOS_MARKER);
 
 // Gherkin errors for a comment or status row: escaped, no table pipes, at most three.
 export const gherkinProblem = (errors) => escapeForComment(errors.slice(0, 3).join('; ') + (errors.length > 3 ? `; and ${errors.length - 3} more` : '')).replaceAll('|', '\\|');

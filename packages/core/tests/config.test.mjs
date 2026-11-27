@@ -27,7 +27,7 @@ test('an invalid scaffold-config.yml is rejected, not replaced by defaults', () 
     'stages: on': /stages: expected object/,
     'stages:\n  plan: yes': /stages.plan: expected true or false/,
     'stages:\n  deploy: true': /stages.deploy: not allowed/,
-    'stages:\n  implement: true': /stages.implement: not released yet/,
+    'stages:\n  review: true': /stages.review: not released yet/,
     'approvers: alice': /approvers: expected array/,
     'approvers:\n  - "not a login"': /approvers\[0\]: not a GitHub login/,
     'flow_lead: [a, b]': /flow_lead: expected string/,
