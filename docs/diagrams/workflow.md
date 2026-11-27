@@ -132,7 +132,8 @@ flowchart TD
   class jira,ready planned
   class open,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,gherkinapproved done
   class plancmd,limit,decompose,plansize,split,toobig,plancomment,planreview,approved done
-  class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize,ownerreview,closed planned
+  class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize done
+  class ownerreview,closed planned
   class ci,review,diagnose,readygate planned
   class check1,check2,conflicts1,conflicts2,order,merge,mq,mainonly planned
 ```
@@ -186,9 +187,18 @@ flowchart TD
   planreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews plan"}
   gate{{"Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs;<br/>scenarios still approved and unchanged,<br/>each mapped"}}
   approved["scaffold:plan-approved"]
-  pick{"<span style='font-size:2em'>🧑</span><br/>Developer picks up ticket"}
+  implon{{"implement stage on?<br/>stages in scaffold-config.yml"}}
+  pick{"<span style='font-size:2em'>🧑</span><br/>Developer picks up ticket<br/>packages/implement/HANDOFF.md"}
   code["Developer writes code"]
-  pr["PR"]
+  assign{"<span style='font-size:2em'>🧑</span><br/>Developer assigns<br/>issue to Copilot"}
+  copilot["<span style='font-size:2em'>🤖</span> Copilot coding agent<br/>tdd, implement skills;<br/>a stack of PRs if planned"]
+  pr["PR, Fixes"]
+  baseline{{"Core baseline checks, every PR:<br/>protected paths, hard size limit,<br/>test integrity, scenarios<br/>with the BDD runner report"}}
+  implchecks{{"Plan gate re-checks the approval;<br/>PR size within the soft limit<br/>or scaffold:size-exception"}}
+  sizecmd{"<span style='font-size:2em'>🧑</span><br/>Developer comments /size-exception reason;<br/>listed approver applies<br/>scaffold:size-exception"}
+  reviewgate{{"Review gate<br/>waits for every check<br/>on the head commit"}}
+  rework["Automatic rework round<br/>@copilot comment lists the failures;<br/>no human approval"]
+  escalate["scaffold:escalate<br/>circuit breaker:<br/>max_rework_rounds used"]
   ci{{"CI"}}
   review{"<span style='font-size:2em'>🧑</span><br/>Peer review"}
   test{"<span style='font-size:2em'>🧑</span><br/>Ticket tested"}
@@ -240,12 +250,27 @@ flowchart TD
   gate -- passes --> approved
   plancomment -- plan comment deleted<br/>or its marker removed:<br/>approval withdrawn --> ready
   approved -- plan comment edited:<br/>approval removed --> planreview
-  approved --> pick
+  approved --> implon
+  implon -- no --> pick
   pick --> code
   code --> pr
+  implon -- yes --> assign
+  assign --> copilot
+  copilot --> pr
+  pr --> baseline
   pr --> ci
-  ci -- fails --> code
-  ci -- passes --> review
+  pr --> implchecks
+  implchecks -- over the soft limit --> sizecmd
+  sizecmd --> implchecks
+  baseline --> reviewgate
+  ci --> reviewgate
+  implchecks --> reviewgate
+  reviewgate -- fails on a Copilot PR,<br/>rounds left --> rework
+  rework --> copilot
+  reviewgate -- fails on a human's PR --> code
+  reviewgate -- fails,<br/>max_rework_rounds used --> escalate
+  escalate --> review
+  reviewgate -- passes:<br/>review requested --> review
   review -- changes requested --> code
   review -- approves --> test
   test -- fails: changes requested --> code
@@ -258,8 +283,8 @@ flowchart TD
   classDef manual fill:#4b5563,color:#fff
   class ks,kh,ka,kai scaffold
   class km manual
-  class intakeon,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,scengate,ready,planon,plancmd,limit,decompose,plansize,toobig,retriage,plancomment,planreview,gate,approved scaffold
-  class jira,open,manualtriage,split,manualplan,pick,code,pr,ci,review,test,merge,closed manual
+  class intakeon,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,scengate,ready,planon,plancmd,limit,decompose,plansize,toobig,retriage,plancomment,planreview,gate,approved,implon,assign,copilot,pr,baseline,implchecks,sizecmd,reviewgate,rework,escalate scaffold
+  class jira,open,manualtriage,split,manualplan,pick,code,ci,review,test,merge,closed manual
 ```
 <!-- end of generated diagram -->
 
@@ -274,3 +299,4 @@ One row per slice, added in the slice's retrospective PR. Earlier versions of bo
 | 2 | 2026-11-20 | Plan: `/plan`, in-flight limit (repo-wide admission with a sweep for dropped runs; a failed first plan gives its slot back), `task-decomposer` with size estimate and split, `scaffold:planned`, protected plan gate, sub-tickets as sub-issues on approval (approval withheld until all exist); deleting the plan comment or removing its marker sends the issue back to Ready, and any other edit to it removes the approval; plans with no sub-tasks are rejected; an invalid `scaffold-config.yml` blocks planning and approval. Proposed: needs-info edit step applies `scaffold:triage`; plan comment sets `scaffold:planned`; gate-fail edge |
 | 1b | 2026-11-26 | Packages: intake and plan switched by `stages` (off means manual, from each package's `HANDOFF.md`); sub-tickets dropped: a plan is one PR or a stack of up to `max_stack_prs`, and bigger work gets `scaffold:too-big`, leaves flight and goes back to triage, which proposes smaller tickets for a member to create. Current diagram now generated from `workflow.yml`. Proposed: stack of up to `max_stack_prs` PRs and the too-big route replace up to 5 sub-tickets |
 | 2b | 2026-11-27 | Scenarios, in the intake package: `gherkin` config (`off`, `auto`, `always`; `bdd` required unless off), Request form Gherkin field, triage routes to `scaffold:needs-gherkin`, `gherkin-writer` drafts in the same run or on `/gherkin`, marked scenarios comment numbered S1..Sn, protected scenarios gate; edits and redrafts withdraw approvals. Plan re-checks the approval and maps each scenario to a PR; the plan gate fails if the scenarios changed. Proposed: scenarios steps added to intake, marked done |
+| 3 | 2026-11-27 | Implement: core baseline PR checks on every PR (protected paths with the caller pin-bump exception, hard size limit, test integrity lifted by `scaffold:test-change-approved`, scenarios check reading the BDD runner report); implement package switched by `stages`: plan gate re-check, PR size with `/size-exception` and `scaffold:size-exception`, review gate waiting for every check, automatic `@copilot` rework rounds, circuit breaker with `scaffold:escalate`, advisory work in progress; PR status comment. Proposed: implement steps marked done; the review gate stays planned until slice 4 adds `code-review` threads |

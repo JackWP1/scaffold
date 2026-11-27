@@ -20,7 +20,9 @@ const workflowFiles = {};
 for (const f of (await readdir(new URL('.github/workflows/', ROOT))).sort()) workflowFiles[f] = await read(`.github/workflows/${f}`);
 const skills = {};
 for (const pkg of Object.keys(workflow.stages ?? {})) {
-  skills[pkg] = (await readdir(new URL(`packages/${pkg}/skills/`, ROOT), { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);
+  // A package with no Actions skills (e.g. implement: Copilot's skills ship to .github/skills/) has no folder.
+  const dirs = await readdir(new URL(`packages/${pkg}/skills/`, ROOT), { withFileTypes: true }).catch((err) => (err.code === 'ENOENT' ? [] : Promise.reject(err)));
+  skills[pkg] = dirs.filter((d) => d.isDirectory()).map((d) => d.name);
 }
 
 const problems = consistencyProblems({ workflow, labels, callerYaml, workflowFiles, skills });

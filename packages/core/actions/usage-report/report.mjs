@@ -40,8 +40,11 @@ const median = (xs) => {
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
 
-// Pure: turns runs, jobs and issue events into report numbers. `jobs` maps run id → its jobs.
-export function summarise({ runs, jobs, events }) {
+const COPILOT = ['Copilot', 'copilot-swe-agent[bot]'];
+
+// Pure: turns runs, jobs and issue events into report numbers. `jobs` maps run id → its jobs;
+// `comments` are issue and PR comments in the window (for rework rounds); `openPrs` the open PRs now.
+export function summarise({ runs, jobs, events, comments = [], openPrs = [] }) {
   const perJob = {};
   for (const run of runs) {
     for (const j of jobs[run.id] ?? []) {
@@ -79,6 +82,15 @@ export function summarise({ runs, jobs, events }) {
     plan: { admitted: count('labeled', 'scaffold:planned'), tooBig: count('labeled', 'scaffold:too-big') },
     scenarios: { needed: count('labeled', 'scaffold:needs-gherkin'), ...approvalStats('scaffold:gherkin-approved', 'scaffold:needs-gherkin') },
     gate: approvalStats('scaffold:plan-approved', 'scaffold:planned'),
+    implement: {
+      reworkRounds: comments.filter((c) => c.user?.login === BOT && c.body?.startsWith('<!-- scaffold:rework')).length,
+      escalated: count('labeled', 'scaffold:escalate'),
+      sizeExceptions: approvalStats('scaffold:size-exception', 'scaffold:size-exception').passed,
+      testChangesApproved: approvalStats('scaffold:test-change-approved', 'scaffold:test-change-approved').passed,
+      // Work in progress now: open Copilot PRs per assigned developer (PLAN.md section 8).
+      openPerDeveloper: Object.entries(openPrs.filter((p) => COPILOT.includes(p.user?.login)).flatMap((p) => (p.assignees ?? []).map((a) => a.login)).filter((l) => !COPILOT.includes(l))
+        .reduce((m, l) => ({ ...m, [l]: (m[l] ?? 0) + 1 }), {})).sort(([a], [b]) => a.localeCompare(b)),
+    },
   };
 }
 
@@ -118,6 +130,14 @@ export function renderReport({ from, to, numbers, config, configError }) {
     `| Plan gate: passed | ${n.gate.passed} |`,
     `| Plan gate: failed or withdrawn | ${n.gate.failed} |`,
     `| Plan gate: median hours from admission to approval | ${hrs(n.gate.medianHours)} |`,
+    `| Implement: automatic rework rounds | ${n.implement.reworkRounds} |`,
+    `| Implement: circuit breaker tripped (\`scaffold:escalate\`) | ${n.implement.escalated} |`,
+    `| Implement: size exceptions granted | ${n.implement.sizeExceptions} |`,
+    `| Baseline: test changes approved | ${n.implement.testChangesApproved} |`,
+    '',
+    '| Developer | Open Copilot PRs now |',
+    '| --- | --- |',
+    ...(n.implement.openPerDeveloper.length ? n.implement.openPerDeveloper.map(([d, c]) => `| ${d} | ${c} |`) : ['| (none) | 0 |']),
     '',
     '| Stage | State |',
     '| --- | --- |',
@@ -133,7 +153,11 @@ export async function postReport(gh, repo, { now = new Date(), config, configErr
   const runs = await callerRuns(gh, repo, since);
   const jobs = {};
   for (const run of runs) jobs[run.id] = (await gh.get(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`)).jobs ?? [];
-  const numbers = summarise({ runs, jobs, events: await issueEvents(gh, repo, since) });
+  const comments = [];
+  for await (const page of gh.pages(`/repos/${repo}/issues/comments?since=${encodeURIComponent(since)}`)) comments.push(...page);
+  const openPrs = [];
+  for await (const page of gh.pages(`/repos/${repo}/pulls?state=open`)) openPrs.push(...page);
+  const numbers = summarise({ runs, jobs, events: await issueEvents(gh, repo, since), comments, openPrs });
   const body = renderReport({ from: since.slice(0, 10), to: now.toISOString().slice(0, 10), numbers, config, configError });
 
   let issue;

@@ -1,0 +1,72 @@
+# Reusable core baseline PR checks (always on, PLAN.md section 6). Each job is a required check.
+# Runs on pull_request, never pull_request_target, and only reads.
+name: SCAFFOLD checks
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  scaffold-protected-paths:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-protected-paths-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        with:
+          check: scaffold-protected-paths
+
+  scaffold-hard-size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-hard-size-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        with:
+          check: scaffold-hard-size
+
+  scaffold-test-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-test-integrity-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        with:
+          check: scaffold-test-integrity
+
+  # Waits for the repo's BDD workflow (`bdd.workflow`) to finish on the head commit, then reads its report.
+  scaffold-scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: scaffold-scenarios-check-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        with:
+          check: scaffold-scenarios

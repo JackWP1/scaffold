@@ -1,0 +1,105 @@
+# Reusable implement workflow (slice 3). Called from a repo's thin caller workflow.
+# Each job reads `stages` first; its checks pass as "stage off: manual" when implement is off (PLAN.md section 5).
+# Runs on pull_request and issue_comment, never pull_request_target; no checkout.
+name: SCAFFOLD implement
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  scaffold-plan-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-plan-gate-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      row: ${{ steps.check.outputs.row }}
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - id: check
+        uses: JackWP1/scaffold/packages/implement/actions/check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        with:
+          mode: scaffold-plan-gate
+
+  scaffold-pr-size:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-pr-size-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      row: ${{ steps.check.outputs.row }}
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - id: check
+        uses: JackWP1/scaffold/packages/implement/actions/check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        with:
+          mode: scaffold-pr-size
+
+  # Waits for the PR's other checks on the head commit, then passes, asks Copilot for a rework round or
+  # trips the circuit breaker (PLAN.md section 6). Writes its own status rows: it finishes last.
+  scaffold-review-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: scaffold-review-gate-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      checks: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/implement/actions/check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        with:
+          mode: scaffold-review-gate
+
+  # The checks run in parallel, so this one job writes their rows to the PR status comment.
+  status:
+    needs: [scaffold-plan-gate, scaffold-pr-size]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-pr-status-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/implement/actions/check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        env:
+          ROW_SCAFFOLD_PLAN_GATE: ${{ needs.scaffold-plan-gate.outputs.row }}
+          ROW_SCAFFOLD_PR_SIZE: ${{ needs.scaffold-pr-size.outputs.row }}
+        with:
+          mode: status
+
+  size-command:
+    if: github.event_name == 'issue_comment' && github.event.action == 'created' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/size-exception')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-pr-status-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/implement/actions/check@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+        with:
+          mode: size-command

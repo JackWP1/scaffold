@@ -146,7 +146,7 @@ export function replaceGenerated(markdown, generated) {
 export function consistencyProblems({ workflow, labels, callerYaml, workflowFiles, skills }) {
   const problems = [...diagramProblems(workflow.diagram)];
   const stages = Object.entries(workflow.stages ?? {});
-  const declared = new Set([...(workflow.reserved_labels ?? []), ...stages.flatMap(([, s]) => s.labels ?? [])]);
+  const declared = new Set([...(workflow.reserved_labels ?? []), ...(workflow.core?.labels ?? []), ...stages.flatMap(([, s]) => s.labels ?? [])]);
   for (const l of labels) if (!declared.has(l)) problems.push(`label ${l} is in labels.yml but not in workflow.yml`);
   for (const l of declared) if (!labels.includes(l)) problems.push(`label ${l} is in workflow.yml but not in labels.yml`);
 

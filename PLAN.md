@@ -60,6 +60,7 @@ Colour shows what kind of label it is, so a glance at an issue says whether it n
 | Flag | Worth a look; doesn't block | `scaffold:no-template` | `f9d0c4` pale orange |
 | Override | A member or approver lifted a gate | `scaffold:accepted` | `d4c5f9` pale purple |
 | | | `scaffold:conflict-resolved` | `d4c5f9` pale purple |
+| | | `scaffold:test-change-approved` | `d4c5f9` pale purple |
 | | | `scaffold:size-exception` | `d4c5f9` pale purple |
 | | | `scaffold:order-override` | `d4c5f9` pale purple |
 | | | `scaffold:diagram-unchanged` | `d4c5f9` pale purple |
@@ -255,7 +256,7 @@ PR checks run in consumer repos, through the caller workflow; the scaffold repo 
 - **Protected paths:** fails if the PR touches `.github/**`, `CODEOWNERS`, `PRECEDENTS.md` or `docs/spec/**`; CODEOWNERS is the second layer. Two exceptions, each with its own required check:
   - `.github/scaffold-config.yml` is excluded; `scaffold-config-guard` (section 4) validates it and requires a listed approver for protected settings. A PR that also touches any other protected path still fails.
   - A change to `.github/workflows/scaffold.yml` that only moves the `ukncsc/scaffold/...@<ref>` pins (a Dependabot bump) passes; any other change to that file fails.
-- **Test integrity:** flags removed/skipped tests, removed assertions or reduced coverage, and changed or removed scenarios in existing `.feature` files unless the issue's approved scenarios include the change; needs a human label to pass.
+- **Test integrity:** flags removed/skipped tests, removed assertions or reduced coverage, and changed or removed scenarios in existing `.feature` files unless the issue's approved scenarios include the change. To pass, a listed approver who isn't the PR author applies `scaffold:test-change-approved` (timeline check); a new push removes it.
 - **Hard size limit:** a PR over the hard limit (below) can't merge even after human review or with a size exception; it must be split.
 - **Scenarios:** if the issue needs scenarios (always with `gherkin: always`; with `auto`, when it carries `scaffold:needs-gherkin`), the check fails until they're approved (timeline re-checked). Each PR's new scenarios must match the ones the plan gave it, and the top of the stack must match the full approved set (Actions compares hashes); the BDD runner report (contract in section 2) must show every one of them ran and passed on the PR's head SHA. With `gherkin: off` it passes as "scenarios off". Changing a scenario means changing the scenarios comment, which withdraws its approval and the plan's.
 

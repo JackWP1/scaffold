@@ -6,7 +6,7 @@
 stages:
   intake: true
   plan: true
-  implement: false        # not released yet (slice 3)
+  implement: true
   review: false           # not released yet (slice 4)
   collaboration: false    # not released yet (slice 5)
 

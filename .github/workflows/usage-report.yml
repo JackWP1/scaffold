@@ -13,6 +13,7 @@ jobs:
       actions: read
       contents: read
       issues: write
+      pull-requests: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/core/actions/usage-report@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
+      - uses: JackWP1/scaffold/packages/core/actions/usage-report@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0

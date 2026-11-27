@@ -1,10 +1,12 @@
-# Demo: slices 1, 2 and 2b, Phase 1b
+# Demo: slices 1, 2, 2b and 3, Phase 1b
 
 What runs, slice 1: an issue opened in a repo with the SCAFFOLD caller → one Copilot CLI call with no tools (`triage` skill, `fast` tier) → schema-validated JSON → Actions code applies `scaffold:*` and `priority:*` labels and one status comment.
 
 What runs, slice 2: a member comments `/plan` → one Copilot CLI call (`task-decomposer` skill, `standard` tier) → schema-validated plan, checked against the size rules → plan comment and `scaffold:planned`. A listed approver applies `scaffold:plan-approved` → the plan gate (no model) checks the timeline and either keeps the label or removes it.
 
 What runs, slice 2b: with `gherkin` on, triage decides an issue needs acceptance scenarios → `scaffold:needs-gherkin` and a marked scenarios comment (from the Request form's Gherkin field, or drafted by `gherkin-writer`, `standard` tier) → a listed approver applies `scaffold:gherkin-approved` → the scenarios gate (no model) checks the timeline and that the Gherkin parses → `scaffold:ready`. `/plan` then maps each scenario to a PR.
+
+What runs, slice 3: every PR gets the core baseline checks (protected paths, hard size limit, test integrity, scenarios with the BDD runner report). With `implement` on, a developer assigns an approved issue to Copilot → Copilot's PR gets the plan gate and PR size checks → the review gate waits for every check, then requests review from the assigned developer, or posts an `@copilot` rework round listing the failures → after `max_rework_rounds` rounds, `scaffold:escalate` and human review. No model call in any of these.
 
 What changes, Phase 1b: intake and plan are packages that `stages` in `scaffold-config.yml` turns on; a package that is off does nothing and humans follow its `HANDOFF.md`. A plan is one PR or a stack of up to `max_stack_prs` PRs; anything bigger gets `scaffold:too-big` and goes back to triage, which proposes smaller tickets. `scaffold-config-guard` checks config PRs, and a weekly usage report is posted to an issue.
 
@@ -91,6 +93,26 @@ In the sandbox's `.github/scaffold-config.yml`, set `gherkin: auto` and add `bdd
 | 12 | Remove `scaffold:needs-gherkin` from an issue as a member; then set `gherkin: always` and remove it from another | First goes to `scaffold:ready` (override); second gets the label back with the reason |
 | 13 | Run the usage report | Rows for scenarios needed, approvals passed and failed or withdrawn, and median hours to approval; `gherkin-writer` model calls from `/gherkin` |
 
+## Slice 3 demo script
+
+Setup: cut a release so the new actions are pinned, re-copy the caller template, and add the new required checks to the sandbox ruleset (`checks / scaffold-*`, `implement / scaffold-plan-gate`, `implement / scaffold-pr-size`, `implement / scaffold-review-gate`). Copy `packages/implement/copilot-skills/*` to `.github/skills/` in the sandbox. Turn off "Require approval for workflow runs" for Copilot only after Phase 0 confirms it can't change `.github/workflows/`.
+
+| Step | Do | Expect |
+| --- | --- | --- |
+| 1 | Open a PR that edits `.github/CODEOWNERS` | `scaffold-protected-paths` fails, listing the file |
+| 2 | Open a PR that only bumps the SCAFFOLD pins in `.github/workflows/scaffold.yml` | `scaffold-protected-paths` passes |
+| 3 | Open a PR over 30 files or 5000 lines (not counting lock files) | `scaffold-hard-size` fails; `scaffold:size-exception` doesn't lift it |
+| 4 | Open a PR that deletes a test or adds `it.skip(` | `scaffold-test-integrity` fails with the findings. A listed approver who isn't the author applies `scaffold:test-change-approved`: passes. Push again: label removed, fails |
+| 5 | With `gherkin: auto`, open a PR linking an issue with approved scenarios, without the `.feature` file | `scaffold-scenarios` fails: scenario missing. Add the file with the approved text and tags, and the BDD runner report: passes once CI has run |
+| 6 | Assign a `scaffold:plan-approved` issue to Copilot | Copilot's PR: `scaffold-plan-gate` ✅; PR status comment with Plan gate, Size, Review gate, Rework and Work in progress rows |
+| 7 | Remove `scaffold:plan-approved` from that issue, then push to the PR | `scaffold-plan-gate` fails: "was removed after it was applied" |
+| 8 | Make Copilot's PR fail a check (e.g. a failing test) | Review gate fails; one `@copilot Rework round 1 of 6` comment listing the failure. Copilot pushes a fix (Phase 0 question: does it act on bot comments?) |
+| 9 | Set `max_rework_rounds: 1`, then fail a check twice | Second failure: `scaffold:escalate`, review requested from the assigned developer, Rework row "circuit breaker tripped" |
+| 10 | Make a PR over the soft limit but within the hard limit; comment `/size-exception generated client` | Size row ⏳ requested; a listed approver applies `scaffold:size-exception`: `scaffold-pr-size` passes |
+| 11 | Assign three issues to Copilot under the same developer | Work in progress row ⚠️ over `warn_open_prs_per_developer` (advisory, nothing blocked) |
+| 12 | Set `implement: false` | Implement checks pass as "stage off: manual"; baseline checks still run |
+| 13 | Run the usage report | Rework rounds, circuit breaker trips, size exceptions, test changes approved, open Copilot PRs per developer |
+
 ## Not in the demo yet
 
 From slice 1: Dependabot bumps for the caller pin, ajv, audit artifact, Projects board automation, Jira form validation, the generated label state machine.
@@ -99,4 +121,6 @@ From slice 2: the plan gate as a required check on PRs (slice 3, when PRs exist)
 
 From Phase 1b: model cost and false positives in the usage report; checks from an off package passing as "stage off: manual" (no package has a required check until slice 3).
 
-From slice 2b: the scenarios check on PRs with the BDD runner report (slice 3); `gherkin-writer` drafts made in the triage run counted as model calls (the report counts `/gherkin` jobs only); a member's `scaffold:needs-gherkin` override surviving re-triage.
+From slice 2b: `gherkin-writer` drafts made in the triage run counted as model calls (the report counts `/gherkin` jobs only); a member's `scaffold:needs-gherkin` override surviving re-triage.
+
+From slice 3: reduced coverage in test integrity (no coverage data reaches the check); `code-review` threads in the review gate (slice 4); automatic stacked PRs (Phase 0: can Copilot create them?); checks passing straight away on `merge_group` (slice 5); the review gate and status job writing the PR status comment at the same moment can drop a row update (it's rewritten on the next run).

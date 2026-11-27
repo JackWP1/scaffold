@@ -24,8 +24,17 @@ export function github(token, api = process.env.GITHUB_API_URL || 'https://api.g
       if (items.length < 100) return;
     }
   }
+  // Binary download (e.g. an artifact zip). GitHub redirects to short-lived storage: the token is sent
+  // to GitHub only, never to the redirect target.
+  async function download(path) {
+    const res = await fetch(`${api}${path}`, { headers: { Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' }, redirect: 'manual' });
+    const target = res.status >= 300 && res.status < 400 ? await fetch(res.headers.get('location')) : res;
+    if (!target.ok) throw new Error(`GET ${path}: ${target.status}`);
+    return Buffer.from(await target.arrayBuffer());
+  }
   return {
     request,
+    download,
     pages,
     get: (p) => request('GET', p),
     post: (p, b) => request('POST', p, b),
