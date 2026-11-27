@@ -14,6 +14,8 @@ const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 const COPILOT = ['Copilot', 'copilot-swe-agent[bot]'];
 export const DIAGNOSIS_MARKER = '<!-- scaffold:ci-diagnosis';
 const FAILED = ['failure', 'timed_out', 'startup_failure'];
+// PR events that can bring a new head commit; labels and edits don't.
+const HEAD_EVENTS = ['opened', 'synchronize', 'reopened', 'ready_for_review'];
 const MAX_JOBS = 4;
 const LOG_TAIL = 6000;
 const heading = '### SCAFFOLD ci-diagnose';
@@ -27,11 +29,15 @@ export function cleanLog(text, max = LOG_TAIL) {
   return clean.length > max ? `…\n${clean.slice(-max)}` : clean;
 }
 
-// Belt and braces: Actions masks registered secrets in logs, and the skill redacts, but a token-shaped
-// string in model output is replaced before it's posted.
+// Actions masks registered secrets in logs (as ***), but a credential it doesn't know about can still
+// be there. Secret-shaped text is replaced before the logs reach the model, and again in its output
+// before anything is posted. Pattern-based, so it narrows the risk rather than removing it.
 export const redact = (text) => String(text ?? '')
-  .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,})\b/g, '<REDACTED>')
-  .replace(/\b(Bearer|token)\s+[A-Za-z0-9._~+/=-]{16,}/gi, '$1 <REDACTED>');
+  .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, '<REDACTED>')
+  .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b/g, '<REDACTED>')
+  .replace(/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+/=-]{16,}/gi, '$1 <REDACTED>')
+  .replace(/\b([A-Za-z_]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token|credential)[A-Za-z_]*)(\s*[:=]\s*)(["']?)[^\s"',;]{6,}\3/gi, '$1$2$3<REDACTED>$3')
+  .replace(/(\/\/[^/\s:@]+:)[^@\s/]+@/g, '$1<REDACTED>@');
 
 // Longer than any backtick run in the text, so a log excerpt can't close its fence.
 const fence = (text) => '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map(([m]) => m.length + 1)));
@@ -74,6 +80,7 @@ export function renderDiagnosis(raw, { sha, runs, skillVersion, model }) {
 export async function runCiDiagnose(gh, repo, { event, config, loadSkill, callModel, wait = {} }) {
   const pr = event.pull_request;
   if (!pr) return { skip: 'not a pull request' };
+  if (!HEAD_EVENTS.includes(event.action)) return { skip: `${event.action}: only a new head commit is diagnosed` };
   if (!config.ci_workflows.length) return { skip: 'no `ci_workflows` in `.github/scaffold-config.yml`' };
   if (pr.head.repo?.full_name && pr.head.repo.full_name !== repo) return { skip: 'from a fork: not diagnosed' };
   if (!TRUSTED.includes(pr.author_association) && !COPILOT.includes(pr.user?.login)) return { skip: `opened by ${pr.author_association}: members and Copilot only` };
@@ -100,7 +107,7 @@ export async function runCiDiagnose(gh, repo, { event, config, loadSkill, callMo
     for (const job of jobs.filter((j) => FAILED.includes(j.conclusion)).slice(0, MAX_JOBS - logs.length)) {
       let text;
       try {
-        text = cleanLog((await gh.download(`/repos/${repo}/actions/jobs/${job.id}/logs`)).toString('utf8'));
+        text = redact(cleanLog((await gh.download(`/repos/${repo}/actions/jobs/${job.id}/logs`)).toString('utf8')));
       } catch (err) {
         text = `(log unavailable: ${err.message})`;
       }

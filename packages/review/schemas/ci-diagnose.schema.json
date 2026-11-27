@@ -9,6 +9,7 @@
     "cause": { "type": "string", "maxLength": 1000 },
     "hypotheses": {
       "type": "array",
+      "minItems": 1,
       "maxItems": 5,
       "items": {
         "type": "object",

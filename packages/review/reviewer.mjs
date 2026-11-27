@@ -20,6 +20,8 @@ const BOT = 'github-actions[bot]';
 const PLAN_MARKER = '<!-- scaffold:plan -->';
 const MAX_DIFF_CHARS = 60_000;
 const STANDARDS = ['CODING_STANDARDS.md', 'CONTRIBUTING.md', 'PRECEDENTS.md'];
+// PR events that can bring a new head commit (or end a draft); labels and edits don't.
+const HEAD_EVENTS = ['opened', 'synchronize', 'reopened', 'ready_for_review'];
 const runMarker = (sha) => `<!-- scaffold:code-review-run ${sha} -->`;
 const heading = '### SCAFFOLD code-review';
 
@@ -58,6 +60,7 @@ const commentBody = (c) => `${CODE_REVIEW_MARKER}\n**${c.axis} · ${c.severity}*
 export async function runCodeReview(gh, repo, { event, config, loadSkill, callModel }) {
   const pr = event.pull_request;
   if (!pr) return { skip: 'not a pull request' };
+  if (!HEAD_EVENTS.includes(event.action)) return { skip: `${event.action}: only a new head commit is reviewed` };
   if (pr.draft) return { skip: 'draft: reviewed when marked ready for review' };
   if (pr.head.repo?.full_name && pr.head.repo.full_name !== repo) return { skip: 'from a fork: not reviewed' };
   if (!TRUSTED.includes(pr.author_association) && !COPILOT.includes(pr.user?.login)) return { skip: `opened by ${pr.author_association}: members and Copilot only` };
@@ -119,15 +122,13 @@ export async function runCodeReview(gh, repo, { event, config, loadSkill, callMo
     '| --- | --- | --- | --- | --- | --- | --- |',
     `| code-review | ${version} | ${model} | \`${inputHash}\` | ${out.comments.length} | ${inline.length} | ${diff.truncated.length} files |`,
   ];
-  if (!out.comments.length) return { lines: [...audit, '', 'No comments: nothing posted.'] };
-
+  // A clean review is posted too: it records that this commit was reviewed, so it isn't reviewed again.
   const body = [
     runMarker(pr.head.sha),
-    `**SCAFFOLD code-review** of ${pr.head.sha.slice(0, 7)}: ${e(out.summary)}`,
+    `**SCAFFOLD code-review** of ${pr.head.sha.slice(0, 7)}: ${e(out.summary)}${out.comments.length ? '' : ' No comments.'}`,
     '',
     ...(other.length ? ['Comments on files this PR doesn\'t change:', '', ...other.map((c) => `- \`${e(c.path)}:${c.line}\` **${c.axis} · ${c.severity}**: ${e(c.body)}`), ''] : []),
-    'Resolve each thread once it\'s handled (or reply why not); the review gate waits for them. React 👎 to a comment that is wrong: the usage report counts it as a false positive.',
-    '',
+    ...(out.comments.length ? ['Resolve each thread once it\'s handled (or reply why not); the review gate waits for them. React 👎 to a comment that is wrong: the usage report counts it as a false positive.', ''] : []),
     `<sub>code-review v${version} · ${model} · AI-generated: check before acting</sub>`,
   ].join('\n');
   await gh.post(`/repos/${repo}/pulls/${pr.number}/reviews`, {

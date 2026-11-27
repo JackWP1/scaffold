@@ -50,7 +50,7 @@ function reviewGh({ reviews = [], files = [{ filename: 'src/a.js', status: 'modi
 }
 const comment = (path, line, body = 'Null check missing @team', extra = {}) => ({ path, line, axis: 'standards', severity: 'blocking', body, ...extra });
 
-async function review({ gh = reviewGh(), event = { pull_request: pr() }, reply = { summary: 'Mostly fine', comments: [comment('src/a.js', 11), comment('src/a.js', 40), comment('README.md', 3)] } } = {}) {
+async function review({ gh = reviewGh(), event = { action: 'opened', pull_request: pr() }, reply = { summary: 'Mostly fine', comments: [comment('src/a.js', 11), comment('src/a.js', 40), comment('README.md', 3)] } } = {}) {
   const prompts = [];
   const result = await runCodeReview(gh, 'o/r', {
     event, config,
@@ -79,10 +79,10 @@ test('code-review posts one COMMENT review: inline, on the file, or in the body'
 });
 
 test('code-review skips drafts, forks, non-members, reviewed commits; model problems post nothing', async () => {
-  assert.match((await review({ event: { pull_request: pr({ draft: true }) } })).skip, /draft/);
-  assert.match((await review({ event: { pull_request: pr({ head: { sha: 'abc1234', repo: { full_name: 'x/r' } } }) } })).skip, /fork/);
-  assert.match((await review({ event: { pull_request: pr({ author_association: 'NONE' }) } })).skip, /members and Copilot only/);
-  assert.equal((await review({ event: { pull_request: pr({ author_association: 'NONE', user: { login: 'Copilot' } }) } })).skip, undefined);
+  assert.match((await review({ event: { action: 'opened', pull_request: pr({ draft: true }) } })).skip, /draft/);
+  assert.match((await review({ event: { action: 'opened', pull_request: pr({ head: { sha: 'abc1234', repo: { full_name: 'x/r' } } }) } })).skip, /fork/);
+  assert.match((await review({ event: { action: 'opened', pull_request: pr({ author_association: 'NONE' }) } })).skip, /members and Copilot only/);
+  assert.equal((await review({ event: { action: 'opened', pull_request: pr({ author_association: 'NONE', user: { login: 'Copilot' } }) } })).skip, undefined);
   assert.match((await review({ gh: reviewGh({ reviews: [{ user: bot, body: '<!-- scaffold:code-review-run abc1234 -->' }] }) })).skip, /already reviewed abc1234/);
   const failed = await review({ reply: new Error('boom') });
   assert.deepEqual(failed.posted, []);
@@ -90,7 +90,13 @@ test('code-review skips drafts, forks, non-members, reviewed commits; model prob
   const invalid = await review({ reply: { summary: 'x', comments: [{ path: 'a', line: 0 }] } });
   assert.deepEqual(invalid.posted, []);
   assert.match(invalid.lines[1], /Invalid output/);
-  assert.deepEqual((await review({ reply: { summary: 'ok', comments: [] } })).posted, []);
+  const clean = await review({ reply: { summary: 'Looks right.', comments: [] } });
+  assert.equal(clean.posted.length, 1, 'a clean review is still recorded');
+  assert.match(clean.posted[0].body, /^<!-- scaffold:code-review-run abc1234 -->\n\*\*SCAFFOLD code-review\*\* of abc1234: Looks right\. No comments\./);
+  assert.deepEqual(clean.posted[0].comments, []);
+  const labelled = await review({ event: { action: 'labeled', pull_request: pr() } });
+  assert.match(labelled.skip, /labeled: only a new head commit is reviewed/);
+  assert.deepEqual(labelled.prompts, []);
 });
 
 test('review threads: paged GraphQL, and only SCAFFOLD\'s unresolved code-review threads are open', async () => {
@@ -129,13 +135,13 @@ function diagnoseGh({ runs = [{ id: 9, name: 'CI', head_sha: 'abc1234', status: 
   return fakeGh({
     '/repos/o/r/actions/workflows/ci.yml/runs': { workflow_runs: runs },
     '/repos/o/r/actions/runs/9/jobs': { jobs: [{ id: 5, name: 'test', conclusion: 'failure', steps: [{ name: 'npm test', conclusion: 'failure' }] }, { id: 6, name: 'lint', conclusion: 'success' }] },
-    '/repos/o/r/actions/jobs/5/logs': Buffer.from('2026-11-20T10:00:00Z FAIL src/a.test.js\n  expected 1 got 2'),
+    '/repos/o/r/actions/jobs/5/logs': Buffer.from('2026-11-20T10:00:00Z FAIL src/a.test.js\n  expected 1 got 2\nDB_PASSWORD=hunter2hunter2 api_key: "abcdef123456"'),
     '/repos/o/r/pulls/4/files': [{ filename: 'src/a.js' }],
     '/repos/o/r/issues/4/comments': (path) => (path.includes('page=') ? comments : { html_url: 'c' }),
   });
 }
 const diagnosis = { summary: 'A test fails', cause: 'off by one', hypotheses: [{ cause: 'loop bound', prediction: 'using < fixes it' }], category: 'code', confidence: 'medium', loop: 'npm test -- src/a.test.js', evidence: [{ job: 'test', excerpt: 'expected 1 got 2' }], fix: 'Fix the loop' };
-async function diagnose({ gh = diagnoseGh(), cfg = config, reply = diagnosis, event = { pull_request: pr() } } = {}) {
+async function diagnose({ gh = diagnoseGh(), cfg = config, reply = diagnosis, event = { action: 'synchronize', pull_request: pr() } } = {}) {
   const prompts = [];
   const result = await runCiDiagnose(gh, 'o/r', {
     event, config: cfg, wait: { pollMs: 1, waitMs: 0, sleep: async () => {} },
@@ -150,6 +156,8 @@ test('ci-diagnose explains a failed ci_workflows run from its failed jobs\' logs
   const { prompts, posted, lines } = await diagnose();
   assert.match(prompts[0], /<untrusted_log>\nWorkflow: CI\nJob: test\nFailed steps: npm test\n\nFAIL src\/a\.test\.js/);
   assert.match(prompts[0], /Changed files:\nsrc\/a\.js/);
+  assert.match(prompts[0], /DB_PASSWORD=<REDACTED> api_key: "<REDACTED>"/, 'secrets are redacted before the model sees the log');
+  assert.ok(!prompts[0].includes('hunter2'));
   assert.equal(posted.length, 1);
   assert.match(posted[0], /^<!-- scaffold:ci-diagnosis abc1234 -->\n### SCAFFOLD CI diagnosis: abc1234/);
   assert.match(lines.at(-1), /\| ci-diagnose \| 0\.1\.0 \| std \| `[0-9a-f]{16}` \| 1 \| 1 \| code \| medium \|/);
@@ -181,6 +189,7 @@ test('code-review keeps left-out file names inside an untrusted wrapper', async 
 
 test('ci-diagnose: nothing to do without ci_workflows, without a failure, or once diagnosed', async () => {
   assert.match((await diagnose({ cfg: configFrom('stages:\n  review: true') })).skip, /no `ci_workflows`/);
+  assert.match((await diagnose({ event: { action: 'labeled', pull_request: pr() } })).skip, /only a new head commit is diagnosed/);
   const passed = await diagnose({ gh: diagnoseGh({ runs: [{ id: 9, head_sha: 'abc1234', status: 'completed', conclusion: 'success', created_at: 'x' }] }) });
   assert.match(passed.lines[1], /No failed runs/);
   assert.deepEqual(passed.prompts, []);
@@ -192,10 +201,15 @@ test('ci-diagnose: nothing to do without ci_workflows, without a failure, or onc
 test('schemas reject what the skills must not return', () => {
   assert.ok(validate(reviewSchema, { summary: 's', comments: [comment('a', 1, 'x', { axis: 'style' })] }).length);
   assert.ok(validate(diagnoseSchema, { ...diagnosis, confidence: 'certain' }).length);
+  assert.deepEqual(validate(diagnoseSchema, { ...diagnosis, hypotheses: [] }), ['$.hypotheses: fewer than 1 items']);
 });
 
 test('redaction replaces token-shaped strings before a diagnosis is posted', async () => {
   const { redact } = await import('../diagnoser.mjs');
   assert.equal(redact('ghp_abcdefghijklmnopqrstuvwxyz0123 and Authorization: Bearer abcdefghijklmnop1234'), '<REDACTED> and Authorization: Bearer <REDACTED>');
   assert.equal(redact('expected 1 got 2'), 'expected 1 got 2');
+  assert.equal(redact('-----BEGIN RSA PRIVATE KEY-----\nMIIabc\n-----END RSA PRIVATE KEY-----'), '<REDACTED>');
+  assert.equal(redact('clone https://bob:s3cretpass@github.com/o/r'), 'clone https://bob:<REDACTED>@github.com/o/r');
+  assert.equal(redact('secret_token = "abcd1234efgh"'), 'secret_token = "<REDACTED>"');
+  assert.equal(redact('token count: 12'), 'token count: 12', 'short values are left alone');
 });
