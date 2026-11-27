@@ -62,6 +62,14 @@ test('the caller listens for every event a package needs, and grants what each r
   }
 });
 
+test('jobs the review gate waits for always report a check run: the kill switch is checked in the step', async () => {
+  const yaml = await read('.github/workflows/review.yml');
+  assert.doesNotMatch(yaml, /^\s+if:.*SCAFFOLD_ENABLED/m);
+  assert.equal((yaml.match(/SCAFFOLD_ENABLED: \$\{\{ vars\.SCAFFOLD_ENABLED \}\}/g) ?? []).length, 2);
+  const action = await read('packages/review/actions/review/action.yml');
+  assert.match(action, /if: steps\.stage\.outputs\.state != 'off' && env\.SCAFFOLD_ENABLED != 'false'/);
+});
+
 test('the self-test workflow runs the diagrams check on PRs, including label changes', async () => {
   const yaml = await read('.github/workflows/self-test.yml');
   assert.match(yaml, /types: \[opened, synchronize, reopened, labeled, unlabeled\]/);

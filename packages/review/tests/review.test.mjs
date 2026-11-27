@@ -212,6 +212,8 @@ test('redaction replaces token-shaped strings before a diagnosis is posted', asy
   assert.equal(redact('clone https://bob:s3cretpass@github.com/o/r'), 'clone https://bob:<REDACTED>@github.com/o/r');
   assert.equal(redact('secret_token = "abcd1234efgh"'), 'secret_token = "<REDACTED>"');
   assert.equal(redact('token count: 12'), 'token count: 12', 'short values are left alone');
+  assert.equal(redact('password = "my secret phrase"'), 'password = "<REDACTED>"', 'a quoted secret with spaces goes whole');
+  assert.equal(redact("DB_PASSWORD='a b c d e f'"), "DB_PASSWORD='<REDACTED>'");
 });
 
 test('code-review says when a review is partial: too many files, or files left out of the diff', async () => {

@@ -19,11 +19,16 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: node "$GITHUB_ACTION_PATH/../../../core/bin/stage.mjs" review
+    # Kill switch (repo or org variable SCAFFOLD_ENABLED=false): the job still runs and passes, so the
+    # review gate sees its check run, but no model is called.
+    - if: steps.stage.outputs.state != 'off' && env.SCAFFOLD_ENABLED == 'false'
+      shell: bash
+      run: echo "### SCAFFOLD review\nSkipped: kill switch (SCAFFOLD_ENABLED=false)" >> "$GITHUB_STEP_SUMMARY"
     # Pinned so a CLI release can't change flags or behaviour under a SCAFFOLD release.
-    - if: steps.stage.outputs.state == 'on'
+    - if: steps.stage.outputs.state == 'on' && env.SCAFFOLD_ENABLED != 'false'
       shell: bash
       run: npm install -g --no-fund --no-audit @github/copilot@1.0.114
-    - if: steps.stage.outputs.state != 'off'
+    - if: steps.stage.outputs.state != 'off' && env.SCAFFOLD_ENABLED != 'false'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}

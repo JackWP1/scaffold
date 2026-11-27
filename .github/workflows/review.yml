@@ -14,7 +14,7 @@ permissions: {}
 
 jobs:
   scaffold-code-review:
-    if: vars.SCAFFOLD_ENABLED != 'false' && github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
@@ -30,11 +30,15 @@ jobs:
       - uses: JackWP1/scaffold/packages/review/actions/review@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
         with:
           mode: code-review
+        # The kill switch is checked in the step, not the job: the job must still report a check run,
+        # because the review gate waits for one.
+        env:
+          SCAFFOLD_ENABLED: ${{ vars.SCAFFOLD_ENABLED }}
           model: ${{ inputs.model }}
 
   # Waits for the runs of the workflows in `ci_workflows` on the head commit, then diagnoses any that failed.
   scaffold-ci-diagnose:
-    if: vars.SCAFFOLD_ENABLED != 'false' && github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
@@ -51,3 +55,5 @@ jobs:
       - uses: JackWP1/scaffold/packages/review/actions/review@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
         with:
           mode: ci-diagnose
+        env:
+          SCAFFOLD_ENABLED: ${{ vars.SCAFFOLD_ENABLED }}

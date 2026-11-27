@@ -36,7 +36,9 @@ export const redact = (text) => String(text ?? '')
   .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, '<REDACTED>')
   .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b/g, '<REDACTED>')
   .replace(/\b(Bearer|Basic|token)\s+[A-Za-z0-9._~+/=-]{16,}/gi, '$1 <REDACTED>')
-  .replace(/\b([A-Za-z_]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token|credential)[A-Za-z_]*)(\s*[:=]\s*)(["']?)[^\s"',;]{6,}\3/gi, '$1$2$3<REDACTED>$3')
+  // Quoted values first, so a quoted secret with spaces goes whole; then bare values up to a delimiter.
+  .replace(/\b([A-Za-z_]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token|credential)[A-Za-z_]*)(\s*[:=]\s*)(["'])(?:(?!\3).){6,}\3/gi, '$1$2$3<REDACTED>$3')
+  .replace(/\b([A-Za-z_]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token|credential)[A-Za-z_]*)(\s*[:=]\s*)(?!["'<])[^\s"',;]{6,}/gi, '$1$2<REDACTED>')
   .replace(/(\/\/[^/\s:@]+:)[^@\s/]+@/g, '$1<REDACTED>@');
 
 // Longer than any backtick run in the text, so a log excerpt can't close its fence.
