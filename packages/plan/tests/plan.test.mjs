@@ -34,7 +34,7 @@ test('task-decomposer skill loads from the plan package with the standard tier',
   const skill = await loadSkill(PACKAGE, 'task-decomposer');
   const models = await readFile(new URL('../../core/config/models.yml', import.meta.url), 'utf8');
   assert.equal(skill.model, models.match(/^standard:\s*(\S+)/m)[1]);
-  assert.equal(skill.version, '0.2.0');
+  assert.equal(skill.version, '0.3.0');
   assert.deepEqual(skill.schema, schema);
   assert.ok(skill.system.includes('# Task decomposer'));
   assert.ok(!skill.system.includes('sub-tickets'));

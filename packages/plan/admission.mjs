@@ -7,6 +7,7 @@
 import { issueSteps } from '../core/lib/issue.mjs';
 import { MARKER, setGates, manualStates } from '../core/lib/status.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
+import { scenariosRequired, checkScenarios, scenarioComments } from '../core/lib/scenarios.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 const PLANNABLE = ['scaffold:ready', 'scaffold:planned', 'scaffold:plan-approved'];
@@ -43,7 +44,7 @@ export async function admit(gh, repo, { issue, comment, config, configError }) {
   if (await handled(gh, repo, comment)) return { outcome: 'skipped', reason: 'already handled' };
   const react = (content) => gh.post(`/repos/${repo}/issues/comments/${comment.id}/reactions`, { content });
   const labels = issue.labels.map((l) => l.name);
-  const { setLabels, findComment, upsertStatus } = issueSteps(gh, repo, issue.number, labels);
+  const { setLabels, findComment, upsertStatus, events } = issueSteps(gh, repo, issue.number, labels);
   const refuse = async (reason, plan, next) => {
     await react('confused');
     if (plan) await upsertStatus(setGates((await findComment(MARKER))?.body, { ...(config ? manualStates(config) : {}), Plan: plan }, next));
@@ -60,6 +61,19 @@ export async function admit(gh, repo, { issue, comment, config, configError }) {
       `⛔ \`.github/scaffold-config.yml\` is invalid: ${escapeForComment(configError)}`,
       'fix `.github/scaffold-config.yml`, then comment `/plan` again.',
     );
+  }
+  // Approved scenarios come first when required, checked on the timeline, not by label (PLAN.md section 5).
+  if (scenariosRequired(config, labels)) {
+    const s = checkScenarios({
+      events: await events(), issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issue.number),
+    });
+    if (!s.ok) {
+      return refuse(
+        `scenarios not approved: ${s.reason}`,
+        `⛔ the scenarios aren't approved: ${s.reason}`,
+        'a listed approver approves the scenarios (`scaffold:gherkin-approved`), then a member comments `/plan` again.',
+      );
+    }
   }
   const count = await inFlight(gh, repo, issue.number);
   if (count >= config.max_in_flight) {

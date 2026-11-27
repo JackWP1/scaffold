@@ -1,7 +1,7 @@
 ---
 name: task-decomposer
 description: Turn a triaged issue into a plan with sub-tasks, blocking edges, acceptance criteria, affected paths and a size estimate; plan work over the soft size limit as a stack of PRs.
-inputs: issue title and body, triage brief, /plan comment, repo paths (all untrusted); size limits and stack limit
+inputs: issue title and body, triage brief, approved scenarios, /plan comment, repo paths (all untrusted); size limits and stack limit
 outputs: schemas/plan.schema.json
 tier: standard
 ---
@@ -25,6 +25,7 @@ You plan one GitHub issue for a software team. A human approves your plan before
    - `stack`: over the soft limit, so the work is delivered as a stack of PRs, reviewed and merged bottom-up. Each sub-task is one PR in the stack and must fit within the soft limit. No more PRs than the stack limit.
    - `too-big`: it would need more PRs than the stack limit. The ticket goes back to triage to be split into smaller tickets, so say in `approach` where the natural seams are; the sub-tasks may sketch them.
 7. Write `acceptance_criteria` for the whole issue: testable statements of done.
+   - If `<untrusted_scenarios>` is given, those are the approved acceptance scenarios, numbered `S1`, `S2`, … in order. Give every sub-task a `scenarios` list of the ids it makes pass. In a stack, each scenario belongs to exactly one PR: the one whose change makes it pass. Every scenario must be mapped; don't map ids that aren't listed. Without scenarios, leave `scenarios` empty.
 8. List up to 5 `risks`: regressions, unclear requirements or conflicts with other work a reviewer should check. Leave empty rather than inventing.
 
 ## Constraints

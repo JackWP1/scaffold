@@ -6,9 +6,9 @@
 import { issueSteps } from '../core/lib/issue.mjs';
 import { MARKER, setGates, manualStates } from '../core/lib/status.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
-import { checkApproval } from '../core/lib/approval.mjs';
 import { stageOn } from '../core/lib/config.mjs';
 import { parseGherkin, scenariosText, SCENARIOS_MARKER } from '../core/lib/gherkin.mjs';
+import { checkScenarios, scenarioComments } from '../core/lib/scenarios.mjs';
 import { parseProblem, APPROVED, NEEDS, NOT_TRIAGED, APPROVE_NEXT } from './scenarios.mjs';
 
 const PLANNED = ['scaffold:planned', 'scaffold:plan-approved'];
@@ -96,20 +96,13 @@ export async function runScenariosGate(gh, repo, { event, config, configError })
     };
     if (configError) return fail(`\`.github/scaffold-config.yml\` is invalid: ${escapeForComment(configError)}`);
     if (!triaged) return fail('the issue hasn\'t been triaged as ready yet');
-    const comments = await findComments(SCENARIOS_MARKER);
-    if (comments.length > 1) return fail('more than one comment is marked as the scenarios: delete the extra one');
-    const comment = comments[0];
-    const result = checkApproval({
-      events: await events(), label: APPROVED, author: issue.user?.login, approvers: config.approvers,
-      comment, what: 'scenarios', missing: 'there are no scenarios to approve',
-    });
-    const extra = { by: result.approver, hash: result.hash, hours: result.at && comment ? hours(comment.updated_at, result.at) : undefined };
+    const comments = await scenarioComments(gh, repo, issue.number);
+    const result = checkScenarios({ events: await events(), issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments });
+    const extra = { by: result.approver, hash: result.hash, hours: result.at && comments.length === 1 ? hours(comments[0].updated_at, result.at) : undefined };
     if (!result.ok) return fail(result.reason, extra);
-    const parsed = parseGherkin(scenariosText(comment.body) ?? '');
-    if (parsed.errors.length) return fail(`the scenarios don't parse: ${parseProblem(parsed.errors)}`, extra);
 
     await setLabels(planned ? [] : ['scaffold:ready'], [NEEDS]);
-    const n = parsed.scenarios.length;
+    const n = result.ids.length;
     await updateStatus(
       {
         Scenarios: `✅ approved by \`${result.approver}\` (${n} scenario${n === 1 ? '' : 's'}, \`${result.hash}\`)`,

@@ -5,6 +5,8 @@ import { validate } from '../core/lib/validate.mjs';
 import { wrapUntrusted } from '../core/lib/text.mjs';
 import { RateLimited } from '../core/lib/models.mjs';
 import { readRepoFile, stageOn } from '../core/lib/config.mjs';
+import { scenariosRequired, checkScenarios, scenarioComments } from '../core/lib/scenarios.mjs';
+import { scenariosText } from '../core/lib/gherkin.mjs';
 import { issueSteps } from '../core/lib/issue.mjs';
 import { MARKER, setGates, manualStates } from '../core/lib/status.mjs';
 import { PLAN_MARKER, checkPlan, isTooBig } from './rules.mjs';
@@ -19,7 +21,7 @@ export async function runPlan(gh, repo, { event, issueNumber, commentId, config,
   const issue = await gh.get(`/repos/${repo}/issues/${issueNumber}`);
   const comment = await gh.get(`/repos/${repo}/issues/comments/${commentId}`);
   const labels = issue.labels.map((l) => l.name);
-  const { setLabels, findComment, findComments, upsertComment, upsertStatus } = issueSteps(gh, repo, issue.number, labels);
+  const { setLabels, findComment, findComments, upsertComment, upsertStatus, events } = issueSteps(gh, repo, issue.number, labels);
   const others = config ? manualStates(config) : {};
   const updateStatus = async (states, next) => upsertStatus(setGates((await findComment(MARKER))?.body, { ...others, ...states }, next));
 
@@ -52,6 +54,16 @@ export async function runPlan(gh, repo, { event, issueNumber, commentId, config,
   if ((await findComments(PLAN_MARKER)).length > 1) {
     return failed('more than one comment is marked as the plan', 'More than one plan comment (no writes)', 'delete the extra plan comment, then comment `/plan` again.');
   }
+  // Re-checked here as well as at admission: the scenarios may have changed since (PLAN.md section 5).
+  let scenarios = null;
+  if (scenariosRequired(config, labels)) {
+    scenarios = checkScenarios({
+      events: await events(), issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issue.number),
+    });
+    if (!scenarios.ok) {
+      return failed(`the scenarios aren't approved: ${scenarios.reason}`, `Scenarios not approved: ${scenarios.reason}`, 'a listed approver approves the scenarios (`scaffold:gherkin-approved`), then a member comments `/plan` again.');
+    }
+  }
   const { system, schema, version: skillVersion, model } = await loadSkill();
   const status = await findComment(MARKER);
   const precedents = await readRepoFile(gh, repo, 'PRECEDENTS.md');
@@ -62,6 +74,8 @@ export async function runPlan(gh, repo, { event, issueNumber, commentId, config,
     `Size limits: soft ${limits.soft.files} files / ${limits.soft.lines} lines; hard ${limits.hard.files} files / ${limits.hard.lines} lines. Exempt files: ${limits.exempt.join(', ')}. Stack limit: at most ${maxStack} PRs.`,
     wrapUntrusted('untrusted_issue', `Title: ${issue.title}\n\n${issue.body ?? ''}`),
     wrapUntrusted('untrusted_triage', status?.body.replace(MARKER, '') ?? '(none)'),
+    scenarios ? `Approved scenarios: ${scenarios.ids.join(', ')}. Map every one to the sub-task that makes it pass.` : '',
+    scenarios ? wrapUntrusted('untrusted_scenarios', scenariosText(scenarios.comment.body)) : '',
     wrapUntrusted('untrusted_plan_comment', comment.body.replace(/^\/plan\s*/, '') || '(none)'),
     precedents ? wrapUntrusted('untrusted_precedents', precedents) : '',
     wrapUntrusted('untrusted_repo_paths', await repoPaths()),
@@ -89,12 +103,12 @@ export async function runPlan(gh, repo, { event, issueNumber, commentId, config,
       return failed('invalid output, nothing applied', `Invalid output (no writes):\n\n- ${errors.join('\n- ')}`);
     }
     plan = out;
-    problems = checkPlan(plan, limits, maxStack);
+    problems = checkPlan(plan, limits, maxStack, scenarios?.ids ?? []);
     if (!problems.length || plan.split === 'too-big') break;
   }
 
   const tooBig = isTooBig(plan, maxStack);
-  const planComment = await upsertComment(PLAN_MARKER, renderPlan(plan, { problems, skillVersion, model, limits, maxStack, tooBig }));
+  const planComment = await upsertComment(PLAN_MARKER, renderPlan(plan, { problems, skillVersion, model, limits, maxStack, tooBig, scenariosHash: scenarios?.hash }));
   const auditRow = (outcome) => [
     heading,
     '| Skill | Version | Model | Input hash | Split | Estimate | Problems | Outcome |',

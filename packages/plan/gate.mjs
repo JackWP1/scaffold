@@ -8,6 +8,7 @@ import { issueSteps } from '../core/lib/issue.mjs';
 import { MARKER, setGates, manualStates, manualBefore } from '../core/lib/status.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
 import { stageOnSince, enteredBefore } from '../core/lib/stages.mjs';
+import { scenariosRequired, checkScenarios, scenarioComments } from '../core/lib/scenarios.mjs';
 import { PLAN_MARKER, decodePlan, isSubTicketPlan, evaluateApproval } from './rules.mjs';
 
 const hours = (from, to) => ((Date.parse(to) - Date.parse(from)) / 3_600_000).toFixed(1);
@@ -59,12 +60,17 @@ export async function runGate(gh, repo, { event, schema, config, configError }) 
   }
   if (!approvedLabel) return { skip: 'scaffold:plan-approved is not applied' };
 
+  const timeline = configError ? [] : await events();
+  const scenarios = !configError && scenariosRequired(config, labels)
+    ? checkScenarios({ events: timeline, issue: issue.number, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issue.number) })
+    : null;
   const result = configError
     ? { ok: false, reason: `\`.github/scaffold-config.yml\` is invalid: ${escapeForComment(configError)}` }
     : plans.length > 1
       ? { ok: false, reason: 'more than one comment is marked as the plan: delete the extra one, or comment `/plan` again' }
       : evaluateApproval({
-        events: await events(),
+        events: timeline,
+        scenarios,
         author: issue.user?.login,
         approvers: config.approvers,
         planComment,

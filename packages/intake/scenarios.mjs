@@ -2,12 +2,13 @@
 // Gherkin a listed approver approves, numbered S1, S2, … by tag. Only Actions code writes it.
 import { escapeForComment as e } from '../core/lib/text.mjs';
 import { SCENARIOS_MARKER, tagScenarios } from '../core/lib/gherkin.mjs';
+import { GHERKIN_APPROVED, NEEDS_GHERKIN, gherkinProblem } from '../core/lib/scenarios.mjs';
 
 export { SCENARIOS_MARKER };
 
 // Shared by triage, the scenarios gate and /gherkin.
-export const APPROVED = 'scaffold:gherkin-approved';
-export const NEEDS = 'scaffold:needs-gherkin';
+export const APPROVED = GHERKIN_APPROVED;
+export const NEEDS = NEEDS_GHERKIN;
 // Before triage has finished: scenarios approval doesn't apply yet.
 export const NOT_TRIAGED = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:proposed', 'scaffold:too-big'];
 export const APPROVE_NEXT = 'a listed approver reviews the scenarios and applies `scaffold:gherkin-approved`.';
@@ -45,4 +46,4 @@ export function renderScenarios(gherkin, { issue, source, approvers = [], notes 
 }
 
 // Gherkin parse errors for a status row, escaped and kept short.
-export const parseProblem = (errors) => cell(errors.slice(0, 3).join('; ') + (errors.length > 3 ? `; and ${errors.length - 3} more` : ''));
+export const parseProblem = gherkinProblem;
