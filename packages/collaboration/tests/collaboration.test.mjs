@@ -19,6 +19,9 @@ test('overlap: directories, globs and files; spec references are plain paths und
   assert.deepEqual(pathsOverlap(['src/auth/**', 'docs/x.md'], ['src/auth/login.js']), ['src/auth/**']);
   assert.deepEqual(pathsOverlap(['src/auth'], ['src/author.js']), [], 'a directory must end at a slash');
   assert.deepEqual(pathsOverlap(['src/auth'], ['src/auth/login.js']), ['src/auth']);
+  assert.deepEqual(pathsOverlap(['src/auth'], ['src/auth/**']), ['src/auth'], 'a directory and a glob under it');
+  assert.deepEqual(pathsOverlap(['src/auth/**/*.js'], ['src/']), ['src/auth/**/*.js']);
+  assert.deepEqual(pathsOverlap(['src/auth'], ['src/authz/**']), [], 'still stops at a directory boundary');
   assert.deepEqual(pathsOverlap(['src/a.js'], ['src/a.js']), ['src/a.js']);
   assert.deepEqual(pathsOverlap(['**/*.js'], ['src/x.js']), ['**/*.js'], 'a wildcard-only glob still matches');
   assert.deepEqual(pathsOverlap(['src/foo*.js'], ['src/foobar.js']), ['src/foo*.js'], 'a wildcard mid-name');

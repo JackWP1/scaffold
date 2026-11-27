@@ -42,9 +42,14 @@ const suffix = (p) => clean(p).split(/[*?]/).at(-1);
 export function pathsOverlap(a, b) {
   const one = (x, y) => {
     const [px, py] = [prefix(x), prefix(y)];
-    // A concrete path against a glob: the glob decides.
-    if (!isGlob(x) && isGlob(y)) return matchesAny(clean(x), [clean(y)]);
-    if (isGlob(x) && !isGlob(y)) return matchesAny(clean(y), [clean(x)]);
+    // A concrete path against a glob: the glob matches it, or the glob lies under it as a directory
+    // (src/auth against src/auth/**).
+    const pathAndGlob = (c, g) => {
+      const dir = clean(c).replace(/\/$/, '');
+      return matchesAny(clean(c), [clean(g)]) || prefix(g) === dir || prefix(g).startsWith(`${dir}/`);
+    };
+    if (!isGlob(x) && isGlob(y)) return pathAndGlob(x, y);
+    if (isGlob(x) && !isGlob(y)) return pathAndGlob(y, x);
     if (!isGlob(x) && !isGlob(y)) {
       const [cx, cy] = [clean(x), clean(y)];
       return cx === cy || cx.startsWith(cy.endsWith('/') ? cy : `${cy}/`) || cy.startsWith(cx.endsWith('/') ? cx : `${cx}/`);
