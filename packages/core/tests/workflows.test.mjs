@@ -70,6 +70,16 @@ test('jobs the review gate waits for always report a check run: the kill switch 
   assert.match(action, /if: steps\.stage\.outputs\.state != 'off' && env\.SCAFFOLD_ENABLED != 'false'/);
 });
 
+test('a reusable workflow\'s model input reaches its action through `with`, never `env`', async () => {
+  for (const wf of ['triage', 'plan', 'review']) {
+    const yaml = await read(`.github/workflows/${wf}.yml`);
+    for (const block of yaml.split(/\n {8}env:\n/).slice(1)) {
+      assert.doesNotMatch(block.split(/\n {6}- |\n {2}[a-z-]+:\n|\n {8}with:\n/)[0], /^\s+model:/m, `${wf}: model under env:`);
+    }
+  }
+  assert.match(await read('.github/workflows/review.yml'), /with:\n\s+mode: code-review\n\s+model: \$\{\{ inputs\.model \}\}/);
+});
+
 test('the self-test workflow runs the diagrams check on PRs, including label changes', async () => {
   const yaml = await read('.github/workflows/self-test.yml');
   assert.match(yaml, /types: \[opened, synchronize, reopened, labeled, unlabeled\]/);
