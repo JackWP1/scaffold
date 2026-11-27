@@ -35,7 +35,7 @@ jobs:
       issues: write
       contents: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/triage.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/triage.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Plan package: `/plan` comments, scaffold:plan-approved, edits to or deletion of the plan or scenarios
   # comment, and scaffold:gherkin-approved removed (an approved plan is re-checked).
@@ -45,7 +45,7 @@ jobs:
       issues: write
       contents: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/plan.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/plan.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Implement package: plan gate, PR size and review gate checks on PRs, automatic rework, and
   # `/size-exception` comments on PRs. Make `implement / scaffold-plan-gate`, `implement / scaffold-pr-size`
@@ -57,7 +57,7 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
-    uses: JackWP1/scaffold/.github/workflows/implement.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/implement.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Review package: code-review and ci-diagnose on PRs. They only comment; the review gate waits for
   # code-review threads to be resolved.
@@ -69,7 +69,7 @@ jobs:
       issues: write
       pull-requests: write
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/review.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/review.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Collaboration package: conflict-check after plan approval and after an approving review, conflict
   # resolution, merge order. Make `collaboration / scaffold-merge-order` a required check.
@@ -80,7 +80,7 @@ jobs:
       issues: write
       pull-requests: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/collaboration.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/collaboration.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Core, always on: make `config-guard / scaffold-config-guard` a required check in the ruleset.
   config-guard:
@@ -88,7 +88,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Core, always on: baseline PR checks. Make each `checks / scaffold-*` job a required check in the ruleset.
   checks:
@@ -98,7 +98,7 @@ jobs:
       contents: read
       pull-requests: read
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/checks.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/checks.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Core, always on: weekly, or run manually (Actions → SCAFFOLD → Run workflow → usage-report).
   usage-report:
@@ -108,11 +108,11 @@ jobs:
       contents: read
       issues: write
       pull-requests: read
-    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Run manually (Actions → SCAFFOLD → Run workflow → labels) to create the labels.
   labels:
     if: github.event_name == 'workflow_dispatch' && inputs.task == 'labels'
     permissions:
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/labels.yml@664b55bf845badb76abe084fdeed0e003c55ae0f # v0.9.0
+    uses: JackWP1/scaffold/.github/workflows/labels.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
