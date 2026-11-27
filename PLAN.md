@@ -22,7 +22,7 @@ SCAFFOLD assists; humans decide. Actions steps are **single-shot**, tool-less Co
 | `issue_comment` `/plan` | `task-decomposer` | Plan comment: approach, sub-tasks with blocking edges, acceptance criteria, affected paths, estimated size; work over the soft size limit is planned as a stack of up to `max_stack_prs` PRs; bigger work goes back to triage to be broken into smaller tickets (section 6) |
 | After plan approval (before implementation); after code-owner approval (before merge order) | `conflict-check` | `scaffold:conflict` and one conflict comment linking every ticket involved (section 8) |
 | `pull_request` | `code-review` | Review comments (standards + spec axes); `COMMENT` only, never approves; human review waits until they are resolved (section 6) |
-| `workflow_run` (failed, workflows listed in `scaffold-config.yml`) | `ci-diagnose` | Diagnosis comment on the linked PR |
+| `pull_request`: a run of a workflow listed in `ci_workflows` fails on the PR's head commit | `ci-diagnose` | Diagnosis comment on the PR. The job waits for those runs rather than using `workflow_run`, which would need the workflow names written into the protected caller file |
 | Human assigns issue to Copilot | `tdd`, `implement` (via `.github/skills/`) | Copilot PR, reviewed and merged by humans |
 | `schedule` (weekly) | — | Usage report issue (section 7) |
 
@@ -200,6 +200,7 @@ max_stack_prs: 5             # PRs in one ticket's stack; more means re-triage (
 warn_open_prs_per_developer: 2  # open Copilot PRs per developer before a warning; advisory (section 8); 1–10
 max_rework_rounds: 6         # automatic rework rounds before the circuit breaker (section 6); 1–10
 gherkin: off                 # off, auto (triage decides) or always (section 2, Scenarios)
+ci_workflows: []             # CI workflows whose failures ci-diagnose explains on the PR (section 2)
 # bdd:                       # runner report for the scenarios check (section 2); required unless gherkin is off
 #   workflow: ci.yml         # CI workflow that runs the BDD runner on PRs
 #   artifact: scaffold-bdd-report  # artifact holding the Cucumber JSON report
@@ -211,7 +212,7 @@ approvers: [login]
 flow_lead: login
 ```
 
-Defaults are the values above, except `stages` (a package not listed is off) and `bdd` (no default; required unless `gherkin` is `off`). `gherkin` defaults to `off`, so configs written before scenarios existed stay valid; turning scenarios on means setting `gherkin` and adding `bdd` in the same config PR. A change to `stages`, `approvers`, `gherkin`, `bdd` or any limit needs approval from a listed approver (`scaffold-config-guard`, section 4). A limit belongs to the package that enforces it. When that package is off, the limit isn't enforced and the humans doing the stage apply it; the hard size limit is a baseline check and always applies.
+Defaults are the values above, except `stages` (a package not listed is off) and `bdd` (no default; required unless `gherkin` is `off`). `gherkin` defaults to `off`, so configs written before scenarios existed stay valid; turning scenarios on means setting `gherkin` and adding `bdd` in the same config PR. A change to `stages`, `approvers`, `gherkin`, `bdd`, `ci_workflows` (it decides which logs go to a model) or any limit needs approval from a listed approver (`scaffold-config-guard`, section 4). A limit belongs to the package that enforces it. When that package is off, the limit isn't enforced and the humans doing the stage apply it; the hard size limit is a baseline check and always applies.
 
 ### Handoffs
 

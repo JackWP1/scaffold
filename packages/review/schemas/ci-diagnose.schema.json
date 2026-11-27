@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ci-diagnose output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "cause", "hypotheses", "category", "confidence", "loop", "evidence", "fix"],
+  "properties": {
+    "summary": { "type": "string", "maxLength": 300 },
+    "cause": { "type": "string", "maxLength": 1000 },
+    "hypotheses": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cause", "prediction"],
+        "properties": {
+          "cause": { "type": "string", "maxLength": 300 },
+          "prediction": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "loop": { "type": "string", "maxLength": 300 },
+    "category": { "type": "string", "enum": ["code", "test", "flaky", "environment", "config", "unknown"] },
+    "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+    "evidence": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["job", "excerpt"],
+        "properties": {
+          "job": { "type": "string", "maxLength": 200 },
+          "excerpt": { "type": "string", "maxLength": 800 }
+        }
+      }
+    },
+    "fix": { "type": "string", "maxLength": 1000 }
+  }
+}

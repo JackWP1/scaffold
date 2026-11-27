@@ -1,0 +1,59 @@
+# Reusable review workflow (slice 4). Called from a repo's thin caller workflow.
+# Each job reads `stages` first and does nothing else when review is off (PLAN.md section 5).
+# Runs on pull_request, never pull_request_target; no checkout: the diff and logs are read through the API.
+name: SCAFFOLD review
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Override the deep-tier model (code-review)
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  scaffold-code-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: scaffold-code-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+      copilot-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/review/actions/review@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+        with:
+          mode: code-review
+          model: ${{ inputs.model }}
+        # The kill switch is checked in the step, not the job: the job must still report a check run,
+        # because the review gate waits for one.
+        env:
+          SCAFFOLD_ENABLED: ${{ vars.SCAFFOLD_ENABLED }}
+
+  # Waits for the runs of the workflows in `ci_workflows` on the head commit, then diagnoses any that failed.
+  scaffold-ci-diagnose:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: scaffold-ci-diagnose-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: read
+      copilot-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/review/actions/review@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+        with:
+          mode: ci-diagnose
+        env:
+          SCAFFOLD_ENABLED: ${{ vars.SCAFFOLD_ENABLED }}

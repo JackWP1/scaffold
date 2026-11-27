@@ -2,9 +2,9 @@
 
 export const MAX_INPUT_CHARS = 20000;
 
-// Wrap untrusted text so it can't close the delimiter early.
-export function wrapUntrusted(tag, text) {
-  const clean = String(text ?? '').slice(0, MAX_INPUT_CHARS).replaceAll(`</${tag}>`, `<\\/${tag}>`);
+// Wrap untrusted text so it can't close the delimiter early. `max` caps its length (a diff needs more).
+export function wrapUntrusted(tag, text, max = MAX_INPUT_CHARS) {
+  const clean = String(text ?? '').slice(0, max).replaceAll(`</${tag}>`, `<\\/${tag}>`);
   return `<${tag}>\n${clean}\n</${tag}>`;
 }
 

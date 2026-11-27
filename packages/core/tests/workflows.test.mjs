@@ -25,11 +25,11 @@ test('every package action reads stages first and runs nothing else when its sta
 });
 
 test('reusable workflows call package actions, and jobs reading config can read contents', async () => {
-  for (const wf of ['triage', 'plan', 'labels', 'config-guard', 'usage-report', 'checks', 'implement']) {
+  for (const wf of ['triage', 'plan', 'labels', 'config-guard', 'usage-report', 'checks', 'implement', 'review']) {
     const yaml = await read(`.github/workflows/${wf}.yml`);
-    for (const [, path] of yaml.matchAll(/uses: JackWP1\/scaffold\/(\S+)@/g)) assert.match(path, /^packages\/(core|intake|plan|implement)\/actions\//, wf);
+    for (const [, path] of yaml.matchAll(/uses: JackWP1\/scaffold\/(\S+)@/g)) assert.match(path, /^packages\/(core|intake|plan|implement|review)\/actions\//, wf);
   }
-  for (const wf of ['triage', 'plan', 'implement']) {
+  for (const wf of ['triage', 'plan', 'implement', 'review']) {
     const yaml = await read(`.github/workflows/${wf}.yml`);
     for (const job of yaml.split(/\n {2}(?=[a-z-]+:\n)/).slice(1)) assert.match(job, /contents: read/, `${wf}: ${job.split(':')[0]}`);
   }
@@ -49,17 +49,35 @@ test('the caller listens for every event a package needs, and grants what each r
   const caller = await read('templates/caller/.github/workflows/scaffold.yml');
   assert.match(caller, /issues:\n\s+types: \[opened, edited, reopened, labeled, unlabeled\]/);
   assert.match(caller, /issue_comment:\n\s+types: \[created, edited, deleted\]/);
-  assert.match(caller, /pull_request:\n\s+types: \[opened, synchronize, reopened, edited, labeled, unlabeled\]/);
+  assert.match(caller, /pull_request:\n\s+types: \[opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review\]/);
   assert.match(caller, /pull_request_review:\n\s+types: \[submitted, dismissed\]/);
   assert.match(caller, /schedule:\n\s+- cron:/);
   assert.doesNotMatch(caller, /pull_request_target/);
   const perms = (yaml, job) => [...(yaml.split(new RegExp(`\\n {2}${job}:\\n`))[1].split(/\n {2}[a-z-]+:\n/)[0].matchAll(/^ {6}([a-z-]+): (read|write)$/gm))].map(([, k, v]) => `${k}: ${v}`).sort();
-  for (const [job, wf] of [['triage', 'triage'], ['plan', 'plan'], ['config-guard', 'config-guard'], ['checks', 'checks'], ['implement', 'implement'], ['usage-report', 'usage-report'], ['labels', 'labels']]) {
+  for (const [job, wf] of [['triage', 'triage'], ['plan', 'plan'], ['config-guard', 'config-guard'], ['checks', 'checks'], ['implement', 'implement'], ['review', 'review'], ['usage-report', 'usage-report'], ['labels', 'labels']]) {
     const reusable = await read(`.github/workflows/${wf}.yml`);
     const asked = new Set([...reusable.matchAll(/^ {6}([a-z-]+): (read|write)$/gm)].map(([, k, v]) => `${k}: ${v}`));
     const granted = perms(caller, job);
     for (const p of asked) assert.ok(granted.includes(p) || granted.includes(p.replace('read', 'write')), `${job} needs ${p}`);
   }
+});
+
+test('jobs the review gate waits for always report a check run: the kill switch is checked in the step', async () => {
+  const yaml = await read('.github/workflows/review.yml');
+  assert.doesNotMatch(yaml, /^\s+if:.*SCAFFOLD_ENABLED/m);
+  assert.equal((yaml.match(/SCAFFOLD_ENABLED: \$\{\{ vars\.SCAFFOLD_ENABLED \}\}/g) ?? []).length, 2);
+  const action = await read('packages/review/actions/review/action.yml');
+  assert.match(action, /if: steps\.stage\.outputs\.state != 'off' && env\.SCAFFOLD_ENABLED != 'false'/);
+});
+
+test('a reusable workflow\'s model input reaches its action through `with`, never `env`', async () => {
+  for (const wf of ['triage', 'plan', 'review']) {
+    const yaml = await read(`.github/workflows/${wf}.yml`);
+    for (const block of yaml.split(/\n {8}env:\n/).slice(1)) {
+      assert.doesNotMatch(block.split(/\n {6}- |\n {2}[a-z-]+:\n|\n {8}with:\n/)[0], /^\s+model:/m, `${wf}: model under env:`);
+    }
+  }
+  assert.match(await read('.github/workflows/review.yml'), /with:\n\s+mode: code-review\n\s+model: \$\{\{ inputs\.model \}\}/);
 });
 
 test('the self-test workflow runs the diagrams check on PRs, including label changes', async () => {

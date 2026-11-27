@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "code-review output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "comments"],
+  "properties": {
+    "summary": { "type": "string", "maxLength": 600 },
+    "comments": {
+      "type": "array",
+      "maxItems": 15,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "line", "axis", "severity", "body"],
+        "properties": {
+          "path": { "type": "string", "maxLength": 300 },
+          "line": { "type": "integer", "minimum": 1 },
+          "axis": { "type": "string", "enum": ["standards", "spec", "scenarios"] },
+          "severity": { "type": "string", "enum": ["blocking", "suggestion"] },
+          "body": { "type": "string", "maxLength": 1000 }
+        }
+      }
+    }
+  }
+}

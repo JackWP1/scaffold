@@ -1,5 +1,5 @@
 // Minimal JSON Schema subset validator: type, enum, required, properties,
-// additionalProperties:false, items, maxItems, maxLength, integer, boolean, minimum, maximum.
+// additionalProperties:false, items, minItems, maxItems, maxLength, integer, boolean, minimum, maximum.
 // Enough for SCAFFOLD output schemas without a dependency; swap for ajv once there is a build step.
 export function validate(schema, value, path = '$') {
   const errors = [];
@@ -16,6 +16,7 @@ export function validate(schema, value, path = '$') {
     }
   } else if (t === 'array') {
     if (!Array.isArray(value)) return [`${path}: expected array`];
+    if (schema.minItems !== undefined && value.length < schema.minItems) errors.push(`${path}: fewer than ${schema.minItems} items`);
     if (schema.maxItems !== undefined && value.length > schema.maxItems) errors.push(`${path}: more than ${schema.maxItems} items`);
     value.forEach((v, i) => errors.push(...validate(schema.items ?? {}, v, `${path}[${i}]`)));
   } else if (t === 'string') {

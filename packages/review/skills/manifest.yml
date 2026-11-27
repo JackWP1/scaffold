@@ -1,0 +1,8 @@
+code-review:
+  version: 0.2.0
+  tier: deep
+  schema: schemas/code-review.schema.json
+ci-diagnose:
+  version: 0.2.0
+  tier: standard
+  schema: schemas/ci-diagnose.schema.json

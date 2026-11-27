@@ -18,4 +18,4 @@ jobs:
       pull-requests: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/core/actions/config-guard@987c7e4739635b8ece75fb8ef92e7bb1f037e225 # v0.7.0
+      - uses: JackWP1/scaffold/packages/core/actions/config-guard@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0

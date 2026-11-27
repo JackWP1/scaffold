@@ -15,6 +15,7 @@ export function fakeGh(routes = {}) {
     patch: async (p, b) => respond('PATCH', p, b),
     delete: async (p) => respond('DELETE', p),
     download: async (p) => respond('DOWNLOAD', p),
+    graphql: async (query, variables) => respond('GRAPHQL', '/graphql', { query, variables }),
     async *pages(p) {
       for (let page = 1; ; page++) {
         const items = respond('GET', `${p}?page=${page}`);

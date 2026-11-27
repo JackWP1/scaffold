@@ -20,6 +20,13 @@ function guard({ base = BASE, head, files = ['.github/scaffold-config.yml'], rev
   return runGuard(gh, 'o/r', { pr });
 }
 
+test('ci_workflows is protected: changing it needs a listed approver', async () => {
+  const r = await guard({ head: `${BASE}\nci_workflows: [deploy.yml]` });
+  assert.equal(r.ok, false);
+  assert.match(r.outcome, /changes `ci_workflows`/);
+  assert.equal((await guard({ head: `${BASE}\nci_workflows: [deploy.yml]`, reviews: [review('alice')] })).ok, true);
+});
+
 test('passes when the PR does not touch scaffold-config.yml', async () => {
   const r = await guard({ files: ['src/a.js'], head: 'max_in_flight: nope' });
   assert.equal(r.ok, true);

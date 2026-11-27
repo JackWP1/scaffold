@@ -9,13 +9,17 @@
 import { issueSteps } from '../core/lib/issue.mjs';
 import { linkedIssues } from '../core/lib/pr.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
+import { stageOn } from '../core/lib/config.mjs';
+import { openCodeReviewThreads } from '../core/lib/threads.mjs';
 
 export const COPILOT = ['Copilot', 'copilot-swe-agent[bot]'];
 export const ESCALATE = 'scaffold:escalate';
 const REWORK = '<!-- scaffold:rework';
 const BOT = 'github-actions[bot]';
 // SCAFFOLD's own PR checks: the gate waits until each has reported, so it can't pass before CI starts.
-export const SCAFFOLD_CHECKS = ['scaffold-config-guard', 'scaffold-protected-paths', 'scaffold-hard-size', 'scaffold-test-integrity', 'scaffold-scenarios', 'scaffold-plan-gate', 'scaffold-pr-size'];
+// code-review and ci-diagnose are jobs in every caller (skipped or passing when review is off), so the gate
+// waits for them too: their comments must be on the PR before it decides.
+export const SCAFFOLD_CHECKS = ['scaffold-config-guard', 'scaffold-protected-paths', 'scaffold-hard-size', 'scaffold-test-integrity', 'scaffold-scenarios', 'scaffold-plan-gate', 'scaffold-pr-size', 'scaffold-code-review', 'scaffold-ci-diagnose'];
 // Jobs that aren't checks of the PR: the gate itself and the status writer.
 const IGNORED = ['scaffold-review-gate', 'status'];
 const PASSING = ['success', 'neutral', 'skipped'];
@@ -79,8 +83,20 @@ export async function reviewGate({ gh, repo, pr, config, wait = {} }) {
   if (pending) {
     return { ok: false, outcome: `checks still running or not started: ${pending.join(', ')}: re-run this check when they finish`, details: [], rows: { 'Review gate': '⏳ waiting for checks', Rework: roundsRow() } };
   }
-  const failing = runs.filter((r) => !PASSING.includes(r.conclusion));
-  const listed = failing.map((r) => `- **${escapeForComment(r.name)}**: ${r.conclusion}${r.output?.title ? `: ${escapeForComment(r.output.title).slice(0, 200)}` : ''}`);
+  const failingChecks = runs.filter((r) => !PASSING.includes(r.conclusion));
+  // With review on, every code-review thread must be resolved (PLAN.md section 6). Resolving one doesn't
+  // start a run: the gate re-runs on the next push, or someone re-runs it.
+  const threads = stageOn(config, 'review') ? await openCodeReviewThreads(gh, repo, pr.number) : [];
+  const firstLine = (body) => body.split('\n').slice(1).find((l) => l.trim() && !l.startsWith('**'))?.trim() ?? '';
+  const failing = [...failingChecks, ...threads];
+  const listed = [
+    ...failingChecks.map((r) => `- **${escapeForComment(r.name)}**: ${r.conclusion}${r.output?.title ? `: ${escapeForComment(r.output.title).slice(0, 200)}` : ''}`),
+    ...threads.map((t) => `- **code-review thread** on \`${escapeForComment(t.path)}${t.line ? `:${t.line}` : ''}\`: ${firstLine(t.body).slice(0, 200)} (${t.url})`),
+  ];
+  const what = [
+    failingChecks.length ? `${failingChecks.length} check${failingChecks.length === 1 ? '' : 's'} failing` : '',
+    threads.length ? `${threads.length} code-review thread${threads.length === 1 ? '' : 's'} open` : '',
+  ].filter(Boolean).join(', ');
   const ask = async (why) => {
     const who = await requestReview(gh, repo, pr);
     return who.length ? `${why}; review requested from ${who.map((w) => `\`${w}\``).join(', ')}` : `${why}; no assigned developer to request review from: CODEOWNERS applies`;
@@ -93,23 +109,29 @@ export async function reviewGate({ gh, repo, pr, config, wait = {} }) {
   if (labels.includes(ESCALATE)) {
     return { ok: true, outcome: 'circuit breaker tripped (`scaffold:escalate`): human review, checks still failing', details: listed, rows: { 'Review gate': '🚨 escalated: human review', Rework: roundsRow(', circuit breaker tripped') } };
   }
-  const fail = (outcome, rework) => ({ ok: false, outcome, details: listed, rows: { 'Review gate': `❌ ${failing.length} check${failing.length === 1 ? '' : 's'} failing`, Rework: rework } });
-  if (!COPILOT.includes(pr.user?.login)) return fail(`${failing.length} failing check${failing.length === 1 ? '' : 's'}`, roundsRow(' (not a Copilot PR: no automatic rework)'));
+  const fail = (outcome, rework) => ({ ok: false, outcome, details: listed, rows: { 'Review gate': `❌ ${what}`, Rework: rework } });
+  if (!COPILOT.includes(pr.user?.login)) return fail(what, roundsRow(' (not a Copilot PR: no automatic rework)'));
   if (rounds.some((c) => c.body.startsWith(`${REWORK} ${pr.head.sha} -->`))) return fail('rework already asked for this commit: waiting for Copilot to push', roundsRow());
 
   if (rounds.length >= max) {
     await issueSteps(gh, repo, pr.number, labels).setLabels([ESCALATE], []);
-    const oversized = failing.some((r) => short(r.name) === 'scaffold-pr-size');
+    const oversized = failingChecks.some((r) => short(r.name) === 'scaffold-pr-size');
     const outcome = await ask(`circuit breaker: ${max} rework rounds used, \`${ESCALATE}\` applied${oversized ? '; over the soft size limit, so a listed approver decides on `scaffold:size-exception`' : ''}`);
     return { ok: true, outcome, details: listed, rows: { 'Review gate': '🚨 escalated: human review', Rework: roundsRow(', circuit breaker tripped') } };
   }
 
   const n = rounds.length + 1;
-  const split = failing.some((r) => short(r.name) === 'scaffold-pr-size')
+  const split = failingChecks.some((r) => short(r.name) === 'scaffold-pr-size')
     ? ['', `The PR is over the soft size limit (${config.pr_size.soft.files} files / ${config.pr_size.soft.lines} lines, exempt files not counted). Split it into a stack of PRs, each within the limit and no more than ${config.max_stack_prs} in all.`]
     : [];
   await gh.post(`/repos/${repo}/issues/${pr.number}/comments`, {
-    body: [`${REWORK} ${pr.head.sha} -->`, `@copilot Rework round ${n} of ${max}: these checks failed on ${pr.head.sha.slice(0, 7)}. Fix them and push.`, '', ...listed, ...split].join('\n'),
+    body: [
+      `${REWORK} ${pr.head.sha} -->`,
+      `@copilot Rework round ${n} of ${max}: on ${pr.head.sha.slice(0, 7)}, ${what}. Fix each and push${threads.length ? '; reply on each code-review thread with what you changed, so a reviewer can resolve it' : ''}.`,
+      '',
+      ...listed,
+      ...split,
+    ].join('\n'),
   });
-  return fail(`${failing.length} failing check${failing.length === 1 ? '' : 's'}: rework round ${n} of ${max} asked`, `${n} of ${max} rounds`);
+  return fail(`${what}: rework round ${n} of ${max} asked`, `${n} of ${max} rounds`);
 }

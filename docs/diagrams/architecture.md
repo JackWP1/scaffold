@@ -91,6 +91,7 @@ flowchart LR
     c_triage["triage"]
     c_plan["plan"]
     c_implement["implement"]
+    c_review["review"]
     c_config_guard["config-guard"]
     c_checks["checks"]
     c_usage_report["usage-report"]
@@ -123,6 +124,10 @@ flowchart LR
     w_plan_yml_admit --> w_plan_yml_plan
     w_plan_yml_gate["gate"]
   end
+  subgraph w_review_yml["review.yml"]
+    w_review_yml_scaffold_code_review["scaffold-code-review"]
+    w_review_yml_scaffold_ci_diagnose["scaffold-ci-diagnose"]
+  end
   subgraph w_triage_yml["triage.yml"]
     w_triage_yml_triage["triage"]
     w_triage_yml_gherkin["gherkin"]
@@ -134,6 +139,7 @@ flowchart LR
   c_triage --> w_triage_yml
   c_plan --> w_plan_yml
   c_implement --> w_implement_yml
+  c_review --> w_review_yml
   c_config_guard --> w_config_guard_yml
   c_checks --> w_checks_yml
   c_usage_report --> w_usage_report_yml
@@ -152,6 +158,8 @@ flowchart LR
   w_plan_yml_admit --> a_packages_plan_actions_plan["packages/plan/actions/plan"]
   w_plan_yml_plan --> a_packages_plan_actions_plan["packages/plan/actions/plan"]
   w_plan_yml_gate --> a_packages_plan_actions_gate["packages/plan/actions/gate"]
+  w_review_yml_scaffold_code_review --> a_packages_review_actions_review["packages/review/actions/review"]
+  w_review_yml_scaffold_ci_diagnose --> a_packages_review_actions_review["packages/review/actions/review"]
   w_triage_yml_triage --> a_packages_intake_actions_triage["packages/intake/actions/triage"]
   w_triage_yml_gherkin --> a_packages_intake_actions_gherkin["packages/intake/actions/gherkin"]
   w_triage_yml_gate --> a_packages_intake_actions_gate["packages/intake/actions/gate"]

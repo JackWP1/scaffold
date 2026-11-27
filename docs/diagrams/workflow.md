@@ -134,7 +134,7 @@ flowchart TD
   class plancmd,limit,decompose,plansize,split,toobig,plancomment,planreview,approved done
   class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize done
   class ownerreview,closed planned
-  class ci,review,diagnose,readygate planned
+  class ci,review,diagnose,readygate done
   class check1,check2,conflicts1,conflicts2,order,merge,mq,mainonly planned
 ```
 
@@ -196,8 +196,10 @@ flowchart TD
   baseline{{"Core baseline checks, every PR:<br/>protected paths, hard size limit,<br/>test integrity, scenarios<br/>with the BDD runner report"}}
   implchecks{{"Plan gate re-checks the approval;<br/>PR size within the soft limit<br/>or scaffold:size-exception"}}
   sizecmd{"<span style='font-size:2em'>🧑</span><br/>Developer comments /size-exception reason;<br/>listed approver applies<br/>scaffold:size-exception"}
-  reviewgate{{"Review gate<br/>waits for every check<br/>on the head commit"}}
-  rework["Automatic rework round<br/>@copilot comment lists the failures;<br/>no human approval"]
+  codereview["<span style='font-size:2em'>🤖</span> code-review<br/>COMMENT-only review:<br/>standards, spec, scenarios"]
+  cidiagnose["<span style='font-size:2em'>🤖</span> ci-diagnose<br/>explains failed ci_workflows runs<br/>in one PR comment"]
+  reviewgate{{"Review gate<br/>waits for every check on the head commit;<br/>code-review threads resolved"}}
+  rework["Automatic rework round<br/>@copilot comment lists failing checks<br/>and open code-review threads;<br/>no human approval"]
   escalate["scaffold:escalate<br/>circuit breaker:<br/>max_rework_rounds used"]
   ci{{"CI"}}
   review{"<span style='font-size:2em'>🧑</span><br/>Peer review"}
@@ -260,6 +262,10 @@ flowchart TD
   pr --> baseline
   pr --> ci
   pr --> implchecks
+  pr --> codereview
+  codereview -- threads to resolve --> reviewgate
+  ci -- fails --> cidiagnose
+  cidiagnose --> reviewgate
   implchecks -- over the soft limit --> sizecmd
   sizecmd --> implchecks
   baseline --> reviewgate
@@ -283,7 +289,7 @@ flowchart TD
   classDef manual fill:#4b5563,color:#fff
   class ks,kh,ka,kai scaffold
   class km manual
-  class intakeon,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,scengate,ready,planon,plancmd,limit,decompose,plansize,toobig,retriage,plancomment,planreview,gate,approved,implon,assign,copilot,pr,baseline,implchecks,sizecmd,reviewgate,rework,escalate scaffold
+  class intakeon,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,scengate,ready,planon,plancmd,limit,decompose,plansize,toobig,retriage,plancomment,planreview,gate,approved,implon,assign,copilot,pr,baseline,implchecks,sizecmd,codereview,cidiagnose,reviewgate,rework,escalate scaffold
   class jira,open,manualtriage,split,manualplan,pick,code,ci,review,test,merge,closed manual
 ```
 <!-- end of generated diagram -->
@@ -300,3 +306,4 @@ One row per slice, added in the slice's retrospective PR. Earlier versions of bo
 | 1b | 2026-11-26 | Packages: intake and plan switched by `stages` (off means manual, from each package's `HANDOFF.md`); sub-tickets dropped: a plan is one PR or a stack of up to `max_stack_prs`, and bigger work gets `scaffold:too-big`, leaves flight and goes back to triage, which proposes smaller tickets for a member to create. Current diagram now generated from `workflow.yml`. Proposed: stack of up to `max_stack_prs` PRs and the too-big route replace up to 5 sub-tickets |
 | 2b | 2026-11-27 | Scenarios, in the intake package: `gherkin` config (`off`, `auto`, `always`; `bdd` required unless off), Request form Gherkin field, triage routes to `scaffold:needs-gherkin`, `gherkin-writer` drafts in the same run or on `/gherkin`, marked scenarios comment numbered S1..Sn, protected scenarios gate; edits and redrafts withdraw approvals. Plan re-checks the approval and maps each scenario to a PR; the plan gate fails if the scenarios changed. Proposed: scenarios steps added to intake, marked done |
 | 3 | 2026-11-27 | Implement: core baseline PR checks on every PR (protected paths with the caller pin-bump exception, hard size limit, test integrity lifted by `scaffold:test-change-approved`, scenarios check reading the BDD runner report); implement package switched by `stages`: plan gate re-check, PR size with `/size-exception` and `scaffold:size-exception`, review gate waiting for every check, automatic `@copilot` rework rounds, circuit breaker with `scaffold:escalate`, advisory work in progress; PR status comment. Proposed: implement steps marked done; the review gate stays planned until slice 4 adds `code-review` threads |
+| 4 | 2026-11-27 | Review: `code-review` (deep tier) posts one COMMENT-only review per head commit, inline where it can; the review gate waits for its threads to be resolved and lists open ones in the rework round. `ci-diagnose` (standard tier) explains failed runs of the workflows in `ci_workflows` in one PR comment, waiting for them on `pull_request` instead of `workflow_run` (which would need names in the protected caller file). 👎 on either counts as a false positive in the usage report. Proposed: review steps marked done |

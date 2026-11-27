@@ -36,11 +36,25 @@ const jobs = {
 test('summarise counts jobs, skill outcomes and gate passes', () => {
   const n = summarise({ runs, jobs, events });
   assert.deepEqual(n.perJob, { 'triage / triage': { runs: 1, failed: 0 }, 'plan / admit': { runs: 1, failed: 0 }, 'plan / plan': { runs: 1, failed: 1 }, 'triage / gherkin': { runs: 1, failed: 0 } });
-  assert.deepEqual(n.skills, { triage: 1, 'gherkin-writer': 1, 'task-decomposer': 1 });
+  assert.deepEqual(n.skills, { triage: 1, 'gherkin-writer': 1, 'task-decomposer': 1, 'code-review': 0, 'ci-diagnose': 0 });
   assert.deepEqual(n.scenarios, { needed: 3, applied: 3, passed: 1, failed: 2, medianHours: 3 });
   assert.deepEqual(n.triage, { ready: 1, needsInfo: 1, proposed: 0 });
   assert.deepEqual(n.plan, { admitted: 2, tooBig: 1 });
   assert.deepEqual(n.gate, { applied: 2, passed: 1, failed: 1, medianHours: 4 });
+});
+
+test('summarise counts code-review comments, diagnoses and 👎 false positives', () => {
+  const c = (body, user = bot, down = 0) => ({ user, body, reactions: { '-1': down } });
+  const n = summarise({
+    runs: [], jobs: {}, events: [],
+    reviews: [c('<!-- scaffold:code-review-run a -->'), c('<!-- scaffold:code-review-run b -->'), c('a human review', alice)],
+    reviewComments: [c('<!-- scaffold:code-review -->\na'), c('<!-- scaffold:code-review -->\nb', bot, 2), c('<!-- scaffold:code-review -->\nforged', alice, 1)],
+    comments: [c('<!-- scaffold:ci-diagnosis abc -->'), c('<!-- scaffold:ci-diagnosis def -->', bot, 1)],
+  });
+  assert.deepEqual(n.review, { codeReviewComments: 2, codeReviewFalsePositives: 1, diagnoses: 2, diagnosisFalsePositives: 1 });
+  assert.equal(n.skills['code-review'], 2, 'one model call per posted review, not per job');
+  assert.equal(n.skills['ci-diagnose'], 2);
+  assert.match(renderReport({ from: 'a', to: 'b', numbers: n, config: configFrom('') }), /\| Review: CI diagnoses marked wrong \(👎\) \| 1 \|/);
 });
 
 test('summarise counts rework rounds, escalations, exceptions and open Copilot PRs per developer', () => {
@@ -62,7 +76,7 @@ test('summarise counts rework rounds, escalations, exceptions and open Copilot P
 test('the report lists stages, flagging released packages that are off', () => {
   const body = renderReport({ from: 'a', to: 'b', numbers: summarise({ runs: [], jobs: {}, events: [] }), config: configFrom('stages:\n  intake: true') });
   assert.ok(body.startsWith(REPORT_MARKER));
-  assert.ok(body.includes('| intake | on |') && body.includes('| plan | **off (manual)** |') && body.includes('| review | off (not released) |'));
+  assert.ok(body.includes('| intake | on |') && body.includes('| plan | **off (manual)** |') && body.includes('| collaboration | off (not released) |'));
   assert.ok(body.includes('| Plan gate: median hours from admission to approval | - |'));
   assert.ok(renderReport({ from: 'a', to: 'b', numbers: summarise({ runs: [], jobs: {}, events: [] }), configError: 'x' }).includes('| plan | ⛔ config invalid |'));
 });
@@ -75,6 +89,8 @@ test('the report is posted on the standing report issue, created once', async ()
     '/repos/o/r/issues?state=open': [{ number: 5, body: 'other' }],
     '/repos/o/r/issues/12/comments': {},
     '/repos/o/r/issues/comments': [],
+    '/repos/o/r/pulls/comments': [],
+    '/repos/o/r/pulls?state=all': [],
     '/repos/o/r/pulls?state=open': [],
     '/repos/o/r/issues': { number: 12 },
   });

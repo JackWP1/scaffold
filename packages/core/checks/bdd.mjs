@@ -1,6 +1,7 @@
 // The BDD runner report (PLAN.md section 2, runner report contract): Cucumber JSON in an Actions artifact
 // from `bdd.workflow`'s run for the PR's head SHA. Missing, unreadable or stale fails closed.
 import { inflateRawSync } from 'node:zlib';
+import { waitForRun } from '../lib/runs.mjs';
 
 export const MAX_REPORT_BYTES = 20 * 1024 * 1024;
 
@@ -48,22 +49,11 @@ export function cucumberResults(json) {
 
 // The report for `sha`: waits up to `waitMs` for the workflow run to complete, then reads the artifact.
 // Returns { results } or { error }. `sleep` is injected so tests don't wait.
-export async function bddReport(gh, repo, { bdd, sha, waitMs = 15 * 60_000, pollMs = 30_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
-  const runsPath = `/repos/${repo}/actions/workflows/${encodeURIComponent(bdd.workflow)}/runs?head_sha=${sha}&per_page=10`;
-  let run;
-  for (let waited = 0; ; waited += pollMs) {
-    let runs;
-    try {
-      ({ workflow_runs: runs = [] } = await gh.get(runsPath));
-    } catch (err) {
-      if (String(err.message).includes(': 404 ')) return { error: `workflow \`${bdd.workflow}\` (\`bdd.workflow\`) not found` };
-      throw err;
-    }
-    run = runs.filter((r) => r.head_sha === sha).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
-    if (run?.status === 'completed') break;
-    if (waited >= waitMs) return { error: run ? `\`${bdd.workflow}\` hasn't finished for ${sha.slice(0, 7)}: re-run this check when it has` : `no \`${bdd.workflow}\` run for ${sha.slice(0, 7)} yet: re-run this check when CI has run` };
-    await sleep(pollMs);
-  }
+export async function bddReport(gh, repo, { bdd, sha, ...wait }) {
+  const { run, pending, missing, notFound } = await waitForRun(gh, repo, bdd.workflow, sha, wait);
+  if (notFound) return { error: `workflow \`${bdd.workflow}\` (\`bdd.workflow\`) not found` };
+  if (pending) return { error: `\`${bdd.workflow}\` hasn't finished for ${sha.slice(0, 7)}: re-run this check when it has` };
+  if (missing) return { error: `no \`${bdd.workflow}\` run for ${sha.slice(0, 7)} yet: re-run this check when CI has run` };
   const { artifacts = [] } = await gh.get(`/repos/${repo}/actions/runs/${run.id}/artifacts?name=${encodeURIComponent(bdd.artifact)}`);
   const artifact = artifacts.find((a) => a.name === bdd.artifact && !a.expired);
   if (!artifact) return { error: `no \`${bdd.artifact}\` artifact (\`bdd.artifact\`) in \`${bdd.workflow}\` run ${run.id}` };
