@@ -1,4 +1,4 @@
-# Demo: slices 1 to 4, Phase 1b
+# Demo: slices 1 to 5, Phase 1b
 
 What runs, slice 1: an issue opened in a repo with the SCAFFOLD caller → one Copilot CLI call with no tools (`triage` skill, `fast` tier) → schema-validated JSON → Actions code applies `scaffold:*` and `priority:*` labels and one status comment.
 
@@ -9,6 +9,8 @@ What runs, slice 2b: with `gherkin` on, triage decides an issue needs acceptance
 What runs, slice 3: every PR gets the core baseline checks (protected paths, hard size limit, test integrity, scenarios with the BDD runner report). With `implement` on, a developer assigns an approved issue to Copilot → Copilot's PR gets the plan gate and PR size checks → the review gate waits for every check, then requests review from the assigned developer, or posts an `@copilot` rework round listing the failures → after `max_rework_rounds` rounds, `scaffold:escalate` and human review. No model call in any of these.
 
 What runs, slice 4: on each PR head commit, `code-review` (one Copilot CLI call, `deep` tier) posts a review that only comments; the review gate waits until its threads are resolved. When a run of a workflow in `ci_workflows` fails, `ci-diagnose` (`standard` tier) posts one diagnosis comment.
+
+What runs, slice 5: when a plan is approved, Actions shortlists other in-flight tickets with overlapping paths or spec sections, and `conflict-check` (`deep` tier) judges them; when a PR is approved, it does the same against other approved PRs and recent merges. A real conflict gets `scaffold:conflict`, blocking implementation and merging until a listed approver clears it. Clean approved PRs get a merge position, and `scaffold-merge-order` in the merge queue fails a PR that jumps it.
 
 What changes, Phase 1b: intake and plan are packages that `stages` in `scaffold-config.yml` turns on; a package that is off does nothing and humans follow its `HANDOFF.md`. A plan is one PR or a stack of up to `max_stack_prs` PRs; anything bigger gets `scaffold:too-big` and goes back to triage, which proposes smaller tickets. `scaffold-config-guard` checks config PRs, and a weekly usage report is posted to an issue.
 
@@ -71,7 +73,7 @@ Use the second account from step 5 as the issue author where the author matters.
 | 6 | Under `stages:`, set `intake: false` and `plan: true`, then open an issue | No triage. Apply `scaffold:ready` and `priority:medium` by hand, then `/plan`: planned as usual, Triage row ✋ manual |
 | 7 | Under `stages:`, set `implement: true` | Config invalid: `/plan` refused with "not released yet"; `scaffold-config-guard` fails the PR |
 | 8 | Open a PR that changes `max_in_flight` | `scaffold-config-guard` fails until a listed approver other than the PR author approves the latest commit |
-| 9 | Open a PR that changes only `flow_lead` | `scaffold-config-guard` passes without an approver |
+| 9 | Open a PR that only edits comments in `scaffold-config.yml` | `scaffold-config-guard` passes without an approver. Changing `flow_lead` needs one (since slice 5: the flow lead can override the merge order) |
 | 10 | On an issue planned under v0.4.0 as sub-tickets, apply `scaffold:plan-approved` | Label removed: "sub-tickets removed: run `/plan` again"; `scaffold:planned` kept |
 | 11 | Actions → SCAFFOLD → Run workflow → `usage-report` | "SCAFFOLD usage report" issue created once; a comment with runs per skill and job, gate outcomes, hours to approval and stages |
 
@@ -131,6 +133,23 @@ Setup: cut a release, re-copy the caller template, set `review: true` and `ci_wo
 | 8 | React 👎 to a code-review comment and to the diagnosis | Next usage report counts them as false positives |
 | 9 | Set `review: false` | No reviews or diagnoses; the review gate stops waiting for threads |
 
+## Slice 5 demo script
+
+Setup: cut a release, re-copy the caller template, set `collaboration: true` and `flow_lead`, turn on the merge queue for the default branch, and add `collaboration / scaffold-merge-order` to the ruleset's required checks.
+
+| Step | Do | Expect |
+| --- | --- | --- |
+| 1 | Plan and approve two issues whose plans both touch `src/auth/**` with incompatible goals | Second approval: `scaffold:conflict` on it, one conflict comment linking the first, Conflicts row 🚧 |
+| 2 | Approve a plan that touches unrelated paths | Conflicts row ✅ "no overlapping work": no model call (job summary) |
+| 3 | Open a PR for the flagged issue | `scaffold-plan-gate` fails: open conflict |
+| 4 | Remove `scaffold:conflict` by hand | Still blocked: the timeline still shows the flag |
+| 5 | Apply `scaffold:conflict-resolved` as someone not in `approvers`, then as a listed approver | First: label removed, "still open"; second: `scaffold:conflict` removed, Conflicts row ✅ resolved by them |
+| 6 | Approve two clean PRs (A earlier, B later, same priority) | Both get conflict-check 2 ✅ and a Merge order row: A 1 of 2, B 2 of 2 |
+| 7 | Add B to the merge queue first | `scaffold-merge-order` fails: "#A must merge or enter the queue first" |
+| 8 | As the flow lead, comment `/order-override hotfix` on B and apply `scaffold:order-override`, then re-queue B | Passes: "overridden by lead: hotfix". A push to B afterwards makes the override stale |
+| 9 | Write "Blocked by #<A's issue>" in another approved ticket's description | A's PR moves to the front of the order |
+| 10 | Run the usage report | Conflicts flagged, repeats, resolved, median hours to resolve, 👎 false positives, Conflicts queue now |
+
 ## Not in the demo yet
 
 From slice 1: Dependabot bumps for the caller pin, ajv, audit artifact, Projects board automation, Jira form validation, the generated label state machine.
@@ -144,3 +163,5 @@ From slice 2b: `gherkin-writer` drafts made in the triage run counted as model c
 From slice 3: reduced coverage in test integrity (no coverage data reaches the check); `code-review` threads in the review gate (slice 4); automatic stacked PRs (Phase 0: can Copilot create them?); checks passing straight away on `merge_group` (slice 5); the review gate and status job writing the PR status comment at the same moment can drop a row update (it's rewritten on the next run).
 
 From slice 4: the review gate re-running when a thread is resolved (GitHub Actions has no event for it: push or re-run the gate); `code-review` on fork PRs (their token can't comment); model cost in the usage report.
+
+From slice 5: re-running a PR that failed in the merge queue against just main (it leaves the queue and goes back through rework); the Projects "Conflicts" view (`GITHUB_TOKEN` can't write Projects: filter issues on `scaffold:conflict`); clearing a conflict automatically when the blocking ticket merges; @-mentioning the flow lead when an in-flight slot frees up.

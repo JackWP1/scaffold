@@ -25,11 +25,11 @@ test('every package action reads stages first and runs nothing else when its sta
 });
 
 test('reusable workflows call package actions, and jobs reading config can read contents', async () => {
-  for (const wf of ['triage', 'plan', 'labels', 'config-guard', 'usage-report', 'checks', 'implement', 'review']) {
+  for (const wf of ['triage', 'plan', 'labels', 'config-guard', 'usage-report', 'checks', 'implement', 'review', 'collaboration']) {
     const yaml = await read(`.github/workflows/${wf}.yml`);
-    for (const [, path] of yaml.matchAll(/uses: JackWP1\/scaffold\/(\S+)@/g)) assert.match(path, /^packages\/(core|intake|plan|implement|review)\/actions\//, wf);
+    for (const [, path] of yaml.matchAll(/uses: JackWP1\/scaffold\/(\S+)@/g)) assert.match(path, /^packages\/(core|intake|plan|implement|review|collaboration)\/actions\//, wf);
   }
-  for (const wf of ['triage', 'plan', 'implement', 'review']) {
+  for (const wf of ['triage', 'plan', 'implement', 'review', 'collaboration']) {
     const yaml = await read(`.github/workflows/${wf}.yml`);
     for (const job of yaml.split(/\n {2}(?=[a-z-]+:\n)/).slice(1)) assert.match(job, /contents: read/, `${wf}: ${job.split(':')[0]}`);
   }
@@ -52,9 +52,10 @@ test('the caller listens for every event a package needs, and grants what each r
   assert.match(caller, /pull_request:\n\s+types: \[opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review\]/);
   assert.match(caller, /pull_request_review:\n\s+types: \[submitted, dismissed\]/);
   assert.match(caller, /schedule:\n\s+- cron:/);
+  assert.match(caller, /merge_group:\n\s+types: \[checks_requested\]/);
   assert.doesNotMatch(caller, /pull_request_target/);
   const perms = (yaml, job) => [...(yaml.split(new RegExp(`\\n {2}${job}:\\n`))[1].split(/\n {2}[a-z-]+:\n/)[0].matchAll(/^ {6}([a-z-]+): (read|write)$/gm))].map(([, k, v]) => `${k}: ${v}`).sort();
-  for (const [job, wf] of [['triage', 'triage'], ['plan', 'plan'], ['config-guard', 'config-guard'], ['checks', 'checks'], ['implement', 'implement'], ['review', 'review'], ['usage-report', 'usage-report'], ['labels', 'labels']]) {
+  for (const [job, wf] of [['triage', 'triage'], ['plan', 'plan'], ['config-guard', 'config-guard'], ['checks', 'checks'], ['implement', 'implement'], ['review', 'review'], ['collaboration', 'collaboration'], ['usage-report', 'usage-report'], ['labels', 'labels']]) {
     const reusable = await read(`.github/workflows/${wf}.yml`);
     const asked = new Set([...reusable.matchAll(/^ {6}([a-z-]+): (read|write)$/gm)].map(([, k, v]) => `${k}: ${v}`));
     const granted = perms(caller, job);
@@ -78,6 +79,17 @@ test('a reusable workflow\'s model input reaches its action through `with`, neve
     }
   }
   assert.match(await read('.github/workflows/review.yml'), /with:\n\s+mode: code-review\n\s+model: \$\{\{ inputs\.model \}\}/);
+});
+
+test('required checks run in the merge queue, each merge group in its own concurrency group', async () => {
+  for (const wf of ['checks', 'config-guard', 'implement']) {
+    const yaml = await read(`.github/workflows/${wf}.yml`);
+    for (const [, group] of yaml.matchAll(/group: (scaffold-(?:protected-paths|hard-size|test-integrity|scenarios-check|config-guard|plan-gate|pr-size|review-gate)-.+)$/gm)) {
+      assert.match(group, /github\.event\.merge_group\.head_sha/, `${wf}: ${group}`);
+    }
+  }
+  const implement = await read('.github/workflows/implement.yml');
+  assert.equal((implement.match(/github\.event_name == 'merge_group'/g) ?? []).length, 3);
 });
 
 test('the self-test workflow runs the diagrams check on PRs, including label changes', async () => {

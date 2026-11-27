@@ -43,6 +43,23 @@ test('summarise counts jobs, skill outcomes and gate passes', () => {
   assert.deepEqual(n.gate, { applied: 2, passed: 1, failed: 1, medianHours: 4 });
 });
 
+test('summarise counts conflicts: flagged, repeats, resolved and hours to resolve, false positives, queue', () => {
+  const events = [
+    ev('labeled', 'scaffold:conflict', bot, 7, '2026-11-20T10:00:00Z'),
+    ev('labeled', 'scaffold:conflict-resolved', alice, 7, '2026-11-20T14:00:00Z'),
+    ev('labeled', 'scaffold:conflict', bot, 7, '2026-11-21T10:00:00Z'),
+    ev('labeled', 'scaffold:conflict', bot, 8, '2026-11-21T10:00:00Z'),
+    ev('labeled', 'scaffold:conflict-resolved', { login: 'mallory', type: 'User' }, 8, '2026-11-21T11:00:00Z'),
+  ];
+  const comments = [{ user: bot, body: '<!-- scaffold:conflict -->\nx', reactions: { '-1': 1 } }, { user: bot, body: '<!-- scaffold:conflict -->\ny', reactions: {} }];
+  const n = summarise({ runs: [], jobs: {}, events, comments, conflictQueue: 2, approvers: ['alice'] });
+  assert.deepEqual(n.collaboration, { flagged: 3, resolved: 1, medianHoursToResolve: 4, repeatFlagged: 1, falsePositives: 1, queueNow: 2 });
+  assert.match(renderReport({ from: 'a', to: 'b', numbers: n, config: configFrom('') }), /\| Collaboration: median hours from flag to resolution \| 4\.0 \|/);
+  const same = '2026-11-22T10:00:00Z';
+  const tie = summarise({ runs: [], jobs: {}, events: [ev('labeled', 'scaffold:conflict-resolved', alice, 9, same), ev('labeled', 'scaffold:conflict', bot, 9, same)], approvers: ['alice'] });
+  assert.equal(tie.collaboration.resolved, 0, 'a resolution earlier in the timeline isn\'t paired with a later flag');
+});
+
 test('summarise counts code-review comments, diagnoses and 👎 false positives', () => {
   const c = (body, user = bot, down = 0) => ({ user, body, reactions: { '-1': down } });
   const n = summarise({
@@ -76,7 +93,7 @@ test('summarise counts rework rounds, escalations, exceptions and open Copilot P
 test('the report lists stages, flagging released packages that are off', () => {
   const body = renderReport({ from: 'a', to: 'b', numbers: summarise({ runs: [], jobs: {}, events: [] }), config: configFrom('stages:\n  intake: true') });
   assert.ok(body.startsWith(REPORT_MARKER));
-  assert.ok(body.includes('| intake | on |') && body.includes('| plan | **off (manual)** |') && body.includes('| collaboration | off (not released) |'));
+  assert.ok(body.includes('| intake | on |') && body.includes('| plan | **off (manual)** |') && body.includes('| collaboration | **off (manual)** |'));
   assert.ok(body.includes('| Plan gate: median hours from admission to approval | - |'));
   assert.ok(renderReport({ from: 'a', to: 'b', numbers: summarise({ runs: [], jobs: {}, events: [] }), configError: 'x' }).includes('| plan | ⛔ config invalid |'));
 });
@@ -86,6 +103,7 @@ test('the report is posted on the standing report issue, created once', async ()
     '/repos/o/r/actions/runs/': { jobs: [] },
     '/repos/o/r/actions/runs': { workflow_runs: [{ id: 9, path: '.github/workflows/scaffold.yml', created_at: '2026-11-25T00:00:00Z' }, { id: 8, path: '.github/workflows/ci.yml', created_at: '2026-11-25T00:00:00Z' }] },
     '/repos/o/r/issues/events': [ev('labeled', 'scaffold:ready', bot, 1, '2026-11-25T00:00:00Z'), ev('labeled', 'scaffold:ready', bot, 1, '2026-11-01T00:00:00Z')],
+    '/repos/o/r/issues?state=open&labels=scaffold%3Aconflict': [],
     '/repos/o/r/issues?state=open': [{ number: 5, body: 'other' }],
     '/repos/o/r/issues/12/comments': {},
     '/repos/o/r/issues/comments': [],

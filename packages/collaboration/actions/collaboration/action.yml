@@ -1,0 +1,32 @@
+name: SCAFFOLD collaboration
+description: conflict-check (before implementation and before merge order), conflict resolution, merge order and the merge-order check. Skipped (merge-order passes) when the collaboration stage is off.
+inputs:
+  mode:
+    description: check-1, check-2, resolve or merge-order
+    required: true
+  github-token:
+    description: Token with contents:read, issues:write and pull-requests:read; copilot-requests:write for conflict-check
+    default: ${{ github.token }}
+  model:
+    description: Override the model for this skill's tier (packages/core/config/models.yml)
+    default: ''
+runs:
+  using: composite
+  steps:
+    # Reads `stages` first (PLAN.md section 5): when collaboration is off, nothing else runs.
+    - id: stage
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/../../../core/bin/stage.mjs" collaboration
+    # Kill switch: no model calls, but merge-order (deterministic) still runs.
+    - if: steps.stage.outputs.state == 'on' && env.SCAFFOLD_ENABLED != 'false' && startsWith(inputs.mode, 'check-')
+      shell: bash
+      run: npm install -g --no-fund --no-audit @github/copilot@1.0.114
+    - if: steps.stage.outputs.state != 'off' && (env.SCAFFOLD_ENABLED != 'false' || !startsWith(inputs.mode, 'check-'))
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SCAFFOLD_MODE: ${{ inputs.mode }}
+        SCAFFOLD_MODEL: ${{ inputs.model }}
+      run: node "$GITHUB_ACTION_PATH/main.mjs"

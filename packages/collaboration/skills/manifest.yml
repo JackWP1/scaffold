@@ -1,0 +1,4 @@
+conflict-check:
+  version: 0.1.0
+  tier: deep
+  schema: schemas/conflict-check.schema.json

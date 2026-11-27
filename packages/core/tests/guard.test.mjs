@@ -39,8 +39,14 @@ test('fails an invalid file at the PR head', async () => {
   assert.match(r.outcome, /invalid: \$.max_in_flight: expected integer/);
 });
 
-test('an unprotected change (flow_lead) needs no approver', async () => {
-  assert.equal((await guard({ head: BASE.replace('flow_lead: bob', 'flow_lead: alice') })).ok, true);
+test('a change that leaves every setting the same (e.g. comments) needs no approver', async () => {
+  assert.equal((await guard({ head: `# rota notes\n${BASE}` })).ok, true);
+});
+
+test('flow_lead is protected: it can override the merge order', async () => {
+  const r = await guard({ head: BASE.replace('flow_lead: bob', 'flow_lead: alice') });
+  assert.equal(r.ok, false);
+  assert.match(r.outcome, /changes `flow_lead`/);
 });
 
 test('a protected change needs a listed approver from the base branch who is not the author', async () => {

@@ -6,7 +6,9 @@ import { runGuard } from './guard.mjs';
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const summary = (lines) => appendFile(process.env.GITHUB_STEP_SUMMARY ?? '/dev/null', `${lines.join('\n')}\n`);
 
-if (!event.pull_request) {
+if (event.merge_group) {
+  await summary(['### scaffold-config-guard', '✅ merge queue: checked on the PR']);
+} else if (!event.pull_request) {
   await summary(['### scaffold-config-guard', 'Skipped: not a pull request event']);
 } else {
   const { ok, outcome, lines } = await runGuard(github(process.env.GITHUB_TOKEN), process.env.GITHUB_REPOSITORY, { pr: event.pull_request });

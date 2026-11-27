@@ -1,5 +1,6 @@
 # Reusable core baseline PR checks (always on, PLAN.md section 6). Each job is a required check.
-# Runs on pull_request, never pull_request_target, and only reads.
+# Runs on pull_request and merge_group (where they pass straight away: they checked the PR), never
+# pull_request_target, and only reads.
 name: SCAFFOLD checks
 on:
   workflow_call:
@@ -11,14 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
-      group: scaffold-protected-paths-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: scaffold-protected-paths-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     permissions:
       contents: read
       pull-requests: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/core/actions/pr-check@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
         with:
           check: scaffold-protected-paths
 
@@ -26,14 +27,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
-      group: scaffold-hard-size-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: scaffold-hard-size-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     permissions:
       contents: read
       pull-requests: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/core/actions/pr-check@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
         with:
           check: scaffold-hard-size
 
@@ -41,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
-      group: scaffold-test-integrity-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: scaffold-test-integrity-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -49,7 +50,7 @@ jobs:
       issues: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/core/actions/pr-check@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
         with:
           check: scaffold-test-integrity
 
@@ -58,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
-      group: scaffold-scenarios-check-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: scaffold-scenarios-check-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     permissions:
       actions: read
@@ -67,6 +68,6 @@ jobs:
       issues: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/core/actions/pr-check@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
         with:
           check: scaffold-scenarios

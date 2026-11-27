@@ -11,6 +11,9 @@ on:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
   pull_request_review:
     types: [submitted, dismissed]
+  # Every required SCAFFOLD check also runs in the merge queue (PLAN.md section 8).
+  merge_group:
+    types: [checks_requested]
   schedule:
     - cron: '17 6 * * 1'
   workflow_dispatch:
@@ -32,7 +35,7 @@ jobs:
       issues: write
       contents: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/triage.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+    uses: JackWP1/scaffold/.github/workflows/triage.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Plan package: `/plan` comments, scaffold:plan-approved, edits to or deletion of the plan or scenarios
   # comment, and scaffold:gherkin-approved removed (an approved plan is re-checked).
@@ -42,19 +45,19 @@ jobs:
       issues: write
       contents: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/plan.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+    uses: JackWP1/scaffold/.github/workflows/plan.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Implement package: plan gate, PR size and review gate checks on PRs, automatic rework, and
   # `/size-exception` comments on PRs. Make `implement / scaffold-plan-gate`, `implement / scaffold-pr-size`
   # and `implement / scaffold-review-gate` required checks.
   implement:
-    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
     permissions:
       checks: read
       contents: read
       issues: write
       pull-requests: write
-    uses: JackWP1/scaffold/.github/workflows/implement.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+    uses: JackWP1/scaffold/.github/workflows/implement.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Review package: code-review and ci-diagnose on PRs. They only comment; the review gate waits for
   # code-review threads to be resolved.
@@ -66,25 +69,36 @@ jobs:
       issues: write
       pull-requests: write
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/review.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+    uses: JackWP1/scaffold/.github/workflows/review.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
+
+  # Collaboration package: conflict-check after plan approval and after an approving review, conflict
+  # resolution, merge order. Make `collaboration / scaffold-merge-order` a required check.
+  collaboration:
+    if: github.event_name == 'merge_group' || github.event_name == 'pull_request' || github.event_name == 'pull_request_review' || (github.event_name == 'issues' && contains(fromJSON('["scaffold:plan-approved","scaffold:conflict-resolved","scaffold:conflict"]'), github.event.label.name))
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      copilot-requests: write
+    uses: JackWP1/scaffold/.github/workflows/collaboration.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Core, always on: make `config-guard / scaffold-config-guard` a required check in the ruleset.
   config-guard:
-    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review' || github.event_name == 'merge_group'
     permissions:
       contents: read
       pull-requests: read
-    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Core, always on: baseline PR checks. Make each `checks / scaffold-*` job a required check in the ruleset.
   checks:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     permissions:
       actions: read
       contents: read
       pull-requests: read
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/checks.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+    uses: JackWP1/scaffold/.github/workflows/checks.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Core, always on: weekly, or run manually (Actions → SCAFFOLD → Run workflow → usage-report).
   usage-report:
@@ -94,11 +108,11 @@ jobs:
       contents: read
       issues: write
       pull-requests: read
-    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0
 
   # Run manually (Actions → SCAFFOLD → Run workflow → labels) to create the labels.
   labels:
     if: github.event_name == 'workflow_dispatch' && inputs.task == 'labels'
     permissions:
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/labels.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+    uses: JackWP1/scaffold/.github/workflows/labels.yml@27d22e747f55cc720fd07f16e0e6b2978d788f6e # v0.9.0

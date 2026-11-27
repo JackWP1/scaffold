@@ -1,0 +1,95 @@
+# Reusable collaboration workflow (slice 5). Called from a repo's thin caller workflow.
+# Each job reads `stages` first and does nothing else when collaboration is off (PLAN.md section 5).
+# Never pull_request_target; no checkout.
+name: SCAFFOLD collaboration
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Override the deep-tier model (conflict-check)
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  # conflict-check 1: a person applies scaffold:plan-approved.
+  check-1:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved' && !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: scaffold-conflict-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+      copilot-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
+        env:
+          SCAFFOLD_ENABLED: ${{ vars.SCAFFOLD_ENABLED }}
+        with:
+          mode: check-1
+          model: ${{ inputs.model }}
+
+  # conflict-check 2 and merge positions: an approving review, or a push to a PR that stays approved.
+  check-2:
+    if: (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') || (github.event_name == 'pull_request' && github.event.action == 'synchronize')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: scaffold-merge-order-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      copilot-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
+        env:
+          SCAFFOLD_ENABLED: ${{ vars.SCAFFOLD_ENABLED }}
+        with:
+          mode: check-2
+          model: ${{ inputs.model }}
+
+  resolve:
+    if: github.event_name == 'issues' && ((contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && github.event.label.name == 'scaffold:conflict-resolved') || (github.event.action == 'unlabeled' && github.event.label.name == 'scaffold:conflict'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-conflict-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
+        with:
+          mode: resolve
+
+  # Required check in the merge queue. Passes straight away on pull_request, so it can be required.
+  scaffold-merge-order:
+    if: github.event_name == 'merge_group' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: scaffold-merge-order-check-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - if: github.event_name == 'pull_request'
+        shell: bash
+        run: echo "### scaffold-merge-order\n✅ not in the merge queue: the order is checked there" >> "$GITHUB_STEP_SUMMARY"
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - if: github.event_name == 'merge_group'
+        uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
+        with:
+          mode: merge-order

@@ -92,6 +92,7 @@ flowchart LR
     c_plan["plan"]
     c_implement["implement"]
     c_review["review"]
+    c_collaboration["collaboration"]
     c_config_guard["config-guard"]
     c_checks["checks"]
     c_usage_report["usage-report"]
@@ -102,6 +103,12 @@ flowchart LR
     w_checks_yml_scaffold_hard_size["scaffold-hard-size"]
     w_checks_yml_scaffold_test_integrity["scaffold-test-integrity"]
     w_checks_yml_scaffold_scenarios["scaffold-scenarios"]
+  end
+  subgraph w_collaboration_yml["collaboration.yml"]
+    w_collaboration_yml_check_1["check-1"]
+    w_collaboration_yml_check_2["check-2"]
+    w_collaboration_yml_resolve["resolve"]
+    w_collaboration_yml_scaffold_merge_order["scaffold-merge-order"]
   end
   subgraph w_config_guard_yml["config-guard.yml"]
     w_config_guard_yml_scaffold_config_guard["scaffold-config-guard"]
@@ -140,6 +147,7 @@ flowchart LR
   c_plan --> w_plan_yml
   c_implement --> w_implement_yml
   c_review --> w_review_yml
+  c_collaboration --> w_collaboration_yml
   c_config_guard --> w_config_guard_yml
   c_checks --> w_checks_yml
   c_usage_report --> w_usage_report_yml
@@ -148,6 +156,10 @@ flowchart LR
   w_checks_yml_scaffold_hard_size --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
   w_checks_yml_scaffold_test_integrity --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
   w_checks_yml_scaffold_scenarios --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
+  w_collaboration_yml_check_1 --> a_packages_collaboration_actions_collaboration["packages/collaboration/actions/collaboration"]
+  w_collaboration_yml_check_2 --> a_packages_collaboration_actions_collaboration["packages/collaboration/actions/collaboration"]
+  w_collaboration_yml_resolve --> a_packages_collaboration_actions_collaboration["packages/collaboration/actions/collaboration"]
+  w_collaboration_yml_scaffold_merge_order --> a_packages_collaboration_actions_collaboration["packages/collaboration/actions/collaboration"]
   w_config_guard_yml_scaffold_config_guard --> a_packages_core_actions_config_guard["packages/core/actions/config-guard"]
   w_implement_yml_scaffold_plan_gate --> a_packages_implement_actions_check["packages/implement/actions/check"]
   w_implement_yml_scaffold_pr_size --> a_packages_implement_actions_check["packages/implement/actions/check"]

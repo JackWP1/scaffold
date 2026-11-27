@@ -3,9 +3,11 @@
 import { stageOn } from './config.mjs';
 
 export const MARKER = '<!-- scaffold:status -->';
-export const GATES = ['Triage', 'Scenarios', 'Plan', 'Approval'];
+export const GATES = ['Triage', 'Scenarios', 'Plan', 'Approval', 'Conflicts'];
 // The status rows each package owns. A package that is off shows its rows as manual.
-export const STAGE_GATES = { intake: ['Triage', 'Scenarios'], plan: ['Plan', 'Approval'] };
+export const STAGE_GATES = { intake: ['Triage', 'Scenarios'], plan: ['Plan', 'Approval'], collaboration: ['Conflicts'] };
+// The rows of a PR's status comment (implement and collaboration write them; handover contract).
+export const PR_GATES = ['Plan gate', 'Size', 'Review gate', 'Rework', 'Work in progress', 'Conflicts', 'Merge order'];
 export const SCENARIOS_OFF = '➖ not used (`gherkin: off`)';
 
 const HEADER = '| Gate | State |\n| --- | --- |';

@@ -30,7 +30,7 @@ jobs:
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - id: admit
-        uses: JackWP1/scaffold/packages/plan/actions/plan@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+        uses: JackWP1/scaffold/packages/plan/actions/plan@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
         with:
           mode: admit
 
@@ -52,7 +52,7 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/plan/actions/plan@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+      - uses: JackWP1/scaffold/packages/plan/actions/plan@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
         with:
           mode: plan
           issue: ${{ matrix.issue }}
@@ -79,4 +79,4 @@ jobs:
       contents: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/plan/actions/gate@f2a4bf0f234038155b1abfaebbb384fe5d8f8c02 # v0.8.0
+      - uses: JackWP1/scaffold/packages/plan/actions/gate@b965cd502dddcb8ed394742fc9ba04a870498aac # v0.9.0
