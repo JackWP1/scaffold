@@ -29,8 +29,9 @@ export async function waitForChecks(gh, repo, sha, { waitMs = 40 * 60_000, pollM
     const runs = [];
     for await (const page of pagesOf(gh, `/repos/${repo}/commits/${sha}/check-runs`)) runs.push(...page);
     const others = runs.filter((r) => !IGNORED.includes(short(r.name)));
-    // A re-run leaves the old run in the list: keep the latest per name.
-    const latest = [...new Map(others.sort((a, b) => Date.parse(a.started_at ?? 0) - Date.parse(b.started_at ?? 0)).map((r) => [r.name, r])).values()];
+    // A re-run leaves the old run in the list: keep the latest per name. Ids only grow, and a queued
+    // re-run has an id before it has a start time.
+    const latest = [...new Map(others.sort((a, b) => a.id - b.id).map((r) => [r.name, r])).values()];
     const missing = SCAFFOLD_CHECKS.filter((c) => !latest.some((r) => short(r.name) === c));
     const running = latest.filter((r) => r.status !== 'completed').map((r) => r.name);
     if (!missing.length && !running.length) return { runs: latest };

@@ -25,8 +25,9 @@ export function testFindings(files) {
     if (!isTest(was) && !isTest(f.filename)) continue;
     if (f.status === 'removed') { findings.push(`\`${f.filename}\`: test file deleted`); continue; }
     if (isTest(was) && !isTest(f.filename)) { findings.push(`\`${was}\`: moved out of the test paths to \`${f.filename}\``); continue; }
+    // GitHub omits the patch of a large diff: fail closed on any change it hides, added lines included.
     if (f.patch === undefined) {
-      if (f.deletions) findings.push(`\`${f.filename}\`: diff too large to check`);
+      if (f.additions || f.deletions) findings.push(`\`${f.filename}\`: diff too large to check`);
       continue;
     }
     const { added, removed } = patchLines(f.patch);

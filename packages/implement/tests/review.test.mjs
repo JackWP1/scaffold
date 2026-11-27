@@ -7,7 +7,8 @@ import { workInProgress } from '../run.mjs';
 
 const config = configFrom('stages:\n  implement: true\napprovers: [alice]\nmax_rework_rounds: 2');
 const copilotPr = { number: 4, body: 'Fixes #7', user: { login: 'Copilot' }, base: { sha: 'base' }, head: { sha: 'abcdef1234' } };
-const run = (name, conclusion = 'success', status = 'completed', extra = {}) => ({ name, status, conclusion: status === 'completed' ? conclusion : null, started_at: '2026-11-20T10:00:00Z', ...extra });
+let ids = 0;
+const run = (name, conclusion = 'success', status = 'completed', extra = {}) => ({ id: ++ids, name, status, conclusion: status === 'completed' ? conclusion : null, started_at: status === 'queued' ? null : '2026-11-20T10:00:00Z', ...extra });
 const scaffold = (conclusion = 'success') => SCAFFOLD_CHECKS.map((c) => run(`checks / ${c}`, conclusion));
 const bot = { login: 'github-actions[bot]' };
 const noWait = { pollMs: 1, waitMs: 0, sleep: async () => {} };
@@ -32,6 +33,8 @@ test('waiting: until every SCAFFOLD check has reported and nothing is running; l
   assert.equal(sleeps.length, 2);
   assert.deepEqual(runs.filter((r) => r.name === 'ci / test').map((r) => r.conclusion), ['success']);
   assert.ok(!runs.some((r) => r.name.endsWith('scaffold-review-gate')));
+  const rerun = await waitForChecks(gh({ runs: [...scaffold(), run('ci / test', 'success'), run('ci / test', null, 'queued')] }), 'o/r', 'abcdef1234', noWait);
+  assert.deepEqual(rerun.pending, ['ci / test'], 'a queued re-run is newer than the completed run');
   const { pending } = await waitForChecks(gh({ runs: [run('ci / test', null, 'queued')] }), 'o/r', 'abcdef1234', noWait);
   assert.deepEqual(pending.slice(0, 2), ['ci / test', 'scaffold-config-guard']);
 });

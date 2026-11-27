@@ -126,6 +126,7 @@ test('test integrity: removed, skipped or focused tests and removed assertions a
     '`src/big.test.js`: diff too large to check',
   ]);
   assert.deepEqual(testFindings([file('src/a.test.js', 2, 1, { patch: patch(["it('a', () => {"], ["it('a', () => {", "it('b', () => {"]) })]), []);
+  assert.deepEqual(testFindings([file('src/huge.test.js', 5000, 0, { status: 'added' })]), ['`src/huge.test.js`: diff too large to check'], 'a hidden diff fails closed, added lines included');
 });
 
 const FEATURE = 'Feature: Login\n  @scaffold-7-S1\n  Scenario: ok\n    When ada signs in\n    Then she is in\n  Scenario: legacy\n    Given old\n    Then old';

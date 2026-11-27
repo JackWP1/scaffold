@@ -95,6 +95,8 @@ test('PR size: within the soft limit passes; over it needs a valid exception', a
   const breaker = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception', 'scaffold:escalate'], prEvents: [label('scaffold:escalate', 'github-actions[bot]', '2026-11-20T11:00:00Z'), label('scaffold:size-exception')] }), repo: 'o/r', pr, files: files(11), config: PLAN_ON });
   assert.equal(breaker.ok, true, breaker.outcome);
   assert.match(breaker.row, /circuit breaker tripped/);
+  const newer = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception')], prComments: [{ ...request, created_at: '2026-11-20T13:00:00Z' }, request] }), repo: 'o/r', pr, files: files(11), config: PLAN_ON });
+  assert.equal(newer.ok, false, 'a newer request, whatever the page order, needs a new approval');
   const hard = await sizeCheck({ gh: gh({ prLabels: ['scaffold:size-exception'], prEvents: [label('scaffold:size-exception')] }), repo: 'o/r', pr, files: files(31), config: PLAN_ON });
   assert.equal(hard.ok, false, 'an exception never lifts the hard limit');
 });

@@ -52,7 +52,9 @@ async function exceptionRequest(gh, repo, number) {
   for await (const page of gh.pages(`/repos/${repo}/issues/${number}/comments`)) {
     for (const c of page) {
       const m = c.body?.trim().match(SIZE_COMMAND);
-      if (m?.[1]?.trim() && ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(c.author_association)) request = { reason: m[1].trim(), at: c.created_at };
+      if (!m?.[1]?.trim() || !['OWNER', 'MEMBER', 'COLLABORATOR'].includes(c.author_association)) continue;
+      // The newest by time, whatever order the pages come in: a new request needs a new approval.
+      if (!request || Date.parse(c.created_at) >= Date.parse(request.at)) request = { reason: m[1].trim(), at: c.created_at };
     }
   }
   return request;
