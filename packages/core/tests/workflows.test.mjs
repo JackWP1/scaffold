@@ -52,6 +52,7 @@ test('the caller listens for every event a package needs, and grants what each r
   assert.match(caller, /pull_request:\n\s+types: \[opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review\]/);
   assert.match(caller, /pull_request_review:\n\s+types: \[submitted, dismissed\]/);
   assert.match(caller, /schedule:\n\s+- cron:/);
+  assert.match(caller, /merge_group:\n\s+types: \[checks_requested\]/);
   assert.doesNotMatch(caller, /pull_request_target/);
   const perms = (yaml, job) => [...(yaml.split(new RegExp(`\\n {2}${job}:\\n`))[1].split(/\n {2}[a-z-]+:\n/)[0].matchAll(/^ {6}([a-z-]+): (read|write)$/gm))].map(([, k, v]) => `${k}: ${v}`).sort();
   for (const [job, wf] of [['triage', 'triage'], ['plan', 'plan'], ['config-guard', 'config-guard'], ['checks', 'checks'], ['implement', 'implement'], ['review', 'review'], ['usage-report', 'usage-report'], ['labels', 'labels']]) {
@@ -78,6 +79,17 @@ test('a reusable workflow\'s model input reaches its action through `with`, neve
     }
   }
   assert.match(await read('.github/workflows/review.yml'), /with:\n\s+mode: code-review\n\s+model: \$\{\{ inputs\.model \}\}/);
+});
+
+test('required checks run in the merge queue, each merge group in its own concurrency group', async () => {
+  for (const wf of ['checks', 'config-guard', 'implement']) {
+    const yaml = await read(`.github/workflows/${wf}.yml`);
+    for (const [, group] of yaml.matchAll(/group: (scaffold-(?:protected-paths|hard-size|test-integrity|scenarios-check|config-guard|plan-gate|pr-size|review-gate)-.+)$/gm)) {
+      assert.match(group, /github\.event\.merge_group\.head_sha/, `${wf}: ${group}`);
+    }
+  }
+  const implement = await read('.github/workflows/implement.yml');
+  assert.equal((implement.match(/github\.event_name == 'merge_group'/g) ?? []).length, 3);
 });
 
 test('the self-test workflow runs the diagrams check on PRs, including label changes', async () => {

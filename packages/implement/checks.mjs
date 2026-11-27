@@ -8,6 +8,7 @@ import { stageOn } from '../core/lib/config.mjs';
 import { linkedIssues, prSize } from '../core/lib/pr.mjs';
 import { scenariosRequired, approvedScenarios } from '../core/lib/scenarios.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
+import { conflictState } from '../core/lib/conflicts.mjs';
 
 // The plan package's marked comment (handover contract, PLAN.md section 5): read, never imported.
 const PLAN_MARKER = '<!-- scaffold:plan -->';
@@ -39,6 +40,11 @@ export async function planGate({ gh, repo, pr, config }) {
   if (scenariosRequired(config, labels, events)) {
     const scenarios = await approvedScenarios(gh, repo, issue, config);
     if (!scenarios.ok) return result(false, `#${issue}'s scenarios aren't approved: ${scenarios.reason}`, `❌ #${issue}: scenarios not approved`);
+  }
+  // An open conflict flag blocks implementation (PLAN.md section 8). With collaboration off, no flags exist.
+  if (stageOn(config, 'collaboration')) {
+    const conflict = conflictState({ events, approvers: config.approvers });
+    if (conflict.open) return result(false, `#${issue} has an open conflict (\`scaffold:conflict\`): a listed approver applies \`scaffold:conflict-resolved\` once it's resolved`, `❌ #${issue}: open conflict`);
   }
   const how = planOn ? `plan \`${approval.hash}\`` : 'plan stage off: label checked only';
   return result(true, `#${issue}'s plan was approved by \`${approval.approver}\` (${how})`, `✅ #${issue}, approved by \`${approval.approver}\``);

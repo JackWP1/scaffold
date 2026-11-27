@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
-      group: scaffold-config-guard-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: scaffold-config-guard-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     permissions:
       contents: read

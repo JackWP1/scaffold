@@ -1,6 +1,7 @@
 # Reusable implement workflow (slice 3). Called from a repo's thin caller workflow.
 # Each job reads `stages` first; its checks pass as "stage off: manual" when implement is off (PLAN.md section 5).
-# Runs on pull_request and issue_comment, never pull_request_target; no checkout.
+# Runs on pull_request, merge_group (the PR checks pass straight away there) and issue_comment, never
+# pull_request_target; no checkout.
 name: SCAFFOLD implement
 on:
   workflow_call:
@@ -9,11 +10,11 @@ permissions: {}
 
 jobs:
   scaffold-plan-gate:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
-      group: scaffold-plan-gate-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: scaffold-plan-gate-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -28,11 +29,11 @@ jobs:
           mode: scaffold-plan-gate
 
   scaffold-pr-size:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
-      group: scaffold-pr-size-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: scaffold-pr-size-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -50,11 +51,11 @@ jobs:
   # Waits for the PR's other checks on the head commit, then passes, asks Copilot for a rework round or
   # trips the circuit breaker (PLAN.md section 6). Writes its own status rows: it finishes last.
   scaffold-review-gate:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     concurrency:
-      group: scaffold-review-gate-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: scaffold-review-gate-${{ github.repository }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     permissions:
       checks: read

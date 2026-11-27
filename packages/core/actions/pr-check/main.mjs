@@ -7,7 +7,10 @@ const check = process.env.SCAFFOLD_CHECK;
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const summary = (lines) => appendFile(process.env.GITHUB_STEP_SUMMARY ?? '/dev/null', `${lines.join('\n')}\n`);
 
-if (!event.pull_request) {
+if (event.merge_group) {
+  // In the merge queue: the PR passed this check to get here (PLAN.md section 8).
+  await summary([`### ${check}`, '✅ merge queue: checked on the PR']);
+} else if (!event.pull_request) {
   await summary([`### ${check}`, 'Skipped: not a pull request event']);
 } else {
   const { ok, outcome, lines } = await runCheck(github(process.env.GITHUB_TOKEN), process.env.GITHUB_REPOSITORY, { check, pr: event.pull_request, event });

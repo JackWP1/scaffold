@@ -11,6 +11,9 @@ on:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
   pull_request_review:
     types: [submitted, dismissed]
+  # Every required SCAFFOLD check also runs in the merge queue (PLAN.md section 8).
+  merge_group:
+    types: [checks_requested]
   schedule:
     - cron: '17 6 * * 1'
   workflow_dispatch:
@@ -48,7 +51,7 @@ jobs:
   # `/size-exception` comments on PRs. Make `implement / scaffold-plan-gate`, `implement / scaffold-pr-size`
   # and `implement / scaffold-review-gate` required checks.
   implement:
-    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
     permissions:
       checks: read
       contents: read
@@ -70,7 +73,7 @@ jobs:
 
   # Core, always on: make `config-guard / scaffold-config-guard` a required check in the ruleset.
   config-guard:
-    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review' || github.event_name == 'merge_group'
     permissions:
       contents: read
       pull-requests: read
@@ -78,7 +81,7 @@ jobs:
 
   # Core, always on: baseline PR checks. Make each `checks / scaffold-*` job a required check in the ruleset.
   checks:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     permissions:
       actions: read
       contents: read

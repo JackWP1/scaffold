@@ -12,7 +12,9 @@ const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const summary = (lines) => appendFile(process.env.GITHUB_STEP_SUMMARY ?? '/dev/null', `${lines.join('\n')}\n`);
 
 if (CHECKS[mode]) {
-  if (!event.pull_request) {
+  if (event.merge_group) {
+    await summary([`### ${mode}`, '✅ merge queue: a PR-only check, passed on the PR']);
+  } else if (!event.pull_request) {
     await summary([`### ${mode}`, 'Skipped: not a pull request event']);
   } else {
     const r = await runImplementCheck(gh, repo, { check: mode, pr: event.pull_request });
