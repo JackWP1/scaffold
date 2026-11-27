@@ -72,5 +72,5 @@ export function issueSteps(gh, repo, number, labels) {
     return hasWriteAccess(actor);
   }
 
-  return { setLabels, findComment, findComments, upsertComment, upsertStatus, events, acceptedByMember };
+  return { setLabels, findComment, findComments, upsertComment, upsertStatus, events, acceptedByMember, hasWriteAccess };
 }

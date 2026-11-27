@@ -41,11 +41,18 @@ flowchart TD
   needsinfo --> edit{"<span style='font-size:2em'>🧑</span><br/>Author edits issue,<br/>applies scaffold:triage"}
   edit --> triage
   triage --> ready[scaffold:ready<br/>Projects: Ready]
+  triage -- scenarios needed --> gherkinwriter["<span style='font-size:2em'>🤖</span> gherkin-writer<br/>drafts unless the form gave them"]
+  gherkinwriter --> needsgherkin[Scenarios comment<br/>scaffold:needs-gherkin]
+  needsgherkin --> gherkinreview{"<span style='font-size:2em'>🧑</span><br/>Approver reviews<br/>scenarios"}
+  gherkinreview -- /gherkin: redraft --> gherkinwriter
+  gherkinreview -- approves --> gherkinapproved[scaffold:gherkin-approved<br/>gate: listed approver, not the author,<br/>scenarios unchanged, Gherkin parses]
+  gherkinapproved -- gate fails: label removed --> gherkinreview
+  gherkinapproved --> ready
 
   ready --> plancmd{"<span style='font-size:2em'>🧑</span><br/>Member<br/>comments /plan"}
   plancmd --> limit{{In-flight limit reached?<br/>max_in_flight, default 20}}
   limit -- yes: waits in Ready --> ready
-  limit -- no --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer"]
+  limit -- no --> decompose["<span style='font-size:2em'>🤖</span> task-decomposer<br/>maps each approved scenario to a PR"]
   decompose --> plansize{{Estimated size over soft limit?<br/>10 files or 1000 lines}}
   plansize -- no --> plancomment[Plan comment<br/>scaffold:planned]
   plansize -- yes --> split["<span style='font-size:2em'>🤖</span> task-decomposer splits work<br/>into a stack of up to max_stack_prs PRs,<br/>default 5"]
@@ -116,14 +123,14 @@ flowchart TD
   class kp planned
   class kd done
 
-  class jira,open,member,proposed,accept,triage,needsinfo,edit,ready s1
+  class jira,open,member,proposed,accept,triage,needsinfo,edit,ready,gherkinwriter,needsgherkin,gherkinreview,gherkinapproved s1
   class plancmd,limit,decompose,plansize,split,toobig,plancomment,planreview,approved s2
   class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize,ownerreview,closed s3
   class ci,review,diagnose,readygate s4
   class check1,check2,conflicts1,conflicts2,order,merge,mq,mainonly s5
 
   class jira,ready planned
-  class open,member,proposed,accept,triage,needsinfo,edit done
+  class open,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,gherkinapproved done
   class plancmd,limit,decompose,plansize,split,toobig,plancomment,planreview,approved done
   class assign,copilot,pr,guards,rework,breaker,escalate,sizeexc,sizecmd,prsize,ownerreview,closed planned
   class ci,review,diagnose,readygate planned
@@ -161,19 +168,23 @@ flowchart TD
   triage["<span style='font-size:2em'>🤖</span> triage<br/>flags scaffold:no-template"]
   needsinfo["scaffold:needs-info"]
   edit{"<span style='font-size:2em'>🧑</span><br/>Author edits issue,<br/>applies scaffold:triage"}
+  gherkinwriter["<span style='font-size:2em'>🤖</span> gherkin-writer<br/>drafts scenarios unless the form<br/>or a scenarios comment gave them"]
+  needsgherkin["Scenarios comment, S1..Sn<br/>scaffold:needs-gherkin"]
+  gherkinreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews scenarios"}
+  scengate{{"Scenarios gate<br/>core timeline check: listed approver,<br/>not the author, scenarios unchanged;<br/>Gherkin parses, tagged S1..Sn"}}
   ready["scaffold:ready"]
   split{"<span style='font-size:2em'>🧑</span><br/>Member creates the proposed<br/>tickets as new issues,<br/>closes this one as split"}
   planon{{"plan stage on?<br/>stages in scaffold-config.yml"}}
   manualplan{"<span style='font-size:2em'>🧑</span><br/>Humans plan by hand<br/>packages/plan/HANDOFF.md:<br/>scaffold:planned, manual plan template,<br/>approver applies scaffold:plan-approved"}
   plancmd{"<span style='font-size:2em'>🧑</span><br/>Member<br/>comments /plan"}
-  limit{{"Admit, one at a time per repo:<br/>in-flight limit reached?<br/>max_in_flight in scaffold-config.yml<br/>also sweeps up dropped /plan runs"}}
-  decompose["<span style='font-size:2em'>🤖</span> task-decomposer<br/>estimate; one PR, or a stack<br/>of up to max_stack_prs PRs"]
-  plansize{{"Plan breaks size rules?"}}
+  limit{{"Admit, one at a time per repo:<br/>required scenarios not approved, or<br/>in-flight limit reached?<br/>max_in_flight in scaffold-config.yml<br/>also sweeps up dropped /plan runs"}}
+  decompose["<span style='font-size:2em'>🤖</span> task-decomposer<br/>estimate; one PR, or a stack<br/>of up to max_stack_prs PRs;<br/>maps each approved scenario to a PR"]
+  plansize{{"Plan breaks size rules,<br/>or leaves a scenario unmapped?"}}
   toobig["scaffold:too-big<br/>leaves flight"]
   retriage{"<span style='font-size:2em'>🧑</span><br/>Member applies<br/>scaffold:triage"}
   plancomment["Plan comment<br/>scaffold:planned"]
   planreview{"<span style='font-size:2em'>🧑</span><br/>Approver<br/>reviews plan"}
-  gate{{"Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs"}}
+  gate{{"Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs;<br/>scenarios still approved and unchanged,<br/>each mapped"}}
   approved["scaffold:plan-approved"]
   pick{"<span style='font-size:2em'>🧑</span><br/>Developer picks up ticket"}
   code["Developer writes code"]
@@ -197,6 +208,14 @@ flowchart TD
   needsinfo --> edit
   edit --> triage
   triage --> ready
+  triage -- scenarios needed:<br/>gherkin always, or auto<br/>and triage decides --> gherkinwriter
+  gherkinwriter --> needsgherkin
+  needsgherkin --> gherkinreview
+  gherkinreview -- member comments /gherkin:<br/>redraft --> gherkinwriter
+  gherkinreview -- applies scaffold:gherkin-approved --> scengate
+  scengate -- fails: label removed --> gherkinreview
+  scengate -- passes --> ready
+  ready -- scenarios edited or redrafted:<br/>approvals withdrawn --> needsgherkin
   triage -- too big:<br/>proposes smaller tickets --> split
   split --> open
   ready --> planon
@@ -239,7 +258,7 @@ flowchart TD
   classDef manual fill:#4b5563,color:#fff
   class ks,kh,ka,kai scaffold
   class km manual
-  class intakeon,member,proposed,accept,triage,needsinfo,edit,ready,planon,plancmd,limit,decompose,plansize,toobig,retriage,plancomment,planreview,gate,approved scaffold
+  class intakeon,member,proposed,accept,triage,needsinfo,edit,gherkinwriter,needsgherkin,gherkinreview,scengate,ready,planon,plancmd,limit,decompose,plansize,toobig,retriage,plancomment,planreview,gate,approved scaffold
   class jira,open,manualtriage,split,manualplan,pick,code,pr,ci,review,test,merge,closed manual
 ```
 <!-- end of generated diagram -->
@@ -254,3 +273,4 @@ One row per slice, added in the slice's retrospective PR. Earlier versions of bo
 | 1 | 2026-11-18 | Intake: Request form, members-only `triage`, `scaffold:needs-info` loop re-run by `scaffold:triage`, `scaffold:no-template` flag, status comment. Diagrams updated in slice 2's PR |
 | 2 | 2026-11-20 | Plan: `/plan`, in-flight limit (repo-wide admission with a sweep for dropped runs; a failed first plan gives its slot back), `task-decomposer` with size estimate and split, `scaffold:planned`, protected plan gate, sub-tickets as sub-issues on approval (approval withheld until all exist); deleting the plan comment or removing its marker sends the issue back to Ready, and any other edit to it removes the approval; plans with no sub-tasks are rejected; an invalid `scaffold-config.yml` blocks planning and approval. Proposed: needs-info edit step applies `scaffold:triage`; plan comment sets `scaffold:planned`; gate-fail edge |
 | 1b | 2026-11-26 | Packages: intake and plan switched by `stages` (off means manual, from each package's `HANDOFF.md`); sub-tickets dropped: a plan is one PR or a stack of up to `max_stack_prs`, and bigger work gets `scaffold:too-big`, leaves flight and goes back to triage, which proposes smaller tickets for a member to create. Current diagram now generated from `workflow.yml`. Proposed: stack of up to `max_stack_prs` PRs and the too-big route replace up to 5 sub-tickets |
+| 2b | 2026-11-27 | Scenarios, in the intake package: `gherkin` config (`off`, `auto`, `always`; `bdd` required unless off), Request form Gherkin field, triage routes to `scaffold:needs-gherkin`, `gherkin-writer` drafts in the same run or on `/gherkin`, marked scenarios comment numbered S1..Sn, protected scenarios gate; edits and redrafts withdraw approvals. Plan re-checks the approval and maps each scenario to a PR; the plan gate fails if the scenarios changed. Proposed: scenarios steps added to intake, marked done |

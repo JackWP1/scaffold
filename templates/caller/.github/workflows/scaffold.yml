@@ -4,7 +4,7 @@
 name: SCAFFOLD
 on:
   issues:
-    types: [opened, edited, reopened, labeled]
+    types: [opened, edited, reopened, labeled, unlabeled]
   issue_comment:
     types: [created, edited, deleted]
   pull_request:
@@ -24,23 +24,25 @@ on:
 permissions: {}
 
 jobs:
-  # Intake package.
+  # Intake package: triage, `/gherkin`, and the scenarios gate (scaffold:gherkin-approved and
+  # scaffold:needs-gherkin applied or removed; edits to or deletion of the scenarios comment).
   triage:
-    if: github.event_name == 'issues'
+    if: github.event_name == 'issues' || github.event_name == 'issue_comment'
     permissions:
       issues: write
       contents: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/triage.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
+    uses: JackWP1/scaffold/.github/workflows/triage.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
-  # Plan package: `/plan` comments, scaffold:plan-approved, and edits to or deletion of the plan comment.
+  # Plan package: `/plan` comments, scaffold:plan-approved, edits to or deletion of the plan or scenarios
+  # comment, and scaffold:gherkin-approved removed (an approved plan is re-checked).
   plan:
-    if: github.event_name == 'issue_comment' || (github.event_name == 'issues' && github.event.label.name == 'scaffold:plan-approved')
+    if: github.event_name == 'issue_comment' || (github.event_name == 'issues' && ((github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved') || (github.event.action == 'unlabeled' && github.event.label.name == 'scaffold:gherkin-approved')))
     permissions:
       issues: write
       contents: read
       copilot-requests: write
-    uses: JackWP1/scaffold/.github/workflows/plan.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
+    uses: JackWP1/scaffold/.github/workflows/plan.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
   # Core, always on: make `config-guard / scaffold-config-guard` a required check in the ruleset.
   config-guard:
@@ -48,7 +50,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
+    uses: JackWP1/scaffold/.github/workflows/config-guard.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
   # Core, always on: weekly, or run manually (Actions → SCAFFOLD → Run workflow → usage-report).
   usage-report:
@@ -57,11 +59,11 @@ jobs:
       actions: read
       contents: read
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
+    uses: JackWP1/scaffold/.github/workflows/usage-report.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
   # Run manually (Actions → SCAFFOLD → Run workflow → labels) to create the labels.
   labels:
     if: github.event_name == 'workflow_dispatch' && inputs.task == 'labels'
     permissions:
       issues: write
-    uses: JackWP1/scaffold/.github/workflows/labels.yml@8916843cbd2a9605c8f2003e56b531bbc6849ead # v0.5.0
+    uses: JackWP1/scaffold/.github/workflows/labels.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0

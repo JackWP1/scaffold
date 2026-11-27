@@ -27,11 +27,15 @@ What this step delivers.
 
 - Acceptance criterion
 
+Scenarios: S1 (only if the issue has approved scenarios: the ones this step makes pass; in a stack, each scenario in exactly one PR)
+
 **2. Title** (FILES files / LINES lines · blocked by 1)
 
 What this step delivers.
 
 - Acceptance criterion
+
+Scenarios: S2
 
 #### Risks
 

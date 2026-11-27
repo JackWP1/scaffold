@@ -26,3 +26,9 @@ body:
     attributes:
       label: Done when
       description: How we'll know it's finished.
+  - type: textarea
+    id: gherkin
+    attributes:
+      label: Scenarios (Gherkin)
+      description: Only if your repo uses scenarios. One Feature with one or more Scenarios; a listed approver must approve them. Leave blank and SCAFFOLD can draft them.
+      render: gherkin

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "gherkin-writer output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["gherkin", "notes"],
+  "properties": {
+    "gherkin": { "type": "string", "maxLength": 8000 },
+    "notes": { "type": "array", "maxItems": 5, "items": { "type": "string", "maxLength": 300 } }
+  }
+}

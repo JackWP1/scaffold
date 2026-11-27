@@ -18,14 +18,14 @@ core:
 stages:
   intake:
     workflow: triage.yml
-    skills: [triage]
-    triggers: [issues.opened, issues.edited, issues.reopened, issues.labeled]
-    labels: [scaffold:triage, scaffold:needs-info, scaffold:ready, scaffold:proposed, scaffold:accepted, scaffold:no-template, priority:high, priority:medium, priority:low]
-    gates: [Triaged → ready]
+    skills: [triage, gherkin-writer]
+    triggers: [issues.opened, issues.edited, issues.reopened, issues.labeled, issues.unlabeled, issue_comment.created, issue_comment.edited, issue_comment.deleted]
+    labels: [scaffold:triage, scaffold:needs-info, scaffold:needs-gherkin, scaffold:gherkin-approved, scaffold:ready, scaffold:proposed, scaffold:accepted, scaffold:no-template, priority:high, priority:medium, priority:low]
+    gates: [Triaged → ready, Scenarios → approved]
   plan:
     workflow: plan.yml
     skills: [task-decomposer]
-    triggers: [issue_comment.created, issue_comment.edited, issue_comment.deleted, issues.labeled]
+    triggers: [issue_comment.created, issue_comment.edited, issue_comment.deleted, issues.labeled, issues.unlabeled]
     labels: [scaffold:planned, scaffold:plan-approved, scaffold:too-big]
     gates: [Ready → planned, Planned → approved, Planned → too big]
 
@@ -63,6 +63,17 @@ diagram:
     edit:
       kind: human
       text: Author edits issue,<br/>applies scaffold:triage
+    gherkinwriter:
+      kind: ai
+      text: gherkin-writer<br/>drafts scenarios unless the form<br/>or a scenarios comment gave them
+    needsgherkin:
+      text: Scenarios comment, S1..Sn<br/>scaffold:needs-gherkin
+    gherkinreview:
+      kind: human
+      text: Approver<br/>reviews scenarios
+    scengate:
+      kind: check
+      text: Scenarios gate<br/>core timeline check: listed approver,<br/>not the author, scenarios unchanged;<br/>Gherkin parses, tagged S1..Sn
     ready:
       text: scaffold:ready
     split:
@@ -81,13 +92,13 @@ diagram:
       text: Member<br/>comments /plan
     limit:
       kind: check
-      text: Admit, one at a time per repo:<br/>in-flight limit reached?<br/>max_in_flight in scaffold-config.yml<br/>also sweeps up dropped /plan runs
+      text: Admit, one at a time per repo:<br/>required scenarios not approved, or<br/>in-flight limit reached?<br/>max_in_flight in scaffold-config.yml<br/>also sweeps up dropped /plan runs
     decompose:
       kind: ai
-      text: task-decomposer<br/>estimate; one PR, or a stack<br/>of up to max_stack_prs PRs
+      text: task-decomposer<br/>estimate; one PR, or a stack<br/>of up to max_stack_prs PRs;<br/>maps each approved scenario to a PR
     plansize:
       kind: check
-      text: Plan breaks size rules?
+      text: Plan breaks size rules,<br/>or leaves a scenario unmapped?
     toobig:
       text: scaffold:too-big<br/>leaves flight
     retriage:
@@ -100,7 +111,7 @@ diagram:
       text: Approver<br/>reviews plan
     gate:
       kind: check
-      text: Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs
+      text: Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs;<br/>scenarios still approved and unchanged,<br/>each mapped
     approved:
       text: scaffold:plan-approved
     pick:
@@ -145,6 +156,14 @@ diagram:
     - needsinfo --> edit
     - edit --> triage
     - triage --> ready
+    - triage -- scenarios needed:<br/>gherkin always, or auto<br/>and triage decides --> gherkinwriter
+    - gherkinwriter --> needsgherkin
+    - needsgherkin --> gherkinreview
+    - gherkinreview -- member comments /gherkin:<br/>redraft --> gherkinwriter
+    - gherkinreview -- applies scaffold:gherkin-approved --> scengate
+    - scengate -- fails: label removed --> gherkinreview
+    - scengate -- passes --> ready
+    - ready -- scenarios edited or redrafted:<br/>approvals withdrawn --> needsgherkin
     - triage -- too big:<br/>proposes smaller tickets --> split
     - split --> open
     - ready --> planon

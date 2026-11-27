@@ -7,7 +7,7 @@ const ROOT = new URL('../../../', import.meta.url);
 const labels = parseLabels(await readFile(new URL('packages/core/config/labels.yml', ROOT), 'utf8'));
 
 test('labels config parses with every scaffold label', () => {
-  assert.equal(labels.length, 18);
+  assert.equal(labels.length, 20);
   assert.deepEqual(labels[0], { name: 'scaffold:triage', color: 'ededed', description: 'SCAFFOLD is triaging this issue' });
   assert.ok(labels.every((l) => /^[0-9a-f]{6}$/.test(l.color)));
 });
@@ -30,7 +30,7 @@ test('every scaffold label named in package code is in labels.yml', async () => 
     if (!f.endsWith('.mjs') || f.includes('/tests/')) continue;
     const src = await readFile(new URL(`packages/${f}`, ROOT), 'utf8');
     for (const [name] of src.matchAll(/scaffold:[a-z-]+(?=['`\s,\]])/g)) {
-      if (!['scaffold:status', 'scaffold:plan', 'scaffold:plan-data', 'scaffold:usage-report'].includes(name) && !names.has(name)) unknown.add(`${f}: ${name}`);
+      if (!['scaffold:status', 'scaffold:plan', 'scaffold:plan-data', 'scaffold:usage-report', 'scaffold:scenarios', 'scaffold:plan-scenarios'].includes(name) && !names.has(name)) unknown.add(`${f}: ${name}`);
     }
   }
   assert.deepEqual([...unknown], []);

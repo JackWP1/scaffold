@@ -5,6 +5,12 @@
 - name: scaffold:needs-info
   color: "fbca04"
   description: Triage needs answers from the author
+- name: scaffold:needs-gherkin
+  color: "e4e669"
+  description: Needs approved Gherkin scenarios before it is ready
+- name: scaffold:gherkin-approved
+  color: "0052cc"
+  description: Scenarios approved by a listed approver
 - name: scaffold:ready
   color: "0e8a16"
   description: Triaged and ready for /plan

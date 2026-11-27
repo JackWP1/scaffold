@@ -40,12 +40,25 @@ test('an invalid scaffold-config.yml is rejected, not replaced by defaults', () 
     'pr_size:\n  soft:\n    lines: 9000': /soft.lines: more than pr_size.hard.lines/,
     'pr_size:\n  exempt:\n    - ""': /exempt\[0\]: empty/,
     'max_inflight: 3': /max_inflight: not allowed/,
+    'gherkin: sometimes': /gherkin: not one of off, auto, always/,
+    'gherkin: auto': /bdd: required unless gherkin is off/,
+    'gherkin: always\nbdd: null': /bdd: expected object/,
+    'gherkin: auto\nbdd:\n  workflow: ci.yml': /bdd.artifact: required/,
+    'gherkin: auto\nbdd:\n  workflow: ci\n  artifact: r': /bdd.workflow: not a workflow file name/,
+    'gherkin: auto\nbdd:\n  workflow: ci.yml\n  artifact: a/b': /bdd.artifact: not an artifact name/,
     ': nope': /can't parse line 1/,
     '- just a list': /expected a map/,
   };
   for (const [yaml, error] of Object.entries(cases)) {
     assert.throws(() => configFrom(yaml), (err) => err instanceof ConfigError && error.test(err.message), yaml);
   }
+});
+
+test('gherkin defaults to off; on needs bdd', () => {
+  assert.equal(configFrom('').gherkin, 'off');
+  const config = configFrom('gherkin: always\nbdd:\n  workflow: ci.yml\n  artifact: scaffold-bdd-report');
+  assert.equal(config.gherkin, 'always');
+  assert.deepEqual(config.bdd, { workflow: 'ci.yml', artifact: 'scaffold-bdd-report' });
 });
 
 test('flow_lead: null is allowed (no flow lead)', () => {
@@ -74,6 +87,7 @@ test('the scaffold-config.yml template parses with the released packages on', as
   assert.deepEqual(config.pr_size, DEFAULTS.pr_size);
   for (const k of ['max_in_flight', 'max_stack_prs', 'warn_open_prs_per_developer', 'max_rework_rounds']) assert.equal(config[k], DEFAULTS[k], k);
   assert.deepEqual(PACKAGES.filter((p) => stageOn(config, p)), RELEASED);
+  assert.equal(config.gherkin, 'off');
 });
 
 test('validator handles booleans and maximums', () => {

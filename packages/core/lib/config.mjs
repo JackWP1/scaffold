@@ -9,6 +9,9 @@ export class ConfigError extends Error {}
 
 const SCHEMA = JSON.parse(readFileSync(new URL('../schemas/scaffold-config.schema.json', import.meta.url), 'utf8'));
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+// `bdd.workflow` is a file in .github/workflows/; `bdd.artifact` an Actions artifact name.
+const WORKFLOW_FILE = /^[\w.-]+\.ya?ml$/;
+const ARTIFACT = /^[\w.-]+$/;
 
 // Workflow stages, in order. Each is a package that `stages` turns on; one not listed is off.
 export const PACKAGES = ['intake', 'plan', 'implement', 'review', 'collaboration'];
@@ -16,13 +19,13 @@ export const PACKAGES = ['intake', 'plan', 'implement', 'review', 'collaboration
 export const RELEASED = ['intake', 'plan'];
 
 // Settings whose change needs a listed approver's review (scaffold-config-guard, PLAN.md section 4).
-// `gherkin` and `bdd` arrive in slice 2b; the guard protects them from the start.
 export const PROTECTED = ['stages', 'approvers', 'gherkin', 'bdd', 'max_in_flight', 'max_stack_prs', 'warn_open_prs_per_developer', 'max_rework_rounds', 'pr_size'];
 
 export const DEFAULTS = {
   stages: {},
   approvers: [],
   flow_lead: null,
+  gherkin: 'off',
   max_in_flight: 20,
   max_stack_prs: 5,
   warn_open_prs_per_developer: 2,
@@ -94,6 +97,12 @@ export function configFrom(text) {
     for (const [i, x] of config.pr_size.exempt.entries()) if (!x.trim()) errors.push(`$.pr_size.exempt[${i}]: empty`);
     for (const k of ['files', 'lines']) {
       if (config.pr_size.soft[k] > config.pr_size.hard[k]) errors.push(`$.pr_size.soft.${k}: more than pr_size.hard.${k}`);
+    }
+    // Scenarios need the runner report the scenarios check reads (PLAN.md section 2, Scenarios).
+    if (config.gherkin !== 'off' && config.bdd === undefined) errors.push(`$.bdd: required unless gherkin is off`);
+    if (config.bdd) {
+      if (!WORKFLOW_FILE.test(config.bdd.workflow)) errors.push('$.bdd.workflow: not a workflow file name, e.g. ci.yml');
+      if (!ARTIFACT.test(config.bdd.artifact)) errors.push('$.bdd.artifact: not an artifact name');
     }
     for (const [stage, on] of Object.entries(config.stages)) {
       if (on && !RELEASED.includes(stage)) errors.push(`$.stages.${stage}: not released yet; set it to false`);

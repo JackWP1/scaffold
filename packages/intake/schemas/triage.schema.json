@@ -3,7 +3,7 @@
   "title": "triage output",
   "type": "object",
   "additionalProperties": false,
-  "required": ["decision", "type", "priority", "summary", "questions", "brief", "proposed_tickets"],
+  "required": ["decision", "type", "priority", "summary", "questions", "brief", "proposed_tickets", "scenarios_needed"],
   "properties": {
     "decision": { "type": "string", "enum": ["ready", "needs-info"] },
     "type": { "type": "string", "enum": ["bug", "feature", "chore", "question"] },
@@ -21,6 +21,7 @@
         "out_of_scope": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 300 } }
       }
     },
+    "scenarios_needed": { "type": "boolean" },
     "proposed_tickets": {
       "type": "array",
       "maxItems": 10,

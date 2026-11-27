@@ -34,7 +34,7 @@ test('task-decomposer skill loads from the plan package with the standard tier',
   const skill = await loadSkill(PACKAGE, 'task-decomposer');
   const models = await readFile(new URL('../../core/config/models.yml', import.meta.url), 'utf8');
   assert.equal(skill.model, models.match(/^standard:\s*(\S+)/m)[1]);
-  assert.equal(skill.version, '0.2.0');
+  assert.equal(skill.version, '0.3.0');
   assert.deepEqual(skill.schema, schema);
   assert.ok(skill.system.includes('# Task decomposer'));
   assert.ok(!skill.system.includes('sub-tickets'));
@@ -416,7 +416,7 @@ test('an invalid scaffold-config.yml stops planning before the model call', asyn
 
 test('status gates update one row and keep earlier details', () => {
   const body = setGates(`${MARKER}\n### SCAFFOLD status\n\n| Gate | State |\n| --- | --- |\n| Triage | ✅ ready |\n| Plan | ⏳ |\n| Approval | ⏳ |\n\n**Next:** x\n\nBrief`, { Plan: '📝 planned', Approval: '⏳ waiting' }, 'approve it.');
-  assert.ok(body.includes('| Triage | ✅ ready |\n| Plan | 📝 planned |\n| Approval | ⏳ waiting |'));
+  assert.ok(body.includes('| Triage | ✅ ready |\n| Scenarios | ⏳ pending |\n| Plan | 📝 planned |\n| Approval | ⏳ waiting |'));
   assert.equal(body.match(/\*\*Next:\*\*/g).length, 1);
   assert.ok(body.includes('**Next:** approve it.') && body.includes('Brief'));
 });

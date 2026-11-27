@@ -1,8 +1,10 @@
-# Demo: slices 1 and 2, Phase 1b
+# Demo: slices 1, 2 and 2b, Phase 1b
 
 What runs, slice 1: an issue opened in a repo with the SCAFFOLD caller → one Copilot CLI call with no tools (`triage` skill, `fast` tier) → schema-validated JSON → Actions code applies `scaffold:*` and `priority:*` labels and one status comment.
 
 What runs, slice 2: a member comments `/plan` → one Copilot CLI call (`task-decomposer` skill, `standard` tier) → schema-validated plan, checked against the size rules → plan comment and `scaffold:planned`. A listed approver applies `scaffold:plan-approved` → the plan gate (no model) checks the timeline and either keeps the label or removes it.
+
+What runs, slice 2b: with `gherkin` on, triage decides an issue needs acceptance scenarios → `scaffold:needs-gherkin` and a marked scenarios comment (from the Request form's Gherkin field, or drafted by `gherkin-writer`, `standard` tier) → a listed approver applies `scaffold:gherkin-approved` → the scenarios gate (no model) checks the timeline and that the Gherkin parses → `scaffold:ready`. `/plan` then maps each scenario to a PR.
 
 What changes, Phase 1b: intake and plan are packages that `stages` in `scaffold-config.yml` turns on; a package that is off does nothing and humans follow its `HANDOFF.md`. A plan is one PR or a stack of up to `max_stack_prs` PRs; anything bigger gets `scaffold:too-big` and goes back to triage, which proposes smaller tickets. `scaffold-config-guard` checks config PRs, and a weekly usage report is posted to an issue.
 
@@ -14,6 +16,7 @@ What changes, Phase 1b: intake and plan are packages that `stages` in `scaffold-
 4. In the sandbox: Actions → SCAFFOLD → Run workflow → `labels`. This creates the labels, including `scaffold:too-big`.
 5. In the sandbox's `.github/scaffold-config.yml`, set `approvers` to your login and a second account's. Keep `stages` from the template (`intake` and `plan` on): **a config without `stages` turns every package off**, so a sandbox upgraded from v0.4.0 does nothing until `stages` is added.
 6. Ruleset on the sandbox's default branch: require the `config-guard / scaffold-config-guard` check.
+7. Copy `packages/intake/templates/request.yml` to `.github/ISSUE_TEMPLATE/request.yml` in `JackWP1/.github`, for the Scenarios (Gherkin) field. Re-copy the caller template into the sandbox: it now listens for labels being removed.
 
 ## Cutting a release
 
@@ -68,6 +71,26 @@ Use the second account from step 5 as the issue author where the author matters.
 | 10 | On an issue planned under v0.4.0 as sub-tickets, apply `scaffold:plan-approved` | Label removed: "sub-tickets removed: run `/plan` again"; `scaffold:planned` kept |
 | 11 | Actions → SCAFFOLD → Run workflow → `usage-report` | "SCAFFOLD usage report" issue created once; a comment with runs per skill and job, gate outcomes, hours to approval and stages |
 
+## Slice 2b demo script
+
+In the sandbox's `.github/scaffold-config.yml`, set `gherkin: auto` and add `bdd:` with `workflow: ci.yml` and `artifact: scaffold-bdd-report` (the scenarios check that reads them comes in slice 3).
+
+| Step | Do | Expect |
+| --- | --- | --- |
+| 1 | Open a feature request with the Request form, Gherkin field empty | `scaffold:needs-gherkin`; a scenarios comment drafted by `gherkin-writer`, numbered S1.., tagged `@scaffold-<issue>-S<n>`; Scenarios row 📝 drafted; Plan row waiting for approved scenarios |
+| 2 | Open another with a valid Feature in the Gherkin field | Scenarios comment holds the author's scenarios ("Source: the issue's Scenarios (Gherkin) field") |
+| 3 | Open one whose Gherkin field doesn't parse | No scenarios comment; Scenarios row ⚠️ with the line that failed |
+| 4 | Open a chore (e.g. "bump a dependency") | `scaffold:ready`; Scenarios row ➖ not needed |
+| 5 | Comment `/plan` on issue 1 | 😕 reaction: not ready until the scenarios are approved |
+| 6 | Comment `/gherkin also cover a locked account` on issue 1 | 👀; scenarios comment redrafted; Scenarios row 📝 redrafted |
+| 7 | Apply `scaffold:gherkin-approved` as the issue author, or someone not in `approvers` | Label removed with the reason in the Scenarios row |
+| 8 | Apply `scaffold:gherkin-approved` as a listed approver | `scaffold:needs-gherkin` swapped for `scaffold:ready`; Scenarios row ✅ with the hash |
+| 9 | `/plan` issue 1 | Plan lists `Scenarios: S1, …` under each sub-task; every scenario mapped. Approve the plan: passes |
+| 10 | Edit the scenarios comment | `scaffold:gherkin-approved` and `scaffold:plan-approved` removed, `scaffold:needs-gherkin` back, `scaffold:planned` kept |
+| 11 | Re-approve the scenarios, then apply `scaffold:plan-approved` without `/plan` | Plan gate fails: "the scenarios changed since this plan was made" |
+| 12 | Remove `scaffold:needs-gherkin` from an issue as a member; then set `gherkin: always` and remove it from another | First goes to `scaffold:ready` (override); second gets the label back with the reason |
+| 13 | Run the usage report | Rows for scenarios needed, approvals passed and failed or withdrawn, and median hours to approval; `gherkin-writer` model calls from `/gherkin` |
+
 ## Not in the demo yet
 
 From slice 1: Dependabot bumps for the caller pin, ajv, audit artifact, Projects board automation, Jira form validation, the generated label state machine.
@@ -75,3 +98,5 @@ From slice 1: Dependabot bumps for the caller pin, ajv, audit artifact, Projects
 From slice 2: the plan gate as a required check on PRs (slice 3, when PRs exist); @-mentioning the flow lead when an in-flight slot frees up.
 
 From Phase 1b: model cost and false positives in the usage report; checks from an off package passing as "stage off: manual" (no package has a required check until slice 3).
+
+From slice 2b: the scenarios check on PRs with the BDD runner report (slice 3); `gherkin-writer` drafts made in the triage run counted as model calls (the report counts `/gherkin` jobs only); a member's `scaffold:needs-gherkin` override surviving re-triage.

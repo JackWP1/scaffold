@@ -1,5 +1,5 @@
 # SCAFFOLD settings for this repo (PLAN.md sections 5, 6 and 8). Protect with CODEOWNERS.
-# scaffold-config-guard requires a listed approver's review for changes to stages, approvers and limits.
+# scaffold-config-guard requires a listed approver's review for changes to stages, approvers, gherkin, bdd and limits.
 
 # Packages on (true) or off (false). A package not listed is off; when one is off, humans do that
 # stage by hand (packages/<stage>/HANDOFF.md). Only released packages can be turned on.
@@ -10,12 +10,20 @@ stages:
   review: false           # not released yet (slice 4)
   collaboration: false    # not released yet (slice 5)
 
-# GitHub logins that can approve plans (scaffold:plan-approved). The issue author can't approve their own issue.
+# GitHub logins that can approve plans and scenarios (scaffold:plan-approved, scaffold:gherkin-approved). The issue author can't approve their own issue.
 approvers:
   - your-login
 
 # Rotating developer who orders the backlog and watches escalations (changed by PR each rotation).
 flow_lead: your-login
+
+# Acceptance scenarios in Gherkin (PLAN.md section 2, Scenarios): off, auto (triage decides) or always.
+# Turning them on means adding `bdd` in the same PR: the CI workflow and artifact holding its
+# Cucumber JSON report, read by the scenarios check.
+gherkin: off
+# bdd:
+#   workflow: ci.yml
+#   artifact: scaffold-bdd-report
 
 # Tickets in flight at once, from /plan until merged, closed, too big or back to Ready; 1–100.
 max_in_flight: 20

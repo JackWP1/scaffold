@@ -24,3 +24,13 @@ test('timeline approval uses the latest event applying the label', () => {
   assert.equal(check({ events: [applied('alice'), applied('mallory')] }).ok, false);
   assert.equal(check({ events: [applied('mallory'), applied('alice')] }).ok, true);
 });
+
+test('an approval removed after it was applied no longer counts', async () => {
+  const { checkApproval } = await import('../lib/approval.mjs');
+  const applied = { id: 1, event: 'labeled', label: { name: 'x:ok' }, actor: { login: 'alice', type: 'User' }, created_at: '2026-01-02T00:00:00Z' };
+  const removed = { id: 2, event: 'unlabeled', label: { name: 'x:ok' }, actor: { login: 'bob', type: 'User' }, created_at: '2026-01-03T00:00:00Z' };
+  const args = { label: 'x:ok', author: 'carol', approvers: ['alice'], comment: { body: 'b', updated_at: '2026-01-01T00:00:00Z' }, what: 'thing' };
+  assert.equal(checkApproval({ ...args, events: [applied] }).ok, true);
+  assert.match(checkApproval({ ...args, events: [applied, removed] }).reason, /`x:ok` was removed after it was applied/);
+  assert.equal(checkApproval({ ...args, events: [applied, removed, { ...applied, id: 3, created_at: '2026-01-04T00:00:00Z' }] }).ok, true);
+});

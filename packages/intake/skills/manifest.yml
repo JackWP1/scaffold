@@ -1,4 +1,8 @@
 triage:
-  version: 0.2.0
+  version: 0.3.0
   tier: fast
   schema: schemas/triage.schema.json
+gherkin-writer:
+  version: 0.1.0
+  tier: standard
+  schema: schemas/gherkin.schema.json

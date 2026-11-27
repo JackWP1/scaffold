@@ -30,7 +30,7 @@ jobs:
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - id: admit
-        uses: JackWP1/scaffold/packages/plan/actions/plan@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
+        uses: JackWP1/scaffold/packages/plan/actions/plan@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
         with:
           mode: admit
 
@@ -52,20 +52,22 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/plan/actions/plan@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
+      - uses: JackWP1/scaffold/packages/plan/actions/plan@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
         with:
           mode: plan
           issue: ${{ matrix.issue }}
           comment: ${{ matrix.comment }}
           model: ${{ inputs.model }}
 
-  # Any edit to or deletion of a bot comment: the gate works out whether it was the plan, even if
-  # the edit removed the marker.
+  # Any edit to or deletion of a bot comment, or of a scenarios comment (a member may write it by hand
+  # when intake is off): the gate works out whether it was the plan or the scenarios, even if the edit
+  # removed the marker. A changed scenarios comment withdraws an approved plan.
   gate:
     if: >-
       !github.event.issue.pull_request && (
         (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved') ||
-        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && github.event.comment.user.login == 'github-actions[bot]')
+        (github.event_name == 'issues' && github.event.action == 'unlabeled' && github.event.label.name == 'scaffold:gherkin-approved') ||
+        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && (github.event.comment.user.login == 'github-actions[bot]' || startsWith(github.event.comment.body, '<!-- scaffold:scenarios -->') || startsWith(github.event.changes.body.from, '<!-- scaffold:scenarios -->')))
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -77,4 +79,4 @@ jobs:
       contents: read
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/plan/actions/gate@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
+      - uses: JackWP1/scaffold/packages/plan/actions/gate@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
