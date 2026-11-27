@@ -6,7 +6,7 @@ import { configFrom } from '../lib/config.mjs';
 test('status gates add a table when there is none', () => {
   const body = setGates(undefined, { Plan: '⏸️ waiting' }, 'wait.');
   assert.ok(body.startsWith(MARKER));
-  assert.ok(body.includes('| Triage | ⏳ pending |\n| Scenarios | ⏳ pending |\n| Plan | ⏸️ waiting |\n| Approval | ⏳ pending |\n\n**Next:** wait.'));
+  assert.ok(body.includes('| Triage | ⏳ pending |\n| Scenarios | ⏳ pending |\n| Plan | ⏸️ waiting |\n| Approval | ⏳ pending |\n| Conflicts | ⏳ pending |\n\n**Next:** wait.'));
 });
 
 test('status gates replace a row with text containing $ patterns', () => {
@@ -16,14 +16,15 @@ test('status gates replace a row with text containing $ patterns', () => {
 
 test('stages that are off show as manual rows', () => {
   const bdd = 'bdd:\n  workflow: ci.yml\n  artifact: r';
-  assert.deepEqual(manualStates(configFrom(`stages:\n  intake: true\n  plan: true\ngherkin: auto\n${bdd}`)), {});
-  assert.deepEqual(manualStates(configFrom(`stages:\n  plan: true\ngherkin: auto\n${bdd}`)), { Triage: manual('intake'), Scenarios: manual('intake') });
-  assert.deepEqual(Object.keys(manualStates(configFrom('stages:\n  intake: true'))), ['Plan', 'Approval', 'Scenarios']);
+  const collab = 'collaboration: true';
+  assert.deepEqual(manualStates(configFrom(`stages:\n  intake: true\n  plan: true\n  ${collab}\ngherkin: auto\n${bdd}`)), {});
+  assert.deepEqual(manualStates(configFrom(`stages:\n  plan: true\n  ${collab}\ngherkin: auto\n${bdd}`)), { Triage: manual('intake'), Scenarios: manual('intake') });
+  assert.deepEqual(Object.keys(manualStates(configFrom('stages:\n  intake: true'))), ['Plan', 'Approval', 'Conflicts', 'Scenarios']);
   assert.match(manual('plan'), /manual \(`plan` stage off: see `packages\/plan\/HANDOFF.md`\)/);
 });
 
 test('scenarios off shows its row as not used, whatever the stages', () => {
-  assert.deepEqual(manualStates(configFrom('stages:\n  intake: true\n  plan: true')), { Scenarios: SCENARIOS_OFF });
+  assert.deepEqual(manualStates(configFrom('stages:\n  intake: true\n  plan: true')), { Conflicts: manual('collaboration'), Scenarios: SCENARIOS_OFF });
   assert.equal(manualStates(configFrom('')).Scenarios, SCENARIOS_OFF);
 });
 

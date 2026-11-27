@@ -27,7 +27,6 @@ test('an invalid scaffold-config.yml is rejected, not replaced by defaults', () 
     'stages: on': /stages: expected object/,
     'stages:\n  plan: yes': /stages.plan: expected true or false/,
     'stages:\n  deploy: true': /stages.deploy: not allowed/,
-    'stages:\n  collaboration: true': /stages.collaboration: not released yet/,
     'ci_workflows: ci.yml': /ci_workflows: expected array/,
     'ci_workflows: [ci]': /ci_workflows\[0\]: not a workflow file name/,
     'approvers: alice': /approvers: expected array/,

@@ -8,7 +8,7 @@ stages:
   plan: true
   implement: true
   review: true
-  collaboration: false    # not released yet (slice 5)
+  collaboration: true
 
 # GitHub logins that can approve plans and scenarios (scaffold:plan-approved, scaffold:gherkin-approved). The issue author can't approve their own issue.
 approvers:

@@ -71,6 +71,17 @@ jobs:
       copilot-requests: write
     uses: JackWP1/scaffold/.github/workflows/review.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
 
+  # Collaboration package: conflict-check after plan approval and after an approving review, conflict
+  # resolution, merge order. Make `collaboration / scaffold-merge-order` a required check.
+  collaboration:
+    if: github.event_name == 'merge_group' || github.event_name == 'pull_request' || github.event_name == 'pull_request_review' || (github.event_name == 'issues' && contains(fromJSON('["scaffold:plan-approved","scaffold:conflict-resolved"]'), github.event.label.name))
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      copilot-requests: write
+    uses: JackWP1/scaffold/.github/workflows/collaboration.yml@bdd9ad835e573d4c9a918584a1a2042c01dbc606 # v0.8.0
+
   # Core, always on: make `config-guard / scaffold-config-guard` a required check in the ruleset.
   config-guard:
     if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review' || github.event_name == 'merge_group'

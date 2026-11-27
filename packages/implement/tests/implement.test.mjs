@@ -111,8 +111,8 @@ test('runImplementCheck reads config from the base commit; status rows go in the
   assert.deepEqual(states, { 'Plan gate': '✅ #7', Size: '⚠️ check didn\'t finish: re-run it', 'Work in progress': '➖ no developer assigned' });
   const body = s.calls.filter(([m]) => m === 'POST').at(-1)[2].body;
   assert.ok(body.startsWith(MARKER));
-  assert.ok(body.includes(`| Plan gate | ✅ #7 |\n| Size | ⚠️ check didn't finish: re-run it |\n| Review gate | ⏳ pending |\n| Rework | ⏳ pending |\n| Work in progress | ➖ no developer assigned |\n\n**Next:** fix the failing rows (Size)`));
-  assert.deepEqual(PR_GATES, ['Plan gate', 'Size', 'Review gate', 'Rework', 'Work in progress']);
+  assert.ok(body.includes(`| Plan gate | ✅ #7 |\n| Size | ⚠️ check didn't finish: re-run it |\n| Review gate | ⏳ pending |\n| Rework | ⏳ pending |\n| Work in progress | ➖ no developer assigned |\n| Conflicts | ⏳ pending |\n| Merge order | ⏳ pending |\n\n**Next:** fix the failing rows (Size)`));
+  assert.deepEqual(PR_GATES, ['Plan gate', 'Size', 'Review gate', 'Rework', 'Work in progress', 'Conflicts', 'Merge order']);
 });
 
 test('/size-exception: members record a reason for a listed approver; others are refused', async () => {

@@ -6,7 +6,7 @@
 # plain values; no "#" inside values.
 
 # Labels SCAFFOLD defines for later slices, so labels.yml and this file stay in step.
-reserved_labels: [scaffold:conflict, scaffold:conflict-resolved, scaffold:order-override, scaffold:diagram-unchanged]
+reserved_labels: [scaffold:diagram-unchanged]
 
 # Core: always on. Its workflows run whatever `stages` says.
 core:
@@ -42,6 +42,13 @@ stages:
     triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request.ready_for_review]
     labels: []
     gates: [Copilot PR → human review]
+  collaboration:
+    workflow: collaboration.yml
+    skills: [conflict-check]
+    checks: [scaffold-merge-order]
+    triggers: [issues.labeled, issues.unlabeled, pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request_review.submitted, merge_group.checks_requested]
+    labels: [scaffold:conflict, scaffold:conflict-resolved, scaffold:order-override]
+    gates: [Conflict flagged → cleared, Merge order → override, PR → mergeable]
 
 # The Current diagram. kind: human (a person must act), check (automated), ai (model step) or state.
 # owner: scaffold (a package or core runs it) or manual. Edges use Mermaid syntax: a --> b or a -- label --> b.

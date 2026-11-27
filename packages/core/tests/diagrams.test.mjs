@@ -39,16 +39,16 @@ test('caller triggers and jobs are read from the caller template', async () => {
   const caller = await read('templates/caller/.github/workflows/scaffold.yml');
   const triggers = callerTriggers(caller);
   assert.ok(triggers.includes('issues.labeled') && triggers.includes('pull_request_review.dismissed') && triggers.includes('schedule') && triggers.includes('workflow_dispatch'));
-  assert.deepEqual(Object.keys(workflowJobs(caller)), ['triage', 'plan', 'implement', 'review', 'config-guard', 'checks', 'usage-report', 'labels']);
+  assert.deepEqual(Object.keys(workflowJobs(caller)), ['triage', 'plan', 'implement', 'review', 'collaboration', 'config-guard', 'checks', 'usage-report', 'labels']);
   assert.deepEqual(workflowJobs(await read('.github/workflows/plan.yml')).plan.needs, ['admit']);
 });
 
 test('workflow.yml drift from labels, triggers, workflows or skills is caught', async () => {
   const workflow = parseWorkflow(await read('packages/core/config/workflow.yml'));
   const callerYaml = await read('templates/caller/.github/workflows/scaffold.yml');
-  const workflowFiles = { 'triage.yml': await read('.github/workflows/triage.yml'), 'plan.yml': await read('.github/workflows/plan.yml'), 'labels.yml': '', 'config-guard.yml': '', 'usage-report.yml': '', 'checks.yml': '', 'implement.yml': '', 'review.yml': '', 'extra.yml': '' };
+  const workflowFiles = { 'triage.yml': await read('.github/workflows/triage.yml'), 'plan.yml': await read('.github/workflows/plan.yml'), 'labels.yml': '', 'config-guard.yml': '', 'usage-report.yml': '', 'checks.yml': '', 'implement.yml': '', 'review.yml': '', 'collaboration.yml': '', 'extra.yml': '' };
   const labels = [...workflow.reserved_labels, ...workflow.core.labels, ...Object.values(workflow.stages).flatMap((s) => s.labels)];
-  const skills = { intake: ['triage', 'gherkin-writer'], plan: ['task-decomposer', 'gherkin-writer'], implement: [], review: ['code-review', 'ci-diagnose'] };
+  const skills = { intake: ['triage', 'gherkin-writer'], plan: ['task-decomposer', 'gherkin-writer'], implement: [], review: ['code-review', 'ci-diagnose'], collaboration: ['conflict-check'] };
   const problems = consistencyProblems({ workflow, labels: [...labels.filter((l) => l !== 'scaffold:too-big'), 'scaffold:new'], callerYaml: callerYaml.replace(', dismissed', ''), workflowFiles, skills });
   assert.deepEqual(problems.sort(), [
     'label scaffold:new is in labels.yml but not in workflow.yml',

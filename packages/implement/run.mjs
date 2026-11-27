@@ -5,11 +5,11 @@ import { tryLoadConfig } from '../core/lib/config.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
 import { prFiles } from '../core/lib/pr.mjs';
 import { issueSteps } from '../core/lib/issue.mjs';
-import { MARKER, setGates } from '../core/lib/status.mjs';
+import { MARKER, setGates, PR_GATES } from '../core/lib/status.mjs';
 import { planGate, sizeCheck, SIZE_COMMAND, SIZE_EXCEPTION } from './checks.mjs';
 import { reviewGate, COPILOT } from './review.mjs';
 
-export const PR_GATES = ['Plan gate', 'Size', 'Review gate', 'Rework', 'Work in progress'];
+export { PR_GATES };
 export const CHECKS = { 'scaffold-plan-gate': planGate, 'scaffold-pr-size': sizeCheck, 'scaffold-review-gate': reviewGate };
 // Rows the status job writes from the parallel checks' outputs. The review gate writes its own rows:
 // it waits for the others, so it finishes last.
