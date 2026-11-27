@@ -8,7 +8,7 @@ on:
   issue_comment:
     types: [created, edited, deleted]
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   pull_request_review:
     types: [submitted, dismissed]
   schedule:
@@ -58,6 +58,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      issues: write
     uses: JackWP1/scaffold/.github/workflows/checks.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
   # Core, always on: weekly, or run manually (Actions → SCAFFOLD → Run workflow → usage-report).

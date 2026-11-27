@@ -41,6 +41,9 @@
 - name: scaffold:conflict-resolved
   color: "d4c5f9"
   description: Conflict cleared by a listed approver
+- name: scaffold:test-change-approved
+  color: "d4c5f9"
+  description: Test or scenario changes approved by a listed approver
 - name: scaffold:size-exception
   color: "d4c5f9"
   description: Soft PR size limit lifted by a listed approver

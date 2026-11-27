@@ -7,7 +7,7 @@ const ROOT = new URL('../../../', import.meta.url);
 const labels = parseLabels(await readFile(new URL('packages/core/config/labels.yml', ROOT), 'utf8'));
 
 test('labels config parses with every scaffold label', () => {
-  assert.equal(labels.length, 20);
+  assert.equal(labels.length, 21);
   assert.deepEqual(labels[0], { name: 'scaffold:triage', color: 'ededed', description: 'SCAFFOLD is triaging this issue' });
   assert.ok(labels.every((l) => /^[0-9a-f]{6}$/.test(l.color)));
 });

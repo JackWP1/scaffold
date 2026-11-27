@@ -3,7 +3,8 @@
 // (packages/intake/templates/manual-gherkin.md) passes the same check.
 import { checkApproval } from './approval.mjs';
 import { escapeForComment } from './text.mjs';
-import { parseGherkin, scenariosText, scenarioTag, SCENARIOS_MARKER } from './gherkin.mjs';
+import { parseGherkin, scenariosText, scenarioTag, scenarioHash, SCENARIOS_MARKER } from './gherkin.mjs';
+import { issueSteps } from './issue.mjs';
 
 export { SCENARIOS_MARKER };
 export const GHERKIN_APPROVED = 'scaffold:gherkin-approved';
@@ -56,4 +57,18 @@ export function checkScenarios({ events, issue, author, approvers, comments }) {
   const untagged = scenarios.findIndex((s, i) => !s.tags.includes(scenarioTag(issue, i + 1)));
   if (untagged >= 0) return fail(`scenario ${untagged + 1} isn't tagged \`${scenarioTag(issue, untagged + 1)}\``);
   return { ...approval, ids: scenarios.map((_, i) => `S${i + 1}`), comment };
+}
+
+// The issue's approved scenarios as tag → hash of their steps, or an empty map when they aren't
+// approved (or `gherkin` is off). Used by the PR checks to tell an approved change from any other.
+export async function approvedScenarios(gh, repo, issueNumber, config) {
+  if (!issueNumber || !config || config.gherkin === 'off') return { ok: false, map: new Map() };
+  const issue = await gh.get(`/repos/${repo}/issues/${issueNumber}`);
+  const { events } = issueSteps(gh, repo, issueNumber, issue.labels.map((l) => l.name));
+  const result = checkScenarios({
+    events: await events(), issue: issueNumber, author: issue.user?.login, approvers: config.approvers, comments: await scenarioComments(gh, repo, issueNumber),
+  });
+  if (!result.ok) return { ...result, map: new Map() };
+  const { scenarios } = parseGherkin(scenariosText(result.comment.body));
+  return { ...result, issue, map: new Map(scenarios.map((sc, i) => [scenarioTag(issueNumber, i + 1), scenarioHash(sc)])) };
 }

@@ -47,7 +47,7 @@ test('workflow.yml drift from labels, triggers, workflows or skills is caught', 
   const workflow = parseWorkflow(await read('packages/core/config/workflow.yml'));
   const callerYaml = await read('templates/caller/.github/workflows/scaffold.yml');
   const workflowFiles = { 'triage.yml': await read('.github/workflows/triage.yml'), 'plan.yml': await read('.github/workflows/plan.yml'), 'labels.yml': '', 'config-guard.yml': '', 'usage-report.yml': '', 'checks.yml': '', 'extra.yml': '' };
-  const labels = [...workflow.reserved_labels, ...Object.values(workflow.stages).flatMap((s) => s.labels)];
+  const labels = [...workflow.reserved_labels, ...workflow.core.labels, ...Object.values(workflow.stages).flatMap((s) => s.labels)];
   const skills = { intake: ['triage', 'gherkin-writer'], plan: ['task-decomposer', 'gherkin-writer'] };
   const problems = consistencyProblems({ workflow, labels: [...labels.filter((l) => l !== 'scaffold:too-big'), 'scaffold:new'], callerYaml: callerYaml.replace(', dismissed', ''), workflowFiles, skills });
   assert.deepEqual(problems.sort(), [

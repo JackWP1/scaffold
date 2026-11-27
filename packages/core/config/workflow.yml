@@ -11,8 +11,9 @@ reserved_labels: [scaffold:escalate, scaffold:conflict, scaffold:conflict-resolv
 # Core: always on. Its workflows run whatever `stages` says.
 core:
   workflows: [labels.yml, config-guard.yml, usage-report.yml, checks.yml]
-  checks: [scaffold-config-guard, scaffold-protected-paths, scaffold-hard-size]
-  triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request_review.submitted, pull_request_review.dismissed, schedule, workflow_dispatch]
+  checks: [scaffold-config-guard, scaffold-protected-paths, scaffold-hard-size, scaffold-test-integrity]
+  labels: [scaffold:test-change-approved]
+  triggers: [pull_request.opened, pull_request.synchronize, pull_request.reopened, pull_request.edited, pull_request.labeled, pull_request.unlabeled, pull_request_review.submitted, pull_request_review.dismissed, schedule, workflow_dispatch]
 
 # Packages, in workflow order. Each is switched by `stages` in scaffold-config.yml.
 stages:

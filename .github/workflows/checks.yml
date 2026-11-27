@@ -36,3 +36,19 @@ jobs:
       - uses: JackWP1/scaffold/packages/core/actions/pr-check@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
         with:
           check: scaffold-hard-size
+
+  scaffold-test-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scaffold-test-integrity-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/core/actions/pr-check@2794477f75c54702cbf71973707bf271db431780 # v0.6.0
+        with:
+          check: scaffold-test-integrity

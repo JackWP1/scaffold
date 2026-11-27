@@ -10,7 +10,7 @@ const summary = (lines) => appendFile(process.env.GITHUB_STEP_SUMMARY ?? '/dev/n
 if (!event.pull_request) {
   await summary([`### ${check}`, 'Skipped: not a pull request event']);
 } else {
-  const { ok, outcome, lines } = await runCheck(github(process.env.GITHUB_TOKEN), process.env.GITHUB_REPOSITORY, { check, pr: event.pull_request });
+  const { ok, outcome, lines } = await runCheck(github(process.env.GITHUB_TOKEN), process.env.GITHUB_REPOSITORY, { check, pr: event.pull_request, event });
   await summary(lines);
   if (!ok) {
     console.log(`::error::${outcome}`);

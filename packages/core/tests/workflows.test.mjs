@@ -49,7 +49,7 @@ test('the caller listens for every event a package needs, and grants what each r
   const caller = await read('templates/caller/.github/workflows/scaffold.yml');
   assert.match(caller, /issues:\n\s+types: \[opened, edited, reopened, labeled, unlabeled\]/);
   assert.match(caller, /issue_comment:\n\s+types: \[created, edited, deleted\]/);
-  assert.match(caller, /pull_request:\n\s+types: \[opened, synchronize, reopened\]/);
+  assert.match(caller, /pull_request:\n\s+types: \[opened, synchronize, reopened, edited, labeled, unlabeled\]/);
   assert.match(caller, /pull_request_review:\n\s+types: \[submitted, dismissed\]/);
   assert.match(caller, /schedule:\n\s+- cron:/);
   assert.doesNotMatch(caller, /pull_request_target/);

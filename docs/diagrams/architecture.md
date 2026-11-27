@@ -98,6 +98,7 @@ flowchart LR
   subgraph w_checks_yml["checks.yml"]
     w_checks_yml_scaffold_protected_paths["scaffold-protected-paths"]
     w_checks_yml_scaffold_hard_size["scaffold-hard-size"]
+    w_checks_yml_scaffold_test_integrity["scaffold-test-integrity"]
   end
   subgraph w_config_guard_yml["config-guard.yml"]
     w_config_guard_yml_scaffold_config_guard["scaffold-config-guard"]
@@ -127,6 +128,7 @@ flowchart LR
   c_labels --> w_labels_yml
   w_checks_yml_scaffold_protected_paths --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
   w_checks_yml_scaffold_hard_size --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
+  w_checks_yml_scaffold_test_integrity --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
   w_config_guard_yml_scaffold_config_guard --> a_packages_core_actions_config_guard["packages/core/actions/config-guard"]
   w_labels_yml_labels --> a_packages_core_actions_labels["packages/core/actions/labels"]
   w_plan_yml_admit --> a_packages_plan_actions_plan["packages/plan/actions/plan"]
