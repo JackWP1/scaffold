@@ -27,7 +27,7 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@00cae4a12b66ea2ddb205ef2d18e78caa7a7781f # v0.9.0
+      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
         env:
           SCAFFOLD_ENABLED: ${{ vars.SCAFFOLD_ENABLED }}
         with:
@@ -49,7 +49,7 @@ jobs:
       copilot-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@00cae4a12b66ea2ddb205ef2d18e78caa7a7781f # v0.9.0
+      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
         env:
           SCAFFOLD_ENABLED: ${{ vars.SCAFFOLD_ENABLED }}
         with:
@@ -68,7 +68,7 @@ jobs:
       issues: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@00cae4a12b66ea2ddb205ef2d18e78caa7a7781f # v0.9.0
+      - uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
         with:
           mode: resolve
 
@@ -90,6 +90,6 @@ jobs:
         run: echo "### scaffold-merge-order\n✅ not in the merge queue: the order is checked there" >> "$GITHUB_STEP_SUMMARY"
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - if: github.event_name == 'merge_group'
-        uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@00cae4a12b66ea2ddb205ef2d18e78caa7a7781f # v0.9.0
+        uses: JackWP1/scaffold/packages/collaboration/actions/collaboration@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
         with:
           mode: merge-order
