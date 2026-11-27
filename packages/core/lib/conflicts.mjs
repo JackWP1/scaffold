@@ -9,7 +9,7 @@ const BOT = 'github-actions[bot]';
 
 // { open, flaggedAt?, resolvedBy?, reason? }. A conflict is open from SCAFFOLD's latest scaffold:conflict
 // until a listed approver applies scaffold:conflict-resolved after it (and doesn't remove it again).
-// Removing scaffold:conflict by hand doesn't clear it.
+// Removing scaffold:conflict by hand doesn't clear it (and collaboration puts it back).
 export function conflictState({ events, approvers }) {
   // `events` is in timeline order (issueSteps sorts by time, then id): what follows the flag is what came after.
   const at = events.findLastIndex((e) => e.event === 'labeled' && e.label?.name === CONFLICT && e.actor?.login === BOT);

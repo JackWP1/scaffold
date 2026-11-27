@@ -74,7 +74,7 @@ jobs:
   # Collaboration package: conflict-check after plan approval and after an approving review, conflict
   # resolution, merge order. Make `collaboration / scaffold-merge-order` a required check.
   collaboration:
-    if: github.event_name == 'merge_group' || github.event_name == 'pull_request' || github.event_name == 'pull_request_review' || (github.event_name == 'issues' && contains(fromJSON('["scaffold:plan-approved","scaffold:conflict-resolved"]'), github.event.label.name))
+    if: github.event_name == 'merge_group' || github.event_name == 'pull_request' || github.event_name == 'pull_request_review' || (github.event_name == 'issues' && contains(fromJSON('["scaffold:plan-approved","scaffold:conflict-resolved","scaffold:conflict"]'), github.event.label.name))
     permissions:
       contents: read
       issues: write

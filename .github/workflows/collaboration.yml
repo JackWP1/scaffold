@@ -57,7 +57,7 @@ jobs:
           model: ${{ inputs.model }}
 
   resolve:
-    if: github.event_name == 'issues' && contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && github.event.label.name == 'scaffold:conflict-resolved'
+    if: github.event_name == 'issues' && ((contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && github.event.label.name == 'scaffold:conflict-resolved') || (github.event.action == 'unlabeled' && github.event.label.name == 'scaffold:conflict'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:

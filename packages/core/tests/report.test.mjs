@@ -55,6 +55,9 @@ test('summarise counts conflicts: flagged, repeats, resolved and hours to resolv
   const n = summarise({ runs: [], jobs: {}, events, comments, conflictQueue: 2, approvers: ['alice'] });
   assert.deepEqual(n.collaboration, { flagged: 3, resolved: 1, medianHoursToResolve: 4, repeatFlagged: 1, falsePositives: 1, queueNow: 2 });
   assert.match(renderReport({ from: 'a', to: 'b', numbers: n, config: configFrom('') }), /\| Collaboration: median hours from flag to resolution \| 4\.0 \|/);
+  const same = '2026-11-22T10:00:00Z';
+  const tie = summarise({ runs: [], jobs: {}, events: [ev('labeled', 'scaffold:conflict-resolved', alice, 9, same), ev('labeled', 'scaffold:conflict', bot, 9, same)], approvers: ['alice'] });
+  assert.equal(tie.collaboration.resolved, 0, 'a resolution earlier in the timeline isn\'t paired with a later flag');
 });
 
 test('summarise counts code-review comments, diagnoses and 👎 false positives', () => {

@@ -5,7 +5,8 @@ import { tryLoadConfig } from '../core/lib/config.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
 import { prFiles } from '../core/lib/pr.mjs';
 import { issueSteps } from '../core/lib/issue.mjs';
-import { MARKER, setGates, PR_GATES } from '../core/lib/status.mjs';
+import { MARKER, setGates, PR_GATES, manual } from '../core/lib/status.mjs';
+import { stageOn } from '../core/lib/config.mjs';
 import { planGate, sizeCheck, SIZE_COMMAND, SIZE_EXCEPTION } from './checks.mjs';
 import { reviewGate, COPILOT } from './review.mjs';
 
@@ -59,6 +60,8 @@ export async function writeStatus(gh, repo, { pr, rows }) {
   const failing = Object.entries(states).filter(([, s]) => !s.startsWith('✅')).map(([g]) => g);
   const { config } = await tryLoadConfig(gh, repo, pr.base.sha);
   if (config) states['Work in progress'] = await workInProgress(gh, repo, pr, config);
+  // Collaboration's rows: manual when it's off (it writes them itself when on).
+  if (config && !stageOn(config, 'collaboration')) Object.assign(states, { Conflicts: manual('collaboration'), 'Merge order': manual('collaboration') });
   const next = failing.length
     ? `fix the failing rows (${failing.join(', ')}); the checks re-run on each push.`
     : 'the review gate requests human review once every check has passed.';

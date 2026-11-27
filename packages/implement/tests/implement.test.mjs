@@ -108,10 +108,11 @@ test('runImplementCheck reads config from the base commit; status rows go in the
   assert.ok(g.calls.some(([, p]) => p.includes('scaffold-config.yml?ref=base')));
   const s = gh();
   const states = await writeStatus(s, 'o/r', { pr, rows: { 'Plan gate': '✅ #7', Size: '' } });
-  assert.deepEqual(states, { 'Plan gate': '✅ #7', Size: '⚠️ check didn\'t finish: re-run it', 'Work in progress': '➖ no developer assigned' });
+  const collabOff = '✋ manual (`collaboration` stage off: see `packages/collaboration/HANDOFF.md`)';
+  assert.deepEqual(states, { 'Plan gate': '✅ #7', Size: '⚠️ check didn\'t finish: re-run it', 'Work in progress': '➖ no developer assigned', Conflicts: collabOff, 'Merge order': collabOff });
   const body = s.calls.filter(([m]) => m === 'POST').at(-1)[2].body;
   assert.ok(body.startsWith(MARKER));
-  assert.ok(body.includes(`| Plan gate | ✅ #7 |\n| Size | ⚠️ check didn't finish: re-run it |\n| Review gate | ⏳ pending |\n| Rework | ⏳ pending |\n| Work in progress | ➖ no developer assigned |\n| Conflicts | ⏳ pending |\n| Merge order | ⏳ pending |\n\n**Next:** fix the failing rows (Size)`));
+  assert.ok(body.includes(`| Plan gate | ✅ #7 |\n| Size | ⚠️ check didn't finish: re-run it |\n| Review gate | ⏳ pending |\n| Rework | ⏳ pending |\n| Work in progress | ➖ no developer assigned |\n| Conflicts | ${collabOff} |\n| Merge order | ${collabOff} |\n\n**Next:** fix the failing rows (Size)`));
   assert.deepEqual(PR_GATES, ['Plan gate', 'Size', 'Review gate', 'Rework', 'Work in progress', 'Conflicts', 'Merge order']);
 });
 

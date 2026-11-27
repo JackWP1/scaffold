@@ -227,12 +227,20 @@ export async function runCheck2(gh, repo, { event, config, loadSkill, callModel 
 }
 
 // scaffold:conflict-resolved applied or removed by hand: re-checks the timeline and shows the result.
+// scaffold:conflict removed by hand while the conflict is open: put back, so the label matches the state
+// (the Conflicts queue and the usage report go by it).
 export async function runResolve(gh, repo, { event, config }) {
-  if (!['labeled', 'unlabeled'].includes(event.action) || event.label?.name !== CONFLICT_RESOLVED) return { skip: 'not scaffold:conflict-resolved' };
+  const removedFlag = event.action === 'unlabeled' && event.label?.name === CONFLICT;
+  if (!removedFlag && (!['labeled', 'unlabeled'].includes(event.action) || event.label?.name !== CONFLICT_RESOLVED)) return { skip: 'not scaffold:conflict-resolved or a removed scaffold:conflict' };
   const number = event.issue.number;
   const labels = (await gh.get(`/repos/${repo}/issues/${number}`)).labels.map((l) => l.name);
   const steps = issueSteps(gh, repo, number, labels);
   const state = conflictState({ events: await steps.events(), approvers: config.approvers });
+  if (removedFlag) {
+    if (!state.open) return { skip: 'the conflict is resolved' };
+    await steps.setLabels([CONFLICT], []);
+    return { lines: [heading, `#${number}: \`scaffold:conflict\` removed by hand while the conflict is open: put back`] };
+  }
   const update = async (row, next) => steps.upsertStatus(setGates((await steps.findComment(MARKER))?.body, { ...manualStates(config), Conflicts: row }, next));
   if (!state.flaggedAt) return { skip: 'no conflict was flagged' };
   if (state.open) {

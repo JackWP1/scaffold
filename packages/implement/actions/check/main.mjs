@@ -12,7 +12,18 @@ const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const summary = (lines) => appendFile(process.env.GITHUB_STEP_SUMMARY ?? '/dev/null', `${lines.join('\n')}\n`);
 
 if (CHECKS[mode]) {
-  if (event.merge_group) {
+  const queued = event.merge_group?.head_ref?.match(/\/pr-(\d+)-[0-9a-f]+$/);
+  if (event.merge_group && mode === 'scaffold-plan-gate' && queued) {
+    // The issue can change without a PR event (approval removed, plan edited, conflict flagged): re-check
+    // the plan gate on the PR being merged.
+    const pr = await gh.get(`/repos/${repo}/pulls/${queued[1]}`);
+    const r = await runImplementCheck(gh, repo, { check: mode, pr });
+    await summary([`### ${mode} (merge queue, PR #${queued[1]})`, ...r.lines.slice(1)]);
+    if (!r.ok) {
+      console.log(`::error::${r.outcome}`);
+      process.exitCode = 1;
+    }
+  } else if (event.merge_group) {
     await summary([`### ${mode}`, '✅ merge queue: a PR-only check, passed on the PR']);
   } else if (!event.pull_request) {
     await summary([`### ${mode}`, 'Skipped: not a pull request event']);

@@ -100,8 +100,10 @@ export function summarise({ runs, jobs, events, comments = [], reviewComments = 
       const flags = events.filter((e) => byBot(e, 'labeled', 'scaffold:conflict'));
       const perIssue = flags.reduce((m, f) => m.set(f.issue?.number, (m.get(f.issue?.number) ?? 0) + 1), new Map());
       const valid = (e) => e.event === 'labeled' && e.label?.name === 'scaffold:conflict-resolved' && e.actor?.type === 'User' && approvers.includes(e.actor.login?.toLowerCase());
+      // Paired by timeline order (events are oldest first), not timestamps, as conflictState does.
       const hours = events.filter(valid).flatMap((r) => {
-        const flag = flags.filter((f) => f.issue?.number === r.issue?.number && f.created_at <= r.created_at).at(-1);
+        const at = events.indexOf(r);
+        const flag = flags.filter((f) => f.issue?.number === r.issue?.number && events.indexOf(f) < at).at(-1);
         return flag ? [(Date.parse(r.created_at) - Date.parse(flag.created_at)) / 3_600_000] : [];
       });
       const conflictComments = comments.filter(byScaffold('<!-- scaffold:conflict -->'));

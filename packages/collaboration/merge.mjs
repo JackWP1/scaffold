@@ -14,6 +14,8 @@ import { escapeForComment as e } from '../core/lib/text.mjs';
 import { CHECK2_MARKER } from './conflict.mjs';
 
 export const ORDER_OVERRIDE = 'scaffold:order-override';
+// Records each PR's current position; rewritten (so its time moves) only when the position changes.
+export const POSITION_MARKER = '<!-- scaffold:merge-position';
 export const OVERRIDE_COMMAND = /^\/order-override(?:\s+([\s\S]*))?$/;
 const PRIORITY = { 'priority:high': 0, 'priority:medium': 1, 'priority:low': 2 };
 
@@ -42,7 +44,8 @@ export async function orderable(gh, repo, config) {
     const why = (reason) => skipped.push({ number: pr.number, reason });
     if (!issue) { why('no linked issue'); continue; }
     if (await reviewDecision(gh, repo, pr.number) !== 'APPROVED') { why('not approved'); continue; }
-    const check2 = (await issueSteps(gh, repo, pr.number, []).findComment(CHECK2_MARKER));
+    const prSteps = issueSteps(gh, repo, pr.number, []);
+    const check2 = await prSteps.findComment(CHECK2_MARKER);
     if (!check2?.body.startsWith(`${CHECK2_MARKER} ${pr.head.sha} clean -->`)) { why('conflict-check 2 hasn\'t passed on its latest commit'); continue; }
     const meta = await gh.get(`/repos/${repo}/issues/${issue}`);
     const steps = issueSteps(gh, repo, issue, meta.labels.map((l) => l.name));
@@ -50,12 +53,15 @@ export async function orderable(gh, repo, config) {
     const reviews = [];
     for await (const page of gh.pages(`/repos/${repo}/pulls/${pr.number}/reviews`)) reviews.push(...page);
     const approvedAt = reviews.filter((r) => r.state === 'APPROVED' && r.commit_id === pr.head.sha).map((r) => r.submitted_at).sort()[0] ?? check2.updated_at;
+    // The position's own record moves whenever the position does; an override must come after both.
+    const position = await prSteps.findComment(POSITION_MARKER);
     out.push({
       number: pr.number, issue, pr,
       blocks: blocks.get(issue) ?? 0,
       priority: Math.min(3, ...meta.labels.map((l) => PRIORITY[l.name] ?? 3)),
       approvedAt,
-      positionedAt: check2.updated_at,
+      positionedAt: [check2.updated_at, position?.updated_at].filter(Boolean).sort().at(-1),
+      recordedPosition: Number(position?.body.match(/position (\d+) of/)?.[1] ?? 0),
     });
   }
   return { ordered: sortOrder(out), skipped };
@@ -84,6 +90,11 @@ export function sortOrder(items) {
 export async function writePositions(gh, repo, { ordered, skipped = [] }) {
   for (const [i, item] of ordered.entries()) {
     const steps = issueSteps(gh, repo, item.number, []);
+    if (item.recordedPosition !== i + 1) {
+      const posted = await steps.upsertComment(POSITION_MARKER, `${POSITION_MARKER} -->\nSCAFFOLD merge position ${i + 1} of ${ordered.length}.`);
+      item.positionedAt = posted?.updated_at ?? new Date().toISOString();
+      item.recordedPosition = i + 1;
+    }
     const next = i === 0 ? 'a developer adds this PR to the merge queue: it\'s next.' : `wait for ${ordered.slice(0, i).map((o) => `#${o.number}`).join(', ')} to merge or enter the merge queue first.`;
     await steps.upsertStatus(setGates((await steps.findComment(MARKER))?.body, { 'Merge order': `${i + 1} of ${ordered.length}` }, next, PR_GATES));
   }
@@ -135,6 +146,7 @@ export async function mergeOrderCheck(gh, repo, { event, config }) {
   }
   const ahead = await queueAhead(gh, repo, group.base_ref.replace(/^refs\/heads\//, ''), number);
   const jumped = ordered.slice(0, mine).filter((o) => !ahead.has(o.number));
+  // Positions are written first: a position that has just changed makes an older override stale.
   await writePositions(gh, repo, { ordered, skipped });
   if (!jumped.length) return { ok: true, outcome: `PR #${number} is ${mine + 1} of ${ordered.length} in the merge order`, details: [] };
   const ok = await override(gh, repo, ordered[mine], config);

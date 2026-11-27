@@ -151,8 +151,9 @@ test('merge order: blockers, then priority, then earliest approval; a stack stay
 
 function orderGh({ prs, queue = [], overrides = {} }) {
   const routes = { '/repos/o/r/pulls?state=open': prs.map((p) => p.pr), '/repos/o/r/issues?state=open': [] };
-  for (const { pr, issue: n, approvedAt } of prs) {
-    routes[`/repos/o/r/issues/${pr.number}/comments`] = (p) => (p.includes('page=') ? [{ user: bot, body: `${CHECK2_MARKER} ${pr.head.sha} clean -->`, updated_at: '2026-11-20T10:00:00Z' }, ...(overrides[pr.number]?.comments ?? [])] : {});
+  for (const { pr, issue: n, approvedAt, position } of prs) {
+    const recorded = position ? [{ user: bot, body: `<!-- scaffold:merge-position -->\nSCAFFOLD merge position ${position} of ${prs.length}.`, updated_at: '2026-11-20T10:30:00Z' }] : [];
+    routes[`/repos/o/r/issues/${pr.number}/comments`] = (p) => (p.includes('page=') ? [{ user: bot, body: `${CHECK2_MARKER} ${pr.head.sha} clean -->`, updated_at: '2026-11-20T10:00:00Z' }, ...recorded, ...(overrides[pr.number]?.comments ?? [])] : { updated_at: '2026-11-27T00:00:00Z' });
     routes[`/repos/o/r/issues/${pr.number}/events`] = overrides[pr.number]?.events ?? [];
     routes[`/repos/o/r/pulls/${pr.number}/reviews`] = [{ state: 'APPROVED', commit_id: pr.head.sha, submitted_at: approvedAt }];
     routes[`/repos/o/r/issues/${n}/events`] = [];
@@ -162,11 +163,11 @@ function orderGh({ prs, queue = [], overrides = {} }) {
   g.graphql = graphqlFor(Object.fromEntries(prs.map((p) => [p.pr.number, 'APPROVED'])), queue);
   return g;
 }
-const prItem = (number, n, approvedAt) => ({ issue: n, approvedAt, pr: { number, body: `Fixes #${n}`, draft: false, head: { sha: `s${number}`, ref: `h${number}` }, base: { ref: 'main' } } });
+const prItem = (number, n, approvedAt, position) => ({ issue: n, approvedAt, position, pr: { number, body: `Fixes #${n}`, draft: false, head: { sha: `s${number}`, ref: `h${number}` }, base: { ref: 'main' } } });
 const mgEvent = (n) => ({ merge_group: { head_ref: `refs/heads/gh-readonly-queue/main/pr-${n}-abc123`, base_ref: 'refs/heads/main' } });
 
 test('merge-order check: passes in order, fails when jumping, passes with the flow lead\'s override', async () => {
-  const prs = [prItem(4, 7, '2026-11-20T09:00:00Z'), prItem(5, 8, '2026-11-20T11:00:00Z')];
+  const prs = [prItem(4, 7, '2026-11-20T09:00:00Z', 1), prItem(5, 8, '2026-11-20T11:00:00Z', 2)];
   assert.equal((await mergeOrderCheck(orderGh({ prs }), 'o/r', { event: mgEvent(4), config })).ok, true);
   const jump = await mergeOrderCheck(orderGh({ prs }), 'o/r', { event: mgEvent(5), config });
   assert.equal(jump.ok, false);
@@ -181,6 +182,8 @@ test('merge-order check: passes in order, fails when jumping, passes with the fl
   assert.equal((await mergeOrderCheck(orderGh({ prs, overrides: byOther }), 'o/r', { event: mgEvent(5), config })).ok, false);
   const stale = { 5: { events: [{ ...override[5].events[0], created_at: '2026-11-20T09:00:00Z' }], comments: override[5].comments } };
   assert.equal((await mergeOrderCheck(orderGh({ prs, overrides: stale }), 'o/r', { event: mgEvent(5), config })).ok, false, 'an override from before the position is stale');
+  const moved = [prItem(4, 7, '2026-11-20T09:00:00Z', 1), prItem(5, 8, '2026-11-20T11:00:00Z', 1)];
+  assert.equal((await mergeOrderCheck(orderGh({ prs: moved, overrides: override }), 'o/r', { event: mgEvent(5), config })).ok, false, 'a position that changes now makes the override stale');
 });
 
 test('merge-order check: a PR without a position (e.g. check 2 not passed) fails', async () => {
@@ -188,4 +191,12 @@ test('merge-order check: a PR without a position (e.g. check 2 not passed) fails
   g.graphql = graphqlFor({});
   const r = await mergeOrderCheck(g, 'o/r', { event: mgEvent(4), config });
   assert.match(r.outcome, /PR #4 has no merge position: not approved/);
+});
+
+test('resolve: removing scaffold:conflict by hand while it\'s open puts it back', async () => {
+  const flagEv = { id: 1, event: 'labeled', label: { name: 'scaffold:conflict' }, actor: bot, created_at: '2026-11-20T10:00:00Z' };
+  const g = fakeGh({ '/repos/o/r/issues/7/comments': (p) => (p.includes('page=') ? [] : {}), '/repos/o/r/issues/7/events': [flagEv], '/repos/o/r/issues/7/labels': null, '/repos/o/r/issues/7': issue(7, []) });
+  const r = await runResolve(g, 'o/r', { event: { action: 'unlabeled', label: { name: 'scaffold:conflict' }, issue: { number: 7 } }, config });
+  assert.deepEqual(labelCalls(g), ['7+scaffold:conflict']);
+  assert.match(r.lines[1], /removed by hand while the conflict is open: put back/);
 });
