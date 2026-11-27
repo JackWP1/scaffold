@@ -24,7 +24,7 @@ jobs:
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - id: check
-        uses: JackWP1/scaffold/packages/implement/actions/check@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
+        uses: JackWP1/scaffold/packages/implement/actions/check@54a250c24d49acbb8a15ace091d12c37b7effb95 # v0.9.0
         with:
           mode: scaffold-plan-gate
 
@@ -44,7 +44,7 @@ jobs:
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - id: check
-        uses: JackWP1/scaffold/packages/implement/actions/check@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
+        uses: JackWP1/scaffold/packages/implement/actions/check@54a250c24d49acbb8a15ace091d12c37b7effb95 # v0.9.0
         with:
           mode: scaffold-pr-size
 
@@ -64,7 +64,7 @@ jobs:
       pull-requests: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/implement/actions/check@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
+      - uses: JackWP1/scaffold/packages/implement/actions/check@54a250c24d49acbb8a15ace091d12c37b7effb95 # v0.9.0
         with:
           mode: scaffold-review-gate
 
@@ -82,7 +82,7 @@ jobs:
       issues: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/implement/actions/check@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
+      - uses: JackWP1/scaffold/packages/implement/actions/check@54a250c24d49acbb8a15ace091d12c37b7effb95 # v0.9.0
         env:
           ROW_SCAFFOLD_PLAN_GATE: ${{ needs.scaffold-plan-gate.outputs.row }}
           ROW_SCAFFOLD_PR_SIZE: ${{ needs.scaffold-pr-size.outputs.row }}
@@ -101,6 +101,6 @@ jobs:
       issues: write
     steps:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
-      - uses: JackWP1/scaffold/packages/implement/actions/check@ea99218d64109719e644fb8c048bca4d6dc34d7e # v0.9.0
+      - uses: JackWP1/scaffold/packages/implement/actions/check@54a250c24d49acbb8a15ace091d12c37b7effb95 # v0.9.0
         with:
           mode: size-command
