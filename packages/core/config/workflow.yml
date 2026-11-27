@@ -122,16 +122,40 @@ diagram:
       text: Plan gate<br/>core timeline check: listed approver,<br/>not the author, plan unchanged;<br/>size rules, max_stack_prs;<br/>scenarios still approved and unchanged,<br/>each mapped
     approved:
       text: scaffold:plan-approved
+    implon:
+      kind: check
+      text: implement stage on?<br/>stages in scaffold-config.yml
     pick:
       kind: human
       owner: manual
-      text: Developer picks up ticket
+      text: Developer picks up ticket<br/>packages/implement/HANDOFF.md
     code:
       owner: manual
       text: Developer writes code
+    assign:
+      kind: human
+      text: Developer assigns<br/>issue to Copilot
+    copilot:
+      kind: ai
+      text: Copilot coding agent<br/>tdd, implement skills;<br/>a stack of PRs if planned
     pr:
-      owner: manual
-      text: PR
+      text: PR, Fixes #issue
+    baseline:
+      kind: check
+      text: Core baseline checks, every PR:<br/>protected paths, hard size limit,<br/>test integrity, scenarios<br/>with the BDD runner report
+    implchecks:
+      kind: check
+      text: Plan gate re-checks the approval;<br/>PR size within the soft limit<br/>or scaffold:size-exception
+    sizecmd:
+      kind: human
+      text: Developer comments /size-exception reason;<br/>listed approver applies<br/>scaffold:size-exception
+    reviewgate:
+      kind: check
+      text: Review gate<br/>waits for every check<br/>on the head commit
+    rework:
+      text: Automatic rework round<br/>@copilot comment lists the failures;<br/>no human approval
+    escalate:
+      text: scaffold:escalate<br/>circuit breaker:<br/>max_rework_rounds used
     ci:
       kind: check
       owner: manual
@@ -196,12 +220,27 @@ diagram:
     - gate -- passes --> approved
     - plancomment -- plan comment deleted<br/>or its marker removed:<br/>approval withdrawn --> ready
     - approved -- plan comment edited:<br/>approval removed --> planreview
-    - approved --> pick
+    - approved --> implon
+    - implon -- no --> pick
     - pick --> code
     - code --> pr
+    - implon -- yes --> assign
+    - assign --> copilot
+    - copilot --> pr
+    - pr --> baseline
     - pr --> ci
-    - ci -- fails --> code
-    - ci -- passes --> review
+    - pr --> implchecks
+    - implchecks -- over the soft limit --> sizecmd
+    - sizecmd --> implchecks
+    - baseline --> reviewgate
+    - ci --> reviewgate
+    - implchecks --> reviewgate
+    - reviewgate -- fails on a Copilot PR,<br/>rounds left --> rework
+    - rework --> copilot
+    - reviewgate -- fails on a human's PR --> code
+    - reviewgate -- fails,<br/>max_rework_rounds used --> escalate
+    - escalate --> review
+    - reviewgate -- passes:<br/>review requested --> review
     - review -- changes requested --> code
     - review -- approves --> test
     - test -- fails: changes requested --> code

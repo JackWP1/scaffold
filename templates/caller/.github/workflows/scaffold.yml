@@ -81,6 +81,7 @@ jobs:
       actions: read
       contents: read
       issues: write
+      pull-requests: read
     uses: JackWP1/scaffold/.github/workflows/usage-report.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
   # Run manually (Actions → SCAFFOLD → Run workflow → labels) to create the labels.
