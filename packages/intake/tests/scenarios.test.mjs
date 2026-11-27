@@ -301,3 +301,23 @@ test('gherkin-writer loads from the intake package with the standard tier', asyn
   assert.deepEqual(skill.schema, writerSchema);
   assert.ok(skill.system.startsWith('# Gherkin writer'));
 });
+
+test('gate: an untriaged issue (no lifecycle label) can\'t have its scenarios approved, or /gherkin run', async () => {
+  const { labelCalls, status } = await gate({ labels: ['scaffold:gherkin-approved'], event: labelled('labeled', 'scaffold:gherkin-approved') });
+  assert.deepEqual(labelCalls, ['-scaffold:gherkin-approved']);
+  assert.match(status, /hasn't been triaged as ready yet/);
+  const cmd = await gherkinCmd({ labels: [] });
+  assert.match(cmd.skip, /not triaged yet/);
+  assert.deepEqual(cmd.prompts, []);
+});
+
+test('gate: editing a member\'s hand-written scenarios comment withdraws approval too', async () => {
+  const body = scenariosComment().body;
+  const member = { ...scenariosComment(), user: { login: 'dave' }, author_association: 'MEMBER', updated_at: '2026-01-03T00:00:00Z' };
+  const { labelCalls, status } = await gate({
+    labels: ['scaffold:gherkin-approved', 'scaffold:ready'], comments: [member],
+    event: { action: 'edited', comment: { body }, changes: { body: { from: body } } },
+  });
+  assert.deepEqual(labelCalls, ['-scaffold:gherkin-approved', '-scaffold:ready', '+scaffold:needs-gherkin']);
+  assert.match(status, /✏️ scenarios edited: approval withdrawn/);
+});

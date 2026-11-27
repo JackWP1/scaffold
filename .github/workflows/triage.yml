@@ -45,13 +45,14 @@ jobs:
       # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
       - uses: JackWP1/scaffold/packages/intake/actions/gherkin@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
 
-  # Deterministic, so the kill switch doesn't skip it. Any edit to or deletion of a bot comment: the gate
-  # works out whether it was the scenarios, even if the edit removed the marker.
+  # Deterministic, so the kill switch doesn't skip it. Any edit to or deletion of a bot comment, or of a
+  # member's hand-written scenarios comment: the gate works out whether it was the scenarios, even if the
+  # edit removed the marker.
   gate:
     if: >-
       !github.event.issue.pull_request && (
         (github.event_name == 'issues' && contains(fromJSON('["labeled","unlabeled"]'), github.event.action) && contains(fromJSON('["scaffold:gherkin-approved","scaffold:needs-gherkin"]'), github.event.label.name)) ||
-        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && github.event.comment.user.login == 'github-actions[bot]')
+        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && (github.event.comment.user.login == 'github-actions[bot]' || startsWith(github.event.comment.body, '<!-- scaffold:scenarios -->') || startsWith(github.event.changes.body.from, '<!-- scaffold:scenarios -->')))
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5

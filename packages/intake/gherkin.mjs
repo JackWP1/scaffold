@@ -6,7 +6,7 @@ import { MARKER, setGates, manualStates } from '../core/lib/status.mjs';
 import { escapeForComment } from '../core/lib/text.mjs';
 import { stageOn } from '../core/lib/config.mjs';
 import { scenariosText } from '../core/lib/gherkin.mjs';
-import { SCENARIOS_MARKER, APPROVED, NEEDS, NOT_TRIAGED, APPROVE_NEXT } from './scenarios.mjs';
+import { SCENARIOS_MARKER, APPROVED, NEEDS, APPROVE_NEXT, isTriaged } from './scenarios.mjs';
 import { draftScenarios, draftAudit } from './writer.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
@@ -38,7 +38,7 @@ export async function runGherkin(gh, repo, { event, config, configError, loadSki
     return refuse(`invalid config: ${configError}`, `⛔ \`.github/scaffold-config.yml\` is invalid: ${escapeForComment(configError)}`, 'fix `.github/scaffold-config.yml`, then comment `/gherkin` again.');
   }
   if (config.gherkin === 'off') return refuse('scenarios are off (`gherkin: off`)');
-  if (labels.some((l) => NOT_TRIAGED.includes(l))) return refuse('not triaged yet: `/gherkin` works once triage has finished');
+  if (!isTriaged(labels)) return refuse('not triaged yet: `/gherkin` works once triage has finished');
 
   await react('eyes');
   const previous = await findComment(SCENARIOS_MARKER);

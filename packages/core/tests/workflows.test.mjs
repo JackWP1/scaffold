@@ -39,7 +39,10 @@ test('workflows: admission is repo-wide, planning per issue, and bot comment edi
   const wf = await read('.github/workflows/plan.yml');
   assert.match(wf, /group: scaffold-admit-\$\{\{ github\.repository \}\}\n/);
   assert.match(wf, /group: scaffold-plan-\$\{\{ github\.repository \}\}-\$\{\{ matrix\.issue \}\}/);
-  assert.match(wf, /\["edited","deleted"\]'\), github\.event\.action\) && github\.event\.comment\.user\.login == 'github-actions\[bot\]'/);
+  for (const file of ['plan', 'triage']) {
+    const yaml = file === 'plan' ? wf : await read('.github/workflows/triage.yml');
+    assert.match(yaml, /\["edited","deleted"\]'\), github\.event\.action\) && \(github\.event\.comment\.user\.login == 'github-actions\[bot\]' \|\| startsWith\(github\.event\.comment\.body, '<!-- scaffold:scenarios -->'\) \|\| startsWith\(github\.event\.changes\.body\.from, '<!-- scaffold:scenarios -->'\)\)/, file);
+  }
 });
 
 test('the caller listens for every event a package needs, and grants what each reusable workflow asks', async () => {

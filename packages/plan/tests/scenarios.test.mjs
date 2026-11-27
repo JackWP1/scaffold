@@ -156,3 +156,28 @@ test('only SCAFFOLD\'s or a member\'s comment counts as the scenarios', async ()
   ] });
   assert.deepEqual((await scenarioComments(g, 'o/r', 1)).map((c) => c.id), [1, 2]);
 });
+
+test('a scenarios approval removed by hand blocks /plan on a planned issue', async () => {
+  const issue = { number: 1, user: { login: 'carol' }, labels: [{ name: 'scaffold:planned' }, { name: 'scaffold:needs-gherkin' }] };
+  const comment = { id: 50, body: '/plan', author_association: 'MEMBER', user: { type: 'User' } };
+  const removed = { id: 4, event: 'unlabeled', label: { name: 'scaffold:gherkin-approved' }, actor: { login: 'bob', type: 'User' }, created_at: '2026-11-18T11:00:00Z' };
+  const g = gh({ labels: [], comments: [scenariosComment()], events: [gherkinApproved, removed] });
+  const r = await admit(g, 'o/r', { issue, comment, config: AUTO });
+  assert.equal(r.outcome, 'refused');
+  assert.match(r.reason, /`scaffold:gherkin-approved` was removed after it was applied/);
+});
+
+test('with intake off, editing the hand-written scenarios comment withdraws an approved plan', async () => {
+  const body = renderPlan(one(['S1', 'S2']), { problems: [], skillVersion: '0.3.0', model: 'm', limits, maxStack: 5, scenariosHash: commentHash(manualScenarios()) });
+  const planComment = { id: 5, user: bot, body, updated_at: '2026-11-18T11:00:00Z', html_url: 'u' };
+  const edited = { ...scenariosComment(), updated_at: '2026-11-18T13:00:00Z' };
+  const run = async (labels) => {
+    const g = gh({ labels, comments: [edited, planComment], events: [gherkinApproved, planApproved] });
+    const out = await runGate(g, 'o/r', { event: { action: 'edited', comment: { body: edited.body }, issue: { number: 1 } }, schema, config: ALWAYS });
+    return { out, labelCalls: labelCalls(g) };
+  };
+  const { out, labelCalls: calls } = await run(['scaffold:plan-approved']);
+  assert.match(out.lines.join('\n'), /fail: the scenarios aren't approved: the scenarios changed after it was approved/);
+  assert.deepEqual(calls, ['-scaffold:plan-approved', '+scaffold:planned']);
+  assert.match((await run(['scaffold:planned'])).out.skip, /no approved plan to withdraw/);
+});

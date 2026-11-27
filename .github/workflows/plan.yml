@@ -59,13 +59,14 @@ jobs:
           comment: ${{ matrix.comment }}
           model: ${{ inputs.model }}
 
-  # Any edit to or deletion of a bot comment: the gate works out whether it was the plan, even if
-  # the edit removed the marker.
+  # Any edit to or deletion of a bot comment, or of a scenarios comment (a member may write it by hand
+  # when intake is off): the gate works out whether it was the plan or the scenarios, even if the edit
+  # removed the marker. A changed scenarios comment withdraws an approved plan.
   gate:
     if: >-
       !github.event.issue.pull_request && (
         (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'scaffold:plan-approved') ||
-        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && github.event.comment.user.login == 'github-actions[bot]')
+        (github.event_name == 'issue_comment' && contains(fromJSON('["edited","deleted"]'), github.event.action) && (github.event.comment.user.login == 'github-actions[bot]' || startsWith(github.event.comment.body, '<!-- scaffold:scenarios -->') || startsWith(github.event.changes.body.from, '<!-- scaffold:scenarios -->')))
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5

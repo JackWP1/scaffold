@@ -11,6 +11,13 @@ export const APPROVED = GHERKIN_APPROVED;
 export const NEEDS = NEEDS_GHERKIN;
 // Before triage has finished: scenarios approval doesn't apply yet.
 export const NOT_TRIAGED = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:proposed', 'scaffold:too-big'];
+// Left by triage (or a manual triage) and the stages after it.
+const TRIAGED = [NEEDS_GHERKIN, 'scaffold:ready', 'scaffold:planned', 'scaffold:plan-approved'];
+
+// An issue with no lifecycle label hasn't been triaged. `removedNeeds` is set when the event being
+// handled removed scaffold:needs-gherkin, which was then the issue's lifecycle label.
+export const isTriaged = (labels, { removedNeeds = false } = {}) => !labels.some((l) => NOT_TRIAGED.includes(l))
+  && (removedNeeds || labels.some((l) => TRIAGED.includes(l)));
 export const APPROVE_NEXT = 'a listed approver reviews the scenarios and applies `scaffold:gherkin-approved`.';
 
 const cell = (text) => e(text).replaceAll('|', '\\|');

@@ -9,7 +9,7 @@ import { escapeForComment } from '../core/lib/text.mjs';
 import { stageOn } from '../core/lib/config.mjs';
 import { parseGherkin, scenariosText, SCENARIOS_MARKER } from '../core/lib/gherkin.mjs';
 import { checkScenarios, scenarioComments } from '../core/lib/scenarios.mjs';
-import { parseProblem, APPROVED, NEEDS, NOT_TRIAGED, APPROVE_NEXT } from './scenarios.mjs';
+import { parseProblem, APPROVED, NEEDS, APPROVE_NEXT, isTriaged } from './scenarios.mjs';
 
 const PLANNED = ['scaffold:planned', 'scaffold:plan-approved'];
 const heading = '### SCAFFOLD scenarios gate';
@@ -31,11 +31,11 @@ export async function runScenariosGate(gh, repo, { event, config, configError })
 
   const issue = await gh.get(`/repos/${repo}/issues/${event.issue.number}`);
   const labels = issue.labels.map((l) => l.name);
-  const { setLabels, findComment, findComments, upsertStatus, events, hasWriteAccess } = issueSteps(gh, repo, issue.number, labels);
+  const { setLabels, findComment, upsertStatus, events, hasWriteAccess } = issueSteps(gh, repo, issue.number, labels);
   const others = config ? manualStates(config) : {};
   const updateStatus = async (states, next) => upsertStatus(setGates((await findComment(MARKER))?.body, { ...others, ...states }, next));
   const planned = labels.some((l) => PLANNED.includes(l));
-  const triaged = !labels.some((l) => NOT_TRIAGED.includes(l));
+  const triaged = isTriaged(labels, { removedNeeds: event.action === 'unlabeled' && event.label?.name === NEEDS });
   const planOn = stageOn(config, 'plan');
   const afterApproval = planned
     ? 'a member comments `/plan` again so the plan maps the approved scenarios.'
@@ -66,7 +66,7 @@ export async function runScenariosGate(gh, repo, { event, config, configError })
 
   // Edited or deleted: any change withdraws an approval; otherwise the row shows the new state.
   if (touched) {
-    const current = await findComments(SCENARIOS_MARKER);
+    const current = await scenarioComments(gh, repo, issue.number);
     const gone = !current.length;
     if (labels.includes(APPROVED)) {
       return withdraw(gone ? '🗑️ scenarios deleted: approval withdrawn' : '✏️ scenarios edited: approval withdrawn', 'withdrawn');
