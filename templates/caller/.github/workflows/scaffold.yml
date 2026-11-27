@@ -52,6 +52,14 @@ jobs:
       pull-requests: read
     uses: JackWP1/scaffold/.github/workflows/config-guard.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
 
+  # Core, always on: baseline PR checks. Make each `checks / scaffold-*` job a required check in the ruleset.
+  checks:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: JackWP1/scaffold/.github/workflows/checks.yml@e6ae5cfbc45f2aa00b8aaf844bba6ae345f62ccb # v0.6.0
+
   # Core, always on: weekly, or run manually (Actions → SCAFFOLD → Run workflow → usage-report).
   usage-report:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.task == 'usage-report')

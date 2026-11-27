@@ -91,8 +91,13 @@ flowchart LR
     c_triage["triage"]
     c_plan["plan"]
     c_config_guard["config-guard"]
+    c_checks["checks"]
     c_usage_report["usage-report"]
     c_labels["labels"]
+  end
+  subgraph w_checks_yml["checks.yml"]
+    w_checks_yml_scaffold_protected_paths["scaffold-protected-paths"]
+    w_checks_yml_scaffold_hard_size["scaffold-hard-size"]
   end
   subgraph w_config_guard_yml["config-guard.yml"]
     w_config_guard_yml_scaffold_config_guard["scaffold-config-guard"]
@@ -117,8 +122,11 @@ flowchart LR
   c_triage --> w_triage_yml
   c_plan --> w_plan_yml
   c_config_guard --> w_config_guard_yml
+  c_checks --> w_checks_yml
   c_usage_report --> w_usage_report_yml
   c_labels --> w_labels_yml
+  w_checks_yml_scaffold_protected_paths --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
+  w_checks_yml_scaffold_hard_size --> a_packages_core_actions_pr_check["packages/core/actions/pr-check"]
   w_config_guard_yml_scaffold_config_guard --> a_packages_core_actions_config_guard["packages/core/actions/config-guard"]
   w_labels_yml_labels --> a_packages_core_actions_labels["packages/core/actions/labels"]
   w_plan_yml_admit --> a_packages_plan_actions_plan["packages/plan/actions/plan"]
