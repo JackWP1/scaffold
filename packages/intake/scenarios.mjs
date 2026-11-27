@@ -5,13 +5,21 @@ import { SCENARIOS_MARKER, tagScenarios } from '../core/lib/gherkin.mjs';
 
 export { SCENARIOS_MARKER };
 
+// Shared by triage, the scenarios gate and /gherkin.
+export const APPROVED = 'scaffold:gherkin-approved';
+export const NEEDS = 'scaffold:needs-gherkin';
+// Before triage has finished: scenarios approval doesn't apply yet.
+export const NOT_TRIAGED = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:proposed', 'scaffold:too-big'];
+export const APPROVE_NEXT = 'a listed approver reviews the scenarios and applies `scaffold:gherkin-approved`.';
+
 const cell = (text) => e(text).replaceAll('|', '\\|');
 // Longer than any backtick run in the text, so the Gherkin can't close its fence.
 const fence = (text) => '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map(([m]) => m.length + 1)));
 
-// `source` says where the scenarios came from (trusted, written by Actions code). Returns
-// { body, count } or { errors } when the Gherkin doesn't parse.
-export function renderScenarios(gherkin, { issue, source, approvers = [] }) {
+// `source` says where the scenarios came from (trusted, written by Actions code); `notes` are the
+// drafter's questions for the approver (untrusted, escaped). Returns { body, count } or { errors }
+// when the Gherkin doesn't parse.
+export function renderScenarios(gherkin, { issue, source, approvers = [], notes = [] }) {
   const { text, scenarios, errors } = tagScenarios(gherkin, issue);
   if (errors.length) return { errors };
   const f = fence(text);
@@ -30,6 +38,7 @@ export function renderScenarios(gherkin, { issue, source, approvers = [] }) {
     text,
     f,
     '',
+    ...(notes.length ? ['**Check before approving**', '', ...notes.map((n) => `- ${e(n)}`), ''] : []),
     `${who} who isn't the issue author reviews these and applies \`scaffold:gherkin-approved\`. Any edit to this comment withdraws the approval.`,
   ].join('\n');
   return { body, count: scenarios.length };

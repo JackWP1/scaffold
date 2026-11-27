@@ -24,7 +24,7 @@ One of:
 
 ### Scenarios
 
-- **Comment:** one comment marked `<!-- scaffold:scenarios -->` holds the Gherkin in a ```` ```gherkin ```` fence. Each scenario is tagged `@scaffold-<issue>-S<n>` and numbered `S<n>` in order. Triage copies the Request form's Scenarios (Gherkin) field into it; Gherkin that doesn't parse isn't posted.
+- **Comment:** one comment marked `<!-- scaffold:scenarios -->` holds the Gherkin in a ```` ```gherkin ```` fence. Each scenario is tagged `@scaffold-<issue>-S<n>` and numbered `S<n>` in order. Triage copies the Request form's Scenarios (Gherkin) field into it; if the field is empty and there's no scenarios comment yet, `gherkin-writer` drafts one in the same run. A member can comment `/gherkin <guidance>` to draft or redraft them; a redraft withdraws any approval, as an edit does. Gherkin that doesn't parse is never posted.
 - **Approval:** a listed approver who isn't the issue author applies `scaffold:gherkin-approved` after the comment's last edit. The scenarios gate checks this against the timeline and that the Gherkin parses, then swaps `scaffold:needs-gherkin` for `scaffold:ready`. An invalid approval is removed.
 - **Changes:** editing or deleting the comment, or removing `scaffold:gherkin-approved`, withdraws the approval and moves the issue back to `scaffold:needs-gherkin`. A planned issue keeps `scaffold:planned` but loses `scaffold:plan-approved`, and needs `/plan` again once the scenarios are re-approved.
 - **Overrides:** under `auto`, a member with write access can add or remove `scaffold:needs-gherkin` to overrule triage. Under `always`, removing it puts it back.

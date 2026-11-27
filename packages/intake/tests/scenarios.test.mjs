@@ -9,6 +9,11 @@ import { runTriage } from '../triage.mjs';
 import { runScenariosGate } from '../gate.mjs';
 
 const schema = JSON.parse(await readFile(new URL('../schemas/triage.schema.json', import.meta.url), 'utf8'));
+const writerSchema = JSON.parse(await readFile(new URL('../schemas/gherkin.schema.json', import.meta.url), 'utf8'));
+// Fake skills: triage, and gherkin-writer replying with each of `drafts` in turn (an Error throws).
+const skills = async (name) => (name === 'triage'
+  ? { system: 'S', schema, version: '0.3.0', model: 'm' }
+  : { system: 'W', schema: writerSchema, version: '0.1.0', model: 'w' });
 const cfg = (mode, extra = '') => configFrom(`stages:\n  intake: true\n  plan: true\ngherkin: ${mode}\nbdd:\n  workflow: ci.yml\n  artifact: r\napprovers: [alice]\n${extra}`);
 const AUTO = cfg('auto');
 const ALWAYS = cfg('always');
@@ -32,18 +37,25 @@ test('the scenarios comment numbers scenarios, escapes names and can\'t be broke
   assert.deepEqual(renderScenarios('nope', { issue: 7, source: 'x' }).errors, ['line 1: expected `Feature:` first']);
 });
 
-// runTriage with a ready reply. `needed` is the model's scenarios_needed.
-async function triage({ config = AUTO, needed = true, body = 'B', comments = [] } = {}) {
+// runTriage with a ready reply. `needed` is the model's scenarios_needed; `drafts` gherkin-writer's replies.
+async function triage({ config = AUTO, needed = true, body = 'B', comments = [], drafts = [{ gherkin: GHERKIN, notes: ['Is @ops told?'] }] } = {}) {
   const gh = fakeGh({ '/repos/o/r/issues/1/comments': comments, '/repos/o/r/issues/1/labels': null, '/repos/o/r/issues/comments/': { html_url: 'c' } });
+  const prompts = [];
   const reply = { decision: 'ready', type: 'feature', priority: 'medium', summary: 's', questions: [], brief: { goal: 'g', acceptance_criteria: [], affected_areas: [], out_of_scope: [] }, proposed_tickets: [], scenarios_needed: needed };
   const summary = await runTriage(gh, 'o/r', {
     event: { action: 'opened', issue: { number: 1, title: 'T', body, author_association: 'MEMBER', labels: [] } },
     config,
-    loadSkill: async () => ({ system: 'S', schema, version: '0.3.0', model: 'm' }),
-    callModel: async () => structuredClone(reply),
+    loadSkill: skills,
+    callModel: async ({ model, user }) => {
+      if (model === 'm') return structuredClone(reply);
+      prompts.push(user);
+      const d = drafts.shift();
+      if (d instanceof Error) throw d;
+      return structuredClone(d);
+    },
   });
   const posted = postedOf(gh);
-  return { summary, labelCalls: labelCallsOf(gh), posted, status: posted.at(-1) };
+  return { summary, labelCalls: labelCallsOf(gh), posted, status: posted.at(-1), prompts };
 }
 
 test('triage: with scenarios needed, the form\'s Gherkin goes in the scenarios comment and the issue needs approval', async () => {
@@ -68,7 +80,7 @@ test('triage: Gherkin that doesn\'t parse isn\'t posted; the status says why', a
 test('triage: always requires scenarios whatever the model says; auto follows it; off ignores them', async () => {
   const always = await triage({ config: ALWAYS, needed: false });
   assert.ok(always.labelCalls.at(-1).startsWith('+scaffold:needs-gherkin'));
-  assert.match(always.status, /\| Scenarios \| ⏳ no scenarios yet \|/);
+  assert.match(always.status, /\| Scenarios \| 📝 \[1 drafted\]\(.*\): waiting for a listed approver \|/);
   const auto = await triage({ needed: false });
   assert.ok(auto.labelCalls.at(-1).startsWith('+scaffold:ready'));
   assert.match(auto.status, /\| Scenarios \| ➖ not needed \(triage decided; a member can add `scaffold:needs-gherkin`\) \|/);
@@ -188,4 +200,104 @@ test('the manual scenarios template makes the same marked comment, and its Gherk
   const g = parseGherkin(scenariosText(manual));
   assert.deepEqual(g.errors, []);
   assert.deepEqual(g.scenarios[0].tags, ['@scaffold-<issue>-S1']);
+});
+
+test('triage drafts scenarios in the same run when none are given, retrying once if they don\'t parse', async () => {
+  const { posted, prompts, summary } = await triage({ drafts: [{ gherkin: 'Scenario: x', notes: [] }, { gherkin: GHERKIN, notes: ['Is @ops told?'] }] });
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[0], /<untrusted_triage>\n\{\n  "summary": "s"/);
+  assert.match(prompts[1], /Your previous Gherkin didn't parse; fix these:\n- line 1: expected `Feature:` first/);
+  const scenarios = posted.find((b) => b.startsWith(SCENARIOS_MARKER));
+  assert.match(scenarios, /Source: drafted by gherkin-writer v0\.1\.0 · w · AI-generated: check before approving/);
+  assert.match(scenarios, /\*\*Check before approving\*\*\n\n- Is @​ops told\?/);
+  assert.match(summary, /\| gherkin-writer \| 0\.1\.0 \| w \| `[0-9a-f]{16}` \| 1 scenarios drafted \|/);
+});
+
+test('triage keeps existing scenarios, and a failed draft still leaves the issue needing scenarios', async () => {
+  const kept = await triage({ comments: [{ id: 5, user: bot, body: `${SCENARIOS_MARKER}\nold`, html_url: 'old' }] });
+  assert.deepEqual(kept.prompts, []);
+  assert.match(kept.status, /\| Scenarios \| 📝 \[scenarios\]\(old\): waiting/);
+  const failed = await triage({ drafts: [new Error('boom')] });
+  assert.ok(failed.labelCalls.at(-1).startsWith('+scaffold:needs-gherkin'));
+  assert.ok(!failed.posted.some((b) => b.startsWith(SCENARIOS_MARKER)));
+  assert.match(failed.status, /⚠️ drafting scenarios failed: the model call failed/);
+  assert.match(failed.status, /a member comments `\/gherkin`/);
+});
+
+// /gherkin against a fake issue.
+async function gherkinCmd({ labels = ['scaffold:needs-gherkin'], body = '/gherkin cover lockout', association = 'MEMBER', config = AUTO, configError, comments = [], drafts = [{ gherkin: GHERKIN, notes: [] }] } = {}) {
+  const { runGherkin } = await import('../gherkin.mjs');
+  const gh = fakeGh({
+    '/repos/o/r/issues/1/comments': (path) => (path.includes('?page=') ? comments : { html_url: 'c' }),
+    '/repos/o/r/issues/1/labels': null,
+    '/repos/o/r/issues/comments/': { html_url: 'c' },
+    '/repos/o/r/issues/1': { number: 1, title: 'T', body: 'B', user: { login: 'author' }, labels: labels.map((name) => ({ name })) },
+  });
+  const prompts = [];
+  const result = await runGherkin(gh, 'o/r', {
+    event: { action: 'created', issue: { number: 1 }, comment: { id: 99, body, author_association: association, user: { type: 'User' } } },
+    config: configError ? undefined : config,
+    configError,
+    loadSkill: skills,
+    callModel: async ({ user }) => {
+      prompts.push(user);
+      const d = drafts.shift();
+      if (d instanceof Error) throw d;
+      return structuredClone(d);
+    },
+  });
+  const reactions = gh.calls.filter(([, path]) => path.endsWith('/reactions')).map(([, , b]) => b.content);
+  const posted = postedOf(gh).filter(Boolean);
+  return { ...result, labelCalls: labelCallsOf(gh), posted, status: posted.at(-1), reactions, prompts };
+}
+
+test('/gherkin drafts scenarios with the guidance and leaves them for approval', async () => {
+  const { labelCalls, posted, status, reactions, prompts } = await gherkinCmd();
+  assert.deepEqual(reactions, ['eyes']);
+  assert.match(prompts[0], /<untrusted_guidance>\ncover lockout\n<\/untrusted_guidance>/);
+  assert.ok(posted.some((b) => b?.startsWith(SCENARIOS_MARKER)));
+  assert.deepEqual(labelCalls, ['+scaffold:needs-gherkin']);
+  assert.match(status, /\| Scenarios \| 📝 \[1 drafted\]\(c\): waiting for a listed approver \|/);
+});
+
+test('/gherkin redrafts from the current scenarios and withdraws approvals', async () => {
+  const current = { id: 5, user: bot, body: renderScenarios(GHERKIN, { issue: 1, source: 't' }).body, html_url: 'u' };
+  const { labelCalls, status, prompts } = await gherkinCmd({ labels: ['scaffold:gherkin-approved', 'scaffold:planned', 'scaffold:plan-approved'], comments: [current] });
+  assert.match(prompts[0], /<untrusted_previous_scenarios>\nFeature: Login\n  @scaffold-1-S1/);
+  assert.deepEqual(labelCalls, ['-scaffold:gherkin-approved', '-scaffold:plan-approved', '+scaffold:needs-gherkin']);
+  assert.match(status, /1 redrafted/);
+  assert.match(status, /\| Approval \| ⏳ withdrawn: the scenarios changed \|/);
+  assert.match(status, /then a member comments `\/plan` again/);
+});
+
+test('/gherkin is refused for non-members, before triage, when scenarios are off, or on invalid config', async () => {
+  for (const [opts, skip] of [
+    [{ association: 'NONE' }, /members only/],
+    [{ labels: ['scaffold:needs-info'] }, /not triaged yet/],
+    [{ config: OFF }, /gherkin: off/],
+    [{ configError: 'bad' }, /invalid config: bad/],
+  ]) {
+    const r = await gherkinCmd(opts);
+    assert.match(r.skip, skip);
+    assert.deepEqual(r.reactions, ['confused']);
+    assert.deepEqual(r.prompts, []);
+    assert.deepEqual(r.labelCalls, []);
+  }
+});
+
+test('a failed /gherkin keeps the current scenarios and approval', async () => {
+  const { labelCalls, posted, status } = await gherkinCmd({ labels: ['scaffold:gherkin-approved', 'scaffold:ready'], drafts: [new Error('boom')] });
+  assert.deepEqual(labelCalls, []);
+  assert.ok(!posted.some((b) => b.startsWith(SCENARIOS_MARKER)));
+  assert.match(status, /⚠️ `\/gherkin` failed: the model call failed/);
+});
+
+test('gherkin-writer loads from the intake package with the standard tier', async () => {
+  const { loadSkill } = await import('../../core/lib/skills.mjs');
+  const { fileURLToPath } = await import('node:url');
+  const skill = await loadSkill(fileURLToPath(new URL('..', import.meta.url)), 'gherkin-writer');
+  const models = await readFile(new URL('../../core/config/models.yml', import.meta.url), 'utf8');
+  assert.equal(skill.model, models.match(/^standard:\s*(\S+)/m)[1]);
+  assert.deepEqual(skill.schema, writerSchema);
+  assert.ok(skill.system.startsWith('# Gherkin writer'));
 });

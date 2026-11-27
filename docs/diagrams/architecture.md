@@ -108,6 +108,7 @@ flowchart LR
   end
   subgraph w_triage_yml["triage.yml"]
     w_triage_yml_triage["triage"]
+    w_triage_yml_gherkin["gherkin"]
     w_triage_yml_gate["gate"]
   end
   subgraph w_usage_report_yml["usage-report.yml"]
@@ -124,6 +125,7 @@ flowchart LR
   w_plan_yml_plan --> a_packages_plan_actions_plan["packages/plan/actions/plan"]
   w_plan_yml_gate --> a_packages_plan_actions_gate["packages/plan/actions/gate"]
   w_triage_yml_triage --> a_packages_intake_actions_triage["packages/intake/actions/triage"]
+  w_triage_yml_gherkin --> a_packages_intake_actions_gherkin["packages/intake/actions/gherkin"]
   w_triage_yml_gate --> a_packages_intake_actions_gate["packages/intake/actions/gate"]
   w_usage_report_yml_usage_report --> a_packages_core_actions_usage_report["packages/core/actions/usage-report"]
 ```

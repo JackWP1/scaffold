@@ -1,4 +1,4 @@
-# Reusable intake workflow: triage (slice 1) and the scenarios gate (slice 2b). Called from a repo's thin caller workflow.
+# Reusable intake workflow: triage (slice 1), /gherkin and the scenarios gate (slice 2b). Called from a repo's thin caller workflow.
 # The action reads `stages` first and does nothing else when intake is off (PLAN.md section 5).
 name: SCAFFOLD triage
 on:
@@ -28,6 +28,22 @@ jobs:
       - uses: JackWP1/scaffold/packages/intake/actions/triage@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
         with:
           model: ${{ inputs.model }}
+
+  # Shares the scenarios gate's per-issue group, so a redraft and an approval can't interleave.
+  gherkin:
+    if: vars.SCAFFOLD_ENABLED != 'false' && github.event_name == 'issue_comment' && github.event.action == 'created' && !github.event.issue.pull_request && startsWith(github.event.comment.body, '/gherkin')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: scaffold-scenarios-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+      contents: read
+      copilot-requests: write
+    steps:
+      # Pinned to a release SHA by scripts/release.sh (PLAN.md section 5).
+      - uses: JackWP1/scaffold/packages/intake/actions/gherkin@fba2e6e168333e884140facc8129c48814c58b02 # v0.5.0
 
   # Deterministic, so the kill switch doesn't skip it. Any edit to or deletion of a bot comment: the gate
   # works out whether it was the scenarios, even if the edit removed the marker.

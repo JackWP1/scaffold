@@ -7,7 +7,8 @@ import { RateLimited } from '../core/lib/models.mjs';
 import { issueSteps } from '../core/lib/issue.mjs';
 import { renderTriage, renderNotice } from './render.mjs';
 import { usesTemplate, formGherkin } from './template.mjs';
-import { renderScenarios, parseProblem, SCENARIOS_MARKER } from './scenarios.mjs';
+import { renderScenarios, parseProblem, SCENARIOS_MARKER, APPROVE_NEXT } from './scenarios.mjs';
+import { draftScenarios, draftAudit } from './writer.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 // Re-triage resets the lifecycle, so a planned or approved issue needs /plan again (PLAN.md section 8).
@@ -16,12 +17,12 @@ export const STATE_LABELS = ['scaffold:triage', 'scaffold:needs-info', 'scaffold
 const PLAN_MARKER = '<!-- scaffold:plan -->';
 
 const heading = '### SCAFFOLD triage';
-const APPROVE_NEXT = 'a listed approver reviews the scenarios and applies `scaffold:gherkin-approved`.';
 
 // Whether a ready issue needs approved scenarios first (PLAN.md section 2, Scenarios).
 export const scenariosRequired = (mode, triageSays) => mode === 'always' || (mode === 'auto' && triageSays);
 
-// Returns the job summary (markdown). `config` is null when `configError` is set.
+// Returns the job summary (markdown). `config` is null when `configError` is set. `loadSkill(name)` loads
+// `triage`, or `gherkin-writer` to draft scenarios in the same run.
 export async function runTriage(gh, repo, { event, config, configError, loadSkill, callModel }) {
   const issue = event.issue;
   const labels = issue.labels.map((l) => l.name);
@@ -51,7 +52,7 @@ export async function runTriage(gh, repo, { event, config, configError, loadSkil
   const tooBig = labels.includes('scaffold:too-big');
   await setLabels(['scaffold:triage'], STATE_LABELS);
 
-  const { system, schema, version: skillVersion, model } = await loadSkill();
+  const { system, schema, version: skillVersion, model } = await loadSkill('triage');
   const parts = ['Triage this issue.', wrapUntrusted('untrusted_issue', `Title: ${issue.title}\n\n${issue.body ?? ''}`)];
   if (tooBig) {
     const plan = await findComment(PLAN_MARKER);
@@ -86,7 +87,9 @@ export async function runTriage(gh, repo, { event, config, configError, loadSkil
   const split = out.proposed_tickets.length > 0;
   const needsScenarios = !split && out.decision === 'ready' && scenariosRequired(config.gherkin, out.scenarios_needed);
 
-  // The author's scenarios go in the scenarios comment for approval; gherkin-writer drafts them otherwise.
+  // The author's scenarios go in the scenarios comment for approval; existing ones are kept;
+  // otherwise gherkin-writer drafts them in this run (PLAN.md section 2, Scenarios).
+  let draft;
   async function scenarios() {
     const fromForm = formGherkin(issue.body);
     if (fromForm) {
@@ -99,7 +102,15 @@ export async function runTriage(gh, repo, { event, config, configError, loadSkil
     }
     const existing = await findComment(SCENARIOS_MARKER);
     if (existing) return { state: `📝 [scenarios](${existing.html_url}): waiting for a listed approver`, next: APPROVE_NEXT };
-    return { state: '⏳ no scenarios yet', next: 'write scenarios in the issue\'s Scenarios (Gherkin) field, then add the `scaffold:triage` label.' };
+    draft = await draftScenarios({ issue, triage: JSON.stringify({ summary: out.summary, brief: out.brief }, null, 2), approvers: config.approvers, loadSkill, callModel });
+    if (draft.error) {
+      return {
+        state: `⚠️ drafting scenarios failed: ${draft.error}`,
+        next: 'a member comments `/gherkin` to draft scenarios, or the author writes them in the issue\'s Scenarios (Gherkin) field and adds the `scaffold:triage` label.',
+      };
+    }
+    const c = await upsertComment(SCENARIOS_MARKER, draft.body);
+    return { state: `📝 [${draft.count} drafted](${c.html_url}): waiting for a listed approver`, next: APPROVE_NEXT };
   }
   const scenarioState = needsScenarios ? await scenarios() : undefined;
 
@@ -114,6 +125,8 @@ export async function runTriage(gh, repo, { event, config, configError, loadSkil
     '| Skill | Version | Model | Input hash | Decision |',
     '| --- | --- | --- | --- | --- |',
     `| triage | ${skillVersion} | ${model} | \`${inputHash}\` | ${split ? `too big: ${out.proposed_tickets.length} smaller tickets proposed` : needsScenarios ? 'needs-gherkin' : out.decision} |`,
+    '',
+    ...(draft ? ['', ...draftAudit(draft)] : []),
     '',
     '<details><summary>Validated output</summary>',
     '',

@@ -9,14 +9,9 @@ import { escapeForComment } from '../core/lib/text.mjs';
 import { checkApproval } from '../core/lib/approval.mjs';
 import { stageOn } from '../core/lib/config.mjs';
 import { parseGherkin, scenariosText, SCENARIOS_MARKER } from '../core/lib/gherkin.mjs';
-import { parseProblem } from './scenarios.mjs';
+import { parseProblem, APPROVED, NEEDS, NOT_TRIAGED, APPROVE_NEXT } from './scenarios.mjs';
 
-const APPROVED = 'scaffold:gherkin-approved';
-const NEEDS = 'scaffold:needs-gherkin';
 const PLANNED = ['scaffold:planned', 'scaffold:plan-approved'];
-// Before triage has finished: scenarios approval doesn't apply yet.
-const NOT_TRIAGED = ['scaffold:triage', 'scaffold:needs-info', 'scaffold:proposed', 'scaffold:too-big'];
-const APPROVE_NEXT = 'a listed approver reviews the scenarios and applies `scaffold:gherkin-approved`.';
 const heading = '### SCAFFOLD scenarios gate';
 
 const hours = (from, to) => ((Date.parse(to) - Date.parse(from)) / 3_600_000).toFixed(1);

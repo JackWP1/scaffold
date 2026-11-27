@@ -16,7 +16,8 @@ const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const summary = await runTriage(gh, repo, {
   event,
   ...await tryLoadConfig(gh, repo),
-  loadSkill: () => loadSkill(PACKAGE, 'triage', process.env.SCAFFOLD_MODEL),
+  // The model input overrides the fast tier, so only triage's model.
+  loadSkill: (name) => loadSkill(PACKAGE, name, name === 'triage' ? process.env.SCAFFOLD_MODEL : undefined),
   callModel: (args) => callModel({ token, ...args }),
 });
 if (summary.includes('\nSkipped: ')) console.log(summary.split('\n')[1]);
