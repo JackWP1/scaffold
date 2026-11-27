@@ -27,10 +27,18 @@ export function cleanLog(text, max = LOG_TAIL) {
   return clean.length > max ? `…\n${clean.slice(-max)}` : clean;
 }
 
+// Belt and braces: Actions masks registered secrets in logs, and the skill redacts, but a token-shaped
+// string in model output is replaced before it's posted.
+export const redact = (text) => String(text ?? '')
+  .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,})\b/g, '<REDACTED>')
+  .replace(/\b(Bearer|token)\s+[A-Za-z0-9._~+/=-]{16,}/gi, '$1 <REDACTED>');
+
 // Longer than any backtick run in the text, so a log excerpt can't close its fence.
 const fence = (text) => '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map(([m]) => m.length + 1)));
 
-export function renderDiagnosis(out, { sha, runs, skillVersion, model }) {
+export function renderDiagnosis(raw, { sha, runs, skillVersion, model }) {
+  const out = JSON.parse(JSON.stringify(raw), (k, v) => (typeof v === 'string' ? redact(v) : v));
+  const loopFence = fence(out.loop);
   return [
     `${DIAGNOSIS_MARKER} ${sha} -->`,
     `### SCAFFOLD CI diagnosis: ${sha.slice(0, 7)}`,
@@ -43,7 +51,14 @@ export function renderDiagnosis(out, { sha, runs, skillVersion, model }) {
     '',
     `**Cause:** ${e(out.cause)}`,
     '',
+    '**Reproduce:** this should go red on the failure locally.',
+    '',
+    `${loopFence}sh`,
+    out.loop,
+    loopFence,
+    '',
     `**Fix:** ${e(out.fix)}`,
+    ...(out.hypotheses.length ? ['', '**Hypotheses**, most likely first:', '', ...out.hypotheses.map((h, i) => `${i + 1}. ${e(h.cause)} *Test:* ${e(h.prediction)}`)] : []),
     ...out.evidence.flatMap((x) => {
       const f = fence(x.excerpt);
       return ['', `<details><summary>${e(x.job)}</summary>`, '', `${f}text`, x.excerpt, f, '', '</details>'];

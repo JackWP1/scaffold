@@ -44,6 +44,7 @@ function reviewGh({ reviews = [], files = [{ filename: 'src/a.js', status: 'modi
     '/repos/o/r/issues/7/comments': [],
     '/repos/o/r/issues/7/events': [],
     '/repos/o/r/issues/7': { number: 7, title: 'Login', body: 'Users sign in', user: { login: 'carol' }, labels: [] },
+    '/repos/o/r/contents/CONTRIBUTING.md': { content: Buffer.from('Use early returns.').toString('base64') },
     '/repos/o/r/contents/': new Error('GET: 404 Not Found'),
   });
 }
@@ -64,6 +65,7 @@ test('code-review posts one COMMENT review: inline, on the file, or in the body'
   const { posted, prompts, lines } = await review();
   assert.match(prompts[0], /<untrusted_diff>\n--- src\/a\.js \(modified\)/);
   assert.match(prompts[0], /<untrusted_issue>\nTitle: Login/);
+  assert.match(prompts[0], /<untrusted_standards>\n## CONTRIBUTING\.md\n\nUse early returns\./);
   assert.equal(posted.length, 1);
   const [r] = posted;
   assert.equal(r.event, 'COMMENT');
@@ -113,12 +115,14 @@ test('ci-diagnose: log tails are cleaned; the comment escapes text and fences ex
   assert.equal(cleanLog('2026-11-20T10:00:00.1234567Z \x1b[31mError\x1b[0m: boom'), 'Error: boom');
   assert.equal(cleanLog('x'.repeat(10), 4), '…\nxxxx');
   const body = renderDiagnosis(
-    { summary: 'Test fails @team', cause: '<b>null</b>', category: 'code', confidence: 'high', evidence: [{ job: 'test', excerpt: 'expected ``` 1' }], fix: 'Check null' },
+    { summary: 'Test fails @team', cause: '<b>null</b>', hypotheses: [{ cause: 'null user', prediction: 'a guard fixes it' }], category: 'code', confidence: 'high', loop: 'npm test -- a', evidence: [{ job: 'test', excerpt: 'expected ``` 1 token ghp_abcdefghijklmnopqrstuvwxyz0123' }], fix: 'Check null' },
     { sha: 'abc1234', runs: [{ name: 'CI', html_url: 'https://github.com/o/r/actions/runs/1' }], skillVersion: '0.1.0', model: 'std' },
   );
   assert.ok(body.startsWith(`${DIAGNOSIS_MARKER} abc1234 -->`));
   assert.ok(!body.includes('@team') && !body.includes('<b>'));
-  assert.match(body, /````text\nexpected ``` 1\n````/);
+  assert.match(body, /````text\nexpected ``` 1 token <REDACTED>\n````/);
+  assert.match(body, /```sh\nnpm test -- a\n```/);
+  assert.match(body, /1\. null user \*Test:\* a guard fixes it/);
 });
 
 function diagnoseGh({ runs = [{ id: 9, name: 'CI', head_sha: 'abc1234', status: 'completed', conclusion: 'failure', created_at: '2026-11-20T10:00:00Z', html_url: 'h' }], comments = [] } = {}) {
@@ -130,7 +134,7 @@ function diagnoseGh({ runs = [{ id: 9, name: 'CI', head_sha: 'abc1234', status: 
     '/repos/o/r/issues/4/comments': (path) => (path.includes('page=') ? comments : { html_url: 'c' }),
   });
 }
-const diagnosis = { summary: 'A test fails', cause: 'off by one', category: 'code', confidence: 'medium', evidence: [{ job: 'test', excerpt: 'expected 1 got 2' }], fix: 'Fix the loop' };
+const diagnosis = { summary: 'A test fails', cause: 'off by one', hypotheses: [{ cause: 'loop bound', prediction: 'using < fixes it' }], category: 'code', confidence: 'medium', loop: 'npm test -- src/a.test.js', evidence: [{ job: 'test', excerpt: 'expected 1 got 2' }], fix: 'Fix the loop' };
 async function diagnose({ gh = diagnoseGh(), cfg = config, reply = diagnosis, event = { pull_request: pr() } } = {}) {
   const prompts = [];
   const result = await runCiDiagnose(gh, 'o/r', {
@@ -164,4 +168,10 @@ test('ci-diagnose: nothing to do without ci_workflows, without a failure, or onc
 test('schemas reject what the skills must not return', () => {
   assert.ok(validate(reviewSchema, { summary: 's', comments: [comment('a', 1, 'x', { axis: 'style' })] }).length);
   assert.ok(validate(diagnoseSchema, { ...diagnosis, confidence: 'certain' }).length);
+});
+
+test('redaction replaces token-shaped strings before a diagnosis is posted', async () => {
+  const { redact } = await import('../diagnoser.mjs');
+  assert.equal(redact('ghp_abcdefghijklmnopqrstuvwxyz0123 and Authorization: Bearer abcdefghijklmnop1234'), '<REDACTED> and Authorization: Bearer <REDACTED>');
+  assert.equal(redact('expected 1 got 2'), 'expected 1 got 2');
 });

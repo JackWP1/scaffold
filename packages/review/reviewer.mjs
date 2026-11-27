@@ -19,6 +19,7 @@ const BOT = 'github-actions[bot]';
 // The plan package's marked comment (handover contract, PLAN.md section 5): read, never imported.
 const PLAN_MARKER = '<!-- scaffold:plan -->';
 const MAX_DIFF_CHARS = 60_000;
+const STANDARDS = ['CODING_STANDARDS.md', 'CONTRIBUTING.md', 'PRECEDENTS.md'];
 const runMarker = (sha) => `<!-- scaffold:code-review-run ${sha} -->`;
 const heading = '### SCAFFOLD code-review';
 
@@ -84,8 +85,13 @@ export async function runCodeReview(gh, repo, { event, config, loadSkill, callMo
     const scenarios = await approvedScenarios(gh, repo, issue, config);
     if (scenarios.ok) parts.push(wrapUntrusted('untrusted_scenarios', scenariosText(scenarios.comment.body)));
   }
-  const precedents = await readRepoFile(gh, repo, 'PRECEDENTS.md', pr.base.sha);
-  if (precedents) parts.push(wrapUntrusted('untrusted_precedents', precedents));
+  // The repo's documented standards, from the base commit so a PR can't rewrite what it's reviewed against.
+  const standards = [];
+  for (const path of STANDARDS) {
+    const text = await readRepoFile(gh, repo, path, pr.base.sha);
+    if (text) standards.push(`## ${path}\n\n${text}`);
+  }
+  if (standards.length) parts.push(wrapUntrusted('untrusted_standards', standards.join('\n\n')));
   const user = parts.join('\n\n');
   const inputHash = createHash('sha256').update(user).digest('hex').slice(0, 16);
 
