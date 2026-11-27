@@ -81,10 +81,12 @@ export async function runCiDiagnose(gh, repo, { event, config, loadSkill, callMo
   const { findComment, upsertComment } = issueSteps(gh, repo, pr.number, []);
   if ((await findComment(`${DIAGNOSIS_MARKER} ${sha} -->`))) return { skip: `already diagnosed ${sha.slice(0, 7)}` };
 
+  // All at once, so they share one deadline (15 minutes by default, inside the job's 30-minute timeout)
+  // however many workflows are listed.
+  const results = await Promise.all(config.ci_workflows.map(async (workflow) => ({ workflow, ...await waitForRun(gh, repo, workflow, sha, wait) })));
   const runs = [];
   const notes = [];
-  for (const workflow of config.ci_workflows) {
-    const { run, pending, missing, notFound } = await waitForRun(gh, repo, workflow, sha, wait);
+  for (const { workflow, run, pending, missing, notFound } of results) {
     if (notFound) notes.push(`\`${workflow}\`: workflow not found`);
     else if (missing) notes.push(`\`${workflow}\`: no run on ${sha.slice(0, 7)}`);
     else if (pending) notes.push(`\`${workflow}\`: still running at the deadline`);

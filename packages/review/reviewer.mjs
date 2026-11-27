@@ -73,7 +73,8 @@ export async function runCodeReview(gh, repo, { event, config, loadSkill, callMo
     wrapUntrusted('untrusted_pr', `Title: ${pr.title}\n\n${pr.body ?? ''}`),
     wrapUntrusted('untrusted_diff', diff.text, MAX_DIFF_CHARS),
   ];
-  if (diff.truncated.length) parts.push(`These files are left out of the diff because it's too long: ${diff.truncated.slice(0, 50).join(', ')}.`);
+  // File names come from the PR, so they stay inside an untrusted wrapper.
+  if (diff.truncated.length) parts.push('These files are left out of the diff because it\'s too long:', wrapUntrusted('untrusted_left_out_files', diff.truncated.slice(0, 50).join('\n')));
   if (issue) {
     const meta = await gh.get(`/repos/${repo}/issues/${issue}`);
     const steps = issueSteps(gh, repo, issue, meta.labels.map((l) => l.name));

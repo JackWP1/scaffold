@@ -1,5 +1,5 @@
 # SCAFFOLD settings for this repo (PLAN.md sections 5, 6 and 8). Protect with CODEOWNERS.
-# scaffold-config-guard requires a listed approver's review for changes to stages, approvers, gherkin, bdd and limits.
+# scaffold-config-guard requires a listed approver's review for changes to stages, approvers, gherkin, bdd, ci_workflows and limits.
 
 # Packages on (true) or off (false). A package not listed is off; when one is off, humans do that
 # stage by hand (packages/<stage>/HANDOFF.md). Only released packages can be turned on.

@@ -212,7 +212,7 @@ approvers: [login]
 flow_lead: login
 ```
 
-Defaults are the values above, except `stages` (a package not listed is off) and `bdd` (no default; required unless `gherkin` is `off`). `gherkin` defaults to `off`, so configs written before scenarios existed stay valid; turning scenarios on means setting `gherkin` and adding `bdd` in the same config PR. A change to `stages`, `approvers`, `gherkin`, `bdd` or any limit needs approval from a listed approver (`scaffold-config-guard`, section 4). A limit belongs to the package that enforces it. When that package is off, the limit isn't enforced and the humans doing the stage apply it; the hard size limit is a baseline check and always applies.
+Defaults are the values above, except `stages` (a package not listed is off) and `bdd` (no default; required unless `gherkin` is `off`). `gherkin` defaults to `off`, so configs written before scenarios existed stay valid; turning scenarios on means setting `gherkin` and adding `bdd` in the same config PR. A change to `stages`, `approvers`, `gherkin`, `bdd`, `ci_workflows` (it decides which logs go to a model) or any limit needs approval from a listed approver (`scaffold-config-guard`, section 4). A limit belongs to the package that enforces it. When that package is off, the limit isn't enforced and the humans doing the stage apply it; the hard size limit is a baseline check and always applies.
 
 ### Handoffs
 
